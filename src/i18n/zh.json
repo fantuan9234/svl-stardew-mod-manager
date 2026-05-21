@@ -8,6 +8,7 @@
     },
     "toolbox": {
       "title": "工具箱",
+      "loadingMods": "正在加载模组列表...",
       "updateChecker": "更新检查",
       "conflictDetector": "冲突检测",
       "storageAnalyzer": "空间分析",

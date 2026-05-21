@@ -26,20 +26,12 @@ import {
 
 const { Text, Title } = Typography;
 
-function UpdateCheckerTab() {
+function UpdateCheckerTab({ mods }: { mods: ModInfo[] }) {
   const { t } = useTranslation();
-  const [mods, setMods] = useState<ModInfo[]>([]);
   const [updates, setUpdates] = useState<ModUpdateStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-
-  const loadMods = useCallback(async () => {
-    try {
-      const result = await scanMods();
-      setMods(result);
-    } catch {}
-  }, []);
 
   const checkUpdates = useCallback(async () => {
     if (mods.length === 0) return;
@@ -63,10 +55,6 @@ function UpdateCheckerTab() {
       setLoading(false);
     }
   }, [mods, t]);
-
-  useEffect(() => {
-    loadMods();
-  }, [loadMods]);
 
   const handleBatchUpdate = async () => {
     if (selectedRowKeys.length === 0) return;
@@ -248,22 +236,10 @@ function UpdateCheckerTab() {
   );
 }
 
-function ConflictDetectorTab() {
+function ConflictDetectorTab({ mods }: { mods: ModInfo[] }) {
   const { t } = useTranslation();
   const [conflicts, setConflicts] = useState<ConflictReport[]>([]);
   const [loading, setLoading] = useState(false);
-  const [mods, setMods] = useState<ModInfo[]>([]);
-
-  const loadMods = useCallback(async () => {
-    try {
-      const result = await scanMods();
-      setMods(result);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    loadMods();
-  }, [loadMods]);
 
   const checkAllConflicts = async () => {
     if (mods.length === 0) return;
@@ -374,22 +350,10 @@ function ConflictDetectorTab() {
   );
 }
 
-function StorageAnalyzerTab() {
+function StorageAnalyzerTab({ mods }: { mods: ModInfo[] }) {
   const { t } = useTranslation();
   const [analysis, setAnalysis] = useState<StorageAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [mods, setMods] = useState<ModInfo[]>([]);
-
-  const loadMods = useCallback(async () => {
-    try {
-      const result = await scanMods();
-      setMods(result);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    loadMods();
-  }, [loadMods]);
 
   const analyze = async () => {
     if (mods.length === 0) return;
@@ -441,7 +405,7 @@ function StorageAnalyzerTab() {
     },
   ];
 
-  const enabledPercent = analysis
+  const enabledPercent = analysis && analysis.total_size_bytes > 0
     ? Math.round((analysis.enabled_size_bytes / analysis.total_size_bytes) * 100)
     : 0;
 
@@ -521,6 +485,19 @@ function StorageAnalyzerTab() {
 
 export default function Toolbox() {
   const { t } = useTranslation();
+  const [mods, setMods] = useState<ModInfo[]>([]);
+  const [modsLoaded, setModsLoaded] = useState(false);
+
+  useEffect(() => {
+    scanMods()
+      .then(result => {
+        setMods(result);
+        setModsLoaded(true);
+      })
+      .catch(() => {
+        setModsLoaded(true);
+      });
+  }, []);
 
   const tabItems = [
     {
@@ -531,7 +508,7 @@ export default function Toolbox() {
           {t('app.toolbox.updateChecker')}
         </span>
       ),
-      children: <UpdateCheckerTab />,
+      children: <UpdateCheckerTab mods={mods} />,
     },
     {
       key: 'conflicts',
@@ -541,7 +518,7 @@ export default function Toolbox() {
           {t('app.toolbox.conflictDetector')}
         </span>
       ),
-      children: <ConflictDetectorTab />,
+      children: <ConflictDetectorTab mods={mods} />,
     },
     {
       key: 'storage',
@@ -551,9 +528,20 @@ export default function Toolbox() {
           {t('app.toolbox.storageAnalyzer')}
         </span>
       ),
-      children: <StorageAnalyzerTab />,
+      children: <StorageAnalyzerTab mods={mods} />,
     },
   ];
+
+  if (!modsLoaded) {
+    return (
+      <div style={{ padding: '24px', textAlign: 'center', paddingTop: '80px' }}>
+        <Spin size="large" />
+        <div style={{ marginTop: 12, color: 'var(--svl-text-muted)' }}>
+          {t('app.toolbox.loadingMods')}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '24px' }}>

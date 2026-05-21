@@ -897,6 +897,7 @@
     },
     "toolbox": {
       "title": "Toolbox",
+      "loadingMods": "Loading mod list...",
       "updateChecker": "Update Checker",
       "conflictDetector": "Conflict Detector",
       "storageAnalyzer": "Storage Analyzer",
