@@ -1,24 +1,17 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Table, Tag, Space, Spin, Empty, Progress, Card, Typography, message, Alert } from 'antd';
+import { Button, Table, Tag, Space, Spin, Empty, Progress, Card, Typography, message } from 'antd';
 import {
-  CloudDownloadOutlined,
-  ThunderboltOutlined,
   DatabaseOutlined,
   WarningOutlined,
   InfoCircleOutlined,
-  DownloadOutlined,
   ExclamationCircleOutlined,
   ArrowLeftOutlined,
 } from '@ant-design/icons';
 import {
   scanMods,
-  checkAllModsUpdates,
-  batchUpdateMods,
-  downloadModUpdate,
   checkConflicts,
   analyzeModStorage,
-  type ModUpdateStatus,
   type ConflictReport,
   type ModStorageInfo,
   type StorageAnalysisResult,
@@ -26,153 +19,7 @@ import {
 
 const { Text, Title } = Typography;
 
-type ToolView = 'home' | 'updates' | 'conflicts' | 'storage';
-
-function UpdateCheckerView({ onBack }: { onBack: () => void }) {
-  const { t } = useTranslation();
-  const [updates, setUpdates] = useState<ModUpdateStatus[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [updating, setUpdating] = useState(false);
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [modsLoaded, setModsLoaded] = useState(false);
-
-  const loadModsAndCheck = async () => {
-    setLoading(true);
-    setUpdates([]);
-    setSelectedRowKeys([]);
-    try {
-      const modsResult = await scanMods();
-      setModsLoaded(true);
-
-      const apiKey = localStorage.getItem('svl-nexus-api-key') || '';
-      const modsData = modsResult.map(m => ({
-        unique_id: m.unique_id,
-        version: m.version,
-        name: m.name,
-        folder_path: m.folder_path,
-        nexus_mod_id: m.nexus_mod_id?.toString() || null,
-      }));
-      const result = await checkAllModsUpdates(modsData, apiKey);
-      setUpdates(result);
-    } catch (e: any) {
-      message.error(e?.toString() || t('app.toolbox.updateCheckFailed'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleBatchUpdate = async () => {
-    if (selectedRowKeys.length === 0) return;
-    const apiKey = localStorage.getItem('svl-nexus-api-key') || '';
-    if (!apiKey) { message.warning(t('app.toolbox.needApiKey')); return; }
-    const gamePath = localStorage.getItem('svl-game-path') || '';
-    if (!gamePath) { message.warning(t('app.toolbox.needGamePath')); return; }
-
-    setUpdating(true);
-    try {
-      const selectedMods = selectedRowKeys.map(key => {
-        const update = updates.find(u => u.unique_id === key);
-        return { unique_id: key, name: update?.name || '', nexus_mod_id: update?.nexus_mod_id || null, download_url: update?.download_url || null };
-      });
-      const result = await batchUpdateMods(selectedMods, apiKey, gamePath);
-      if (result.updated > 0) message.success(t('app.toolbox.batchUpdateSuccess', { count: result.updated }));
-      if (result.failed > 0) message.warning(t('app.toolbox.batchUpdateFailed', { count: result.failed }));
-      setSelectedRowKeys([]);
-      loadModsAndCheck();
-    } catch (e: any) {
-      message.error(e?.toString() || t('app.toolbox.updateFailed'));
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const handleSingleUpdate = async (record: ModUpdateStatus) => {
-    const apiKey = localStorage.getItem('svl-nexus-api-key') || '';
-    if (!apiKey) { message.warning(t('app.toolbox.needApiKey')); return; }
-    const gamePath = localStorage.getItem('svl-game-path') || '';
-    if (!gamePath) { message.warning(t('app.toolbox.needGamePath')); return; }
-    if (!record.nexus_mod_id) {
-      if (record.download_url) window.open(record.download_url, '_blank');
-      return;
-    }
-    try {
-      await downloadModUpdate(record.nexus_mod_id, apiKey, gamePath, record.unique_id);
-      message.success(t('app.toolbox.updateSuccess', { name: record.name }));
-      loadModsAndCheck();
-    } catch (e: any) {
-      message.error(e?.toString() || t('app.toolbox.updateFailed'));
-    }
-  };
-
-  const columns = [
-    { title: t('app.toolbox.modName'), dataIndex: 'name', key: 'name', ellipsis: true },
-    { title: t('app.toolbox.currentVersion'), dataIndex: 'current_version', key: 'current_version', width: 110 },
-    {
-      title: t('app.toolbox.latestVersion'), dataIndex: 'latest_version', key: 'latest_version', width: 110,
-      render: (v: string | null) => v ? <Text strong style={{ color: '#52c41a' }}>{v}</Text> : '-',
-    },
-    {
-      title: t('app.toolbox.updateSource'), dataIndex: 'update_source', key: 'update_source', width: 110,
-      render: (source: string) => {
-        const m: Record<string, [string, string]> = { SmapiList: ['blue', 'SMAPI'], NexusApi: ['green', 'Nexus'], UnofficialUpdate: ['orange', t('app.toolbox.unofficial')] };
-        const [c, l] = m[source] || ['default', source];
-        return <Tag color={c}>{l}</Tag>;
-      },
-    },
-    {
-      title: t('app.toolbox.action'), key: 'action', width: 90,
-      render: (_: any, record: ModUpdateStatus) => (
-        <Button size="small" type="primary" icon={<DownloadOutlined />} onClick={() => handleSingleUpdate(record)}>
-          {t('app.toolbox.update')}
-        </Button>
-      ),
-    },
-  ];
-
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={onBack} type="text" />
-        <Title level={4} style={{ margin: 0 }}><CloudDownloadOutlined style={{ marginRight: 8 }} />{t('app.toolbox.updateChecker')}</Title>
-      </div>
-
-      <Space style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<CloudDownloadOutlined />} onClick={loadModsAndCheck} loading={loading}>
-          {modsLoaded ? t('app.toolbox.recheckUpdates') : t('app.toolbox.checkUpdates')}
-        </Button>
-        {selectedRowKeys.length > 0 && (
-          <Button icon={<ThunderboltOutlined />} onClick={handleBatchUpdate} loading={updating}>
-            {t('app.toolbox.batchUpdate')} ({selectedRowKeys.length})
-          </Button>
-        )}
-      </Space>
-
-      {loading && (
-        <div style={{ textAlign: 'center', padding: '60px 0' }}>
-          <Spin size="large" />
-          <div style={{ marginTop: 12, color: 'var(--svl-text-muted)' }}>{t('app.toolbox.checkingUpdates')}</div>
-        </div>
-      )}
-
-      {!loading && updates.length > 0 && (
-        <>
-          <Alert type="success" message={t('app.toolbox.foundUpdates', { count: updates.length })} style={{ marginBottom: 12 }} showIcon />
-          <Table dataSource={updates} columns={columns} rowKey="unique_id" size="small" pagination={false}
-            rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys), getCheckboxProps: (record) => ({ disabled: !record.nexus_mod_id }) }}
-          />
-        </>
-      )}
-
-      {!loading && updates.length === 0 && modsLoaded && (
-        <Empty description={t('app.toolbox.noUpdates')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      )}
-
-      {!loading && !modsLoaded && (
-        <Empty description={t('app.toolbox.clickToCheck')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      )}
-    </div>
-  );
-}
+type ToolView = 'home' | 'conflicts' | 'storage';
 
 function ConflictDetectorView({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation();
@@ -355,7 +202,6 @@ function StorageAnalyzerView({ onBack }: { onBack: () => void }) {
 }
 
 const toolCards = [
-  { key: 'updates' as ToolView, icon: <CloudDownloadOutlined style={{ fontSize: 32, color: '#1890ff' }} />, color: '#1890ff' },
   { key: 'conflicts' as ToolView, icon: <WarningOutlined style={{ fontSize: 32, color: '#fa8c16' }} />, color: '#fa8c16' },
   { key: 'storage' as ToolView, icon: <DatabaseOutlined style={{ fontSize: 32, color: '#52c41a' }} />, color: '#52c41a' },
 ];
@@ -364,7 +210,6 @@ export default function Toolbox() {
   const { t } = useTranslation();
   const [view, setView] = useState<ToolView>('home');
 
-  if (view === 'updates') return <UpdateCheckerView onBack={() => setView('home')} />;
   if (view === 'conflicts') return <ConflictDetectorView onBack={() => setView('home')} />;
   if (view === 'storage') return <StorageAnalyzerView onBack={() => setView('home')} />;
 
