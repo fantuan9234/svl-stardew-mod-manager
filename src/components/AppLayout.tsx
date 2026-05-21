@@ -1,24 +1,25 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense, startTransition } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { MinusOutlined, BorderOutlined, CloseOutlined, SwitcherOutlined } from '@ant-design/icons';
-import { Badge, Modal, Button, Typography, Progress, Tag, message } from 'antd';
+import { MinusOutlined, BorderOutlined, CloseOutlined, SwitcherOutlined, LoadingOutlined } from '@ant-design/icons';
+import { Badge, Modal, Button, Typography, Progress, Tag, message, Spin } from 'antd';
 import { CloudDownloadOutlined, CheckCircleOutlined, SyncOutlined, FolderOutlined, SaveOutlined, CoffeeOutlined, SearchOutlined, GlobalOutlined, ToolOutlined } from '@ant-design/icons';
 import chickenImg from '../assets/chicken.png';
 import HomeModal from './HomeModal';
 import { openUrl } from '../utils/openUrl';
-import ModManager from '../pages/ModManager';
-import NexusModBrowser from '../pages/NexusModBrowser';
-import ProfilesPage from '../pages/ProfilesPage';
-import SavesManager from '../pages/SavesManager';
-import SyncPage from '../pages/SyncPage';
-import Settings from '../pages/Settings';
-import DonatePage from '../pages/DonatePage';
-import LogViewer from '../pages/LogViewer';
-import Toolbox from '../pages/Toolbox';
 import { downloadAppUpdateFromServer, AppUpdateInfo, AppUpdateProgress } from '../utils/tauri-api';
+
+const ModManager = lazy(() => import('../pages/ModManager'));
+const NexusModBrowser = lazy(() => import('../pages/NexusModBrowser'));
+const ProfilesPage = lazy(() => import('../pages/ProfilesPage'));
+const SavesManager = lazy(() => import('../pages/SavesManager'));
+const SyncPage = lazy(() => import('../pages/SyncPage'));
+const Settings = lazy(() => import('../pages/Settings'));
+const DonatePage = lazy(() => import('../pages/DonatePage'));
+const LogViewer = lazy(() => import('../pages/LogViewer'));
+const Toolbox = lazy(() => import('../pages/Toolbox'));
 
 function isTauriEnvironment(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -30,7 +31,7 @@ async function getTauriWindow() {
   return getCurrentWindow();
 }
 
-const pageMap: Record<string, React.ComponentType<any>> = {
+const pageMap: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
   '/mod-manager': ModManager,
   '/nexus-browser': NexusModBrowser,
   '/profiles': ProfilesPage,
@@ -98,7 +99,7 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (location.pathname === '/') {
-      navigate('/mod-manager', { replace: true });
+      startTransition(() => navigate('/mod-manager', { replace: true }));
     }
   }, [location.pathname, navigate]);
 
@@ -207,7 +208,7 @@ export default function AppLayout() {
   };
 
   const handleLogClick = () => {
-    navigate('/log-viewer');
+    startTransition(() => navigate('/log-viewer'));
   };
 
   const handleForceDownload = async () => {
@@ -331,7 +332,7 @@ export default function AppLayout() {
                 <div
                   key={item.key}
                   className={`svl-nav-item ${isActive ? 'active' : ''}`}
-                  onClick={() => navigate(item.key)}
+                  onClick={() => startTransition(() => navigate(item.key))}
                 >
                   <span className="svl-nav-icon">{item.icon}</span>
                   <span>{t(item.label)}</span>
@@ -361,10 +362,16 @@ export default function AppLayout() {
         </aside>
 
         <main className="svl-main">
-          {(() => {
-            const PageComponent = pageMap[location.pathname];
-            return PageComponent ? <PageComponent /> : null;
-          })()}
+          <Suspense fallback={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} spin />} />
+            </div>
+          }>
+            {(() => {
+              const PageComponent = pageMap[location.pathname];
+              return PageComponent ? <PageComponent /> : null;
+            })()}
+          </Suspense>
         </main>
       </div>
       <HomeModal />
