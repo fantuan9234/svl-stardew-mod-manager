@@ -1319,7 +1319,37 @@ textarea,
   padding: 12px 8px;
   margin-top: auto;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.svl-bottom-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.svl-bottom-nav-item {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--svl-text-muted);
+  transition: all 0.15s ease;
+}
+
+.svl-bottom-nav-item:hover {
+  background: var(--svl-hover);
+  color: var(--svl-text);
+}
+
+.svl-bottom-nav-item.active {
+  background: var(--svl-primary-bg);
+  color: var(--svl-primary);
 }
 
 .svl-chicken {
