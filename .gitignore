@@ -16,7 +16,12 @@ dist-ssr
 target/
 src-tauri/target/
 
-# IDE / AI tool configs
+# IDE / AI tool configs (catch-all for dot-directories with skills)
+.adal/
+.agents/
+.aider-desk/
+.augment/
+.bob/
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -63,15 +68,15 @@ src-tauri/target/
 .DS_Store
 Thumbs.db
 
-# Test / temp files
+# Test / temp files (root level only)
 midscene_run/
 TEST_CASES.md
 *.mp4
 test_*.png
 test_*.py
-test-screenshots/
-tests/
-skills/
+/test-screenshots/
+/tests/
+/skills/
 skills-lock.json
 vitest.config.ts
 
@@ -96,16 +101,16 @@ FTM*.md
 public/game-icons/
 
 # Root-level temp images (not part of app build)
-49600a26b29c89e64d5c17fe8e48fd36.png
-app-icon.png
-cover-bg.png
-assets/
+/49600a26b29c89e64d5c17fe8e48fd36.png
+/app-icon.png
+/cover-bg.png
+/assets/
 
 # Loose temp files in root
-1/
+/1/
 
 # Icon manipulation scripts (not needed for build)
-scripts/
+/scripts/
 
 # User profile data (runtime generated)
 src-tauri/svl-profiles/
