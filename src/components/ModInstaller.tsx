@@ -32,7 +32,6 @@ export default function ModInstaller({ modsPath, onInstallSuccess }: ModInstalle
 
       if (depCheck.missing_dependencies.length > 0) {
         const requiredDeps = depCheck.missing_dependencies.filter(d => d.is_required);
-        const optionalDeps = depCheck.missing_dependencies.filter(d => !d.is_required);
 
         Modal.confirm({
           title: t('app.modInstaller.depCheckTitle'),
@@ -49,23 +48,6 @@ export default function ModInstaller({ modsPath, onInstallSuccess }: ModInstalle
                     renderItem={(dep) => (
                       <List.Item>
                         <span style={{ color: 'var(--svl-error)' }}>{dep.unique_id}</span>
-                        {dep.minimum_version && (
-                          <Tag style={{ marginLeft: 8 }}>v{dep.minimum_version}+</Tag>
-                        )}
-                      </List.Item>
-                    )}
-                  />
-                </div>
-              )}
-              {optionalDeps.length > 0 && (
-                <div>
-                  <Tag className="svl-tag-warning">{t('app.modInstaller.optionalDeps')}</Tag>
-                  <List
-                    size="small"
-                    dataSource={optionalDeps}
-                    renderItem={(dep) => (
-                      <List.Item>
-                        <span style={{ color: 'var(--svl-warning)' }}>{dep.unique_id}</span>
                         {dep.minimum_version && (
                           <Tag style={{ marginLeft: 8 }}>v{dep.minimum_version}+</Tag>
                         )}

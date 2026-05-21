@@ -38,7 +38,6 @@ function getColorClass(line: string): string {
       if (msg.includes('error') || msg.includes('exception') || msg.includes('failed') || msg.includes('crashed') || msg.includes('stack trace')) return 'svl-log-red';
       if (msg.includes('skipped mods') || msg.includes('could not be added') || msg.includes('no longer compatible') || msg.includes("couldn't be loaded")) return 'svl-log-red';
       if (msg.includes('warning') || msg.includes('warn')) return 'svl-log-yellow';
-      if (msg.includes('no update keys') || msg.includes('consider notifying') || msg.includes('may not notify you')) return 'svl-log-yellow';
       if (msg.includes('you can update') || msg.includes('update available')) return 'svl-log-magenta';
       if (msg.includes('mods loaded and ready') || msg.includes('everything seems fine') || msg.includes('loaded and ready')) return 'svl-log-green';
       if (msg.includes('type ') && msg.includes(' for help')) return 'svl-log-cyan';
@@ -48,7 +47,6 @@ function getColorClass(line: string): string {
     if (mod === 'game' && msg.includes('achievements won')) return 'svl-log-yellow';
     if (msg.includes('mods loaded and ready') || msg.includes('everything seems fine')) return 'svl-log-green';
     if (msg.includes('you can update') || msg.includes('update available')) return 'svl-log-magenta';
-    if (msg.includes('no update keys') || msg.includes('consider notifying')) return 'svl-log-yellow';
     if (level === 'TRACE' || level === 'DEBUG') return 'svl-log-gray';
     return 'svl-log-white';
   }
@@ -60,7 +58,6 @@ function getColorClass(line: string): string {
     if (msg.includes('error') || msg.includes('exception') || msg.includes('failed') || msg.includes('crashed') || msg.includes('stack trace')) return 'svl-log-red';
     if (msg.includes('skipped mods') || msg.includes('could not be added') || msg.includes('no longer compatible') || msg.includes("couldn't be loaded")) return 'svl-log-red';
     if (msg.includes('warning') || msg.includes('warn')) return 'svl-log-yellow';
-    if (msg.includes('no update keys') || msg.includes('consider notifying') || msg.includes('may not notify you')) return 'svl-log-yellow';
     if (msg.includes('you can update') || msg.includes('update available')) return 'svl-log-magenta';
     if (msg.includes('mods loaded and ready') || msg.includes('everything seems fine') || msg.includes('loaded and ready')) return 'svl-log-green';
     if (msg.includes('type ') && msg.includes(' for help')) return 'svl-log-cyan';

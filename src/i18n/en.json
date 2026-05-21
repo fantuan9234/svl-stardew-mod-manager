@@ -867,6 +867,32 @@
       "badgeText": "Detected {{count}} MOD error(s)",
       "autoCheckHint": "Auto-detected after game exit",
       "gameExitErrors": "Detected {{count}} MOD error(s) after game exit"
+    },
+    "depResolver": {
+      "title": "Dependency Auto-Resolver",
+      "scan": "Scan Missing Dependencies",
+      "scanHint": "Click scan to detect missing dependencies for all installed mods",
+      "scanning": "Scanning dependencies...",
+      "scanFailed": "Scan failed: {{error}}",
+      "noModsPath": "Please set the Mods directory first",
+      "noApiKey": "Please configure Nexus Mods API Key first",
+      "noNexusId": "Cannot find Nexus ID for '{{name}}', please search and install manually",
+      "summary": "{{total}} mods installed, {{missing}} missing dependencies found, {{installed}} resolved",
+      "allSatisfied": "All dependencies satisfied, nothing to resolve!",
+      "requiredDeps": "Required Dependencies",
+      "optionalDeps": "Optional Dependencies",
+      "missing": "missing",
+      "requiredBy": "Required by {{mods}}",
+      "pending": "Pending",
+      "installing": "Installing",
+      "success": "Installed",
+      "failed": "Failed",
+      "manual": "Manual",
+      "install": "Install",
+      "batchInstall": "Install All ({{count}})",
+      "batchComplete": "Batch installation complete",
+      "noInstallable": "No dependencies available for auto-install",
+      "close": "Close"
     }
   },
   "sidebar": {

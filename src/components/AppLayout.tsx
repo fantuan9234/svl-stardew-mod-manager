@@ -101,9 +101,9 @@ export default function AppLayout() {
 
   const checkLog = async () => {
     try {
-      const result = await invoke<any>('check_smapi_log');
-      if (result.has_error && result.error_count > 0) {
-        setErrorCount(result.error_count);
+      const result = await invoke<any>('parse_smapi_log', { logPath: null });
+      if (result.has_errors && result.errors.length > 0) {
+        setErrorCount(result.errors.length);
       } else {
         setErrorCount(0);
       }

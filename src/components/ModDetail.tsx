@@ -129,10 +129,8 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
   }));
 
   const requiredDeps = depsWithStatus.filter(d => d.is_required);
-  const optionalDeps = depsWithStatus.filter(d => !d.is_required);
 
   const missingRequiredCount = requiredDeps.filter(d => !d.isInstalled).length;
-  const missingOptionalCount = optionalDeps.filter(d => !d.isInstalled).length;
 
   const tabItems = [
     {
@@ -256,33 +254,6 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
                     )}
                     <span className="svl-dep-name">
                       {dep.isInstalled ? t('app.modDetail.installed') : t('app.modDetail.missing')}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {optionalDeps.length > 0 && (
-            <div className="svl-deps-section">
-              <h4 className="svl-deps-section-title svl-deps-optional-title">
-                {t('app.modDetail.optionalDeps')}
-                {missingOptionalCount > 0 && (
-                  <Tag className="svl-tag-default">{t('app.modDetail.missingCount', { count: missingOptionalCount })}</Tag>
-                )}
-              </h4>
-              <div className="svl-deps-list">
-                {optionalDeps.map((dep) => (
-                  <div key={dep.unique_id} className={`svl-dep-item ${dep.isInstalled ? 'installed' : 'missing-optional'}`}>
-                    <span className="svl-dep-status">
-                      {dep.isInstalled ? '✅' : '⚪'}
-                    </span>
-                    <span className="svl-dep-id">{dep.unique_id}</span>
-                    {dep.minimum_version && (
-                      <Tag>{dep.minimum_version}+</Tag>
-                    )}
-                    <span className="svl-dep-name">
-                      {dep.isInstalled ? t('app.modDetail.installed') : t('app.modDetail.optional')}
                     </span>
                   </div>
                 ))}

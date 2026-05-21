@@ -869,6 +869,32 @@
       "badgeText": "检测到 {{count}} 个 MOD 错误",
       "autoCheckHint": "游戏退出后自动检测",
       "gameExitErrors": "游戏退出后检测到 {{count}} 个 MOD 错误"
+    },
+    "depResolver": {
+      "title": "依赖自动补全",
+      "scan": "扫描缺失依赖",
+      "scanHint": "点击扫描按钮，检测所有已安装 MOD 缺少的前置依赖",
+      "scanning": "正在扫描依赖...",
+      "scanFailed": "扫描失败: {{error}}",
+      "noModsPath": "请先设置 MOD 目录",
+      "noApiKey": "请先配置 Nexus Mods API Key",
+      "noNexusId": "无法找到 '{{name}}' 的 Nexus ID，请手动搜索安装",
+      "summary": "已安装 {{total}} 个 MOD，发现 {{missing}} 个缺失依赖，已补全 {{installed}} 个",
+      "allSatisfied": "所有依赖已满足，无需补全！",
+      "requiredDeps": "必需依赖",
+      "optionalDeps": "可选依赖",
+      "missing": "缺失",
+      "requiredBy": "被 {{mods}} 需要",
+      "pending": "待安装",
+      "installing": "安装中",
+      "success": "已安装",
+      "failed": "失败",
+      "manual": "需手动",
+      "install": "安装",
+      "batchInstall": "一键安装 ({{count}})",
+      "batchComplete": "批量安装完成",
+      "noInstallable": "没有可自动安装的依赖",
+      "close": "关闭"
     }
   },
   "sidebar": {

@@ -53,6 +53,7 @@ import ModBackupConfirmModal from '../components/ModBackupConfirmModal';
 import GameMonitor from '../components/GameMonitor';
 import SecurityScanner from '../components/SecurityScanner';
 import LogParser from '../components/LogParser';
+import DependencyResolver from '../components/DependencyResolver';
 
 const SMAPI_OFFICIAL_URL = 'https://smapi.io';
 
@@ -92,6 +93,7 @@ export default function ModManager() {
   const [showGameMonitor, setShowGameMonitor] = useState(false);
   const [showSecurityScanner, setShowSecurityScanner] = useState(false);
   const [showLogParser, setShowLogParser] = useState(false);
+  const [showDepResolver, setShowDepResolver] = useState(false);
   const [selectedModForConfig, setSelectedModForConfig] = useState<ModInfo | null>(null);
   const [selectedModForBackup, setSelectedModForBackup] = useState<ModInfo | null>(null);
   const [activeProfileName, setActiveProfileName] = useState<string | null>(null);
@@ -1028,6 +1030,14 @@ export default function ModManager() {
           {checkingUpdates ? t('app.modList.checkingUpdates') : t('app.modList.checkAllUpdates')}
         </button>
 
+        <button
+          className="svl-dep-resolver-btn"
+          onClick={() => setShowDepResolver(true)}
+          disabled={mods.length === 0}
+        >
+          {t('app.depResolver.scan')}
+        </button>
+
         {showUpdatePanel && updateStatuses.filter(u => u.has_update).length > 0 && (() => {
           const updatable = updateStatuses.filter(u => u.has_update);
           const allSelected = updatable.every(u => selectedUpdateMods.has(u.unique_id));
@@ -1496,6 +1506,14 @@ export default function ModManager() {
         isOpen={showLogParser}
         onClose={() => setShowLogParser(false)}
         smapiInstalled={smapiInfo?.installed}
+      />
+
+      <DependencyResolver
+        open={showDepResolver}
+        onClose={() => setShowDepResolver(false)}
+        modsPath={modsPath}
+        apiKey={localStorage.getItem('svl-nexus-api-key') || ''}
+        onInstallComplete={() => handleRefresh()}
       />
 
     </>

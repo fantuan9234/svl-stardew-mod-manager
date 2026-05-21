@@ -386,14 +386,6 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             },
         },
         Rule {
-            error_type: "NoUpdateKeys".into(),
-            pattern: Regex::new(r"(?i)no\s+update\s+keys").expect("Invalid regex: NoUpdateKeys"),
-            severity: "Warning".into(),
-            extract: |_caps| {
-                ("Unknown".into(), "部分 MOD 的 manifest 中没有设置更新键（UpdateKeys），SMAPI 将无法自动通知这些 MOD 的更新。建议联系 MOD 作者添加 UpdateKeys。".into())
-            },
-        },
-        Rule {
             error_type: "ModuleError".into(),
             pattern: Regex::new(r"(?i)\[ERROR\].*?\|.*?\|(.+)").expect("Invalid regex: ModuleError"),
             severity: "Error".into(),
@@ -407,7 +399,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
 });
 
 static ERROR_INDICATORS: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(\[FATAL|missing\s+dependen|failed\s+to\s+load|doesn't\s+exist|incompatible|no\s+longer\s+compatible|couldn't\s+be\s+loaded|could\s+not\s+be\s+loaded|these\s+mods\s+could\s+not\s+be\s+added|无法|缺少|不兼容|rewriting\s+.+?\.dll\s+failed|重写.+?\.dll\s+failed|failed\s+to\s+resolve\s+assembly|because\s+its\s+DLL|skipped\s+mods|dll\s+couldn't|no\s+update\s+keys|patches\s+which\s+aren't\s+expected|may\s+not\s+notify)").expect("Invalid regex: error_indicators")
+    Regex::new(r"(?i)(\[FATAL|missing\s+dependen|failed\s+to\s+load|doesn't\s+exist|incompatible|no\s+longer\s+compatible|couldn't\s+be\s+loaded|could\s+not\s+be\s+loaded|these\s+mods\s+could\s+not\s+be\s+added|无法|缺少|不兼容|rewriting\s+.+?\.dll\s+failed|重写.+?\.dll\s+failed|failed\s+to\s+resolve\s+assembly|because\s+its\s+DLL|skipped\s+mods|dll\s+couldn't|patches\s+which\s+aren't\s+expected|may\s+not\s+notify)").expect("Invalid regex: error_indicators")
 });
 
 static WARN_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -942,9 +934,8 @@ pub fn parse_smapi_log(log_path: Option<String>) -> Result<ParseSmapiLogResult, 
                     log_not_found = false;
 
                     let log_errors = parse_errors_v2(&content);
-                    let nouk_errors = parse_no_update_keys_section(&content);
 
-                    for err in log_errors.iter().chain(nouk_errors.iter()) {
+                    for err in log_errors.iter() {
                         let key = format!("{}|{}|{}", err.severity, err.translated_message, err.raw_message);
                         if seen_keys.contains(&key) {
                             continue;
@@ -1243,8 +1234,6 @@ pub fn analyze_log(log_path: Option<String>) -> Result<LogAnalysis, String> {
     let content = read_log_tail(&log_path)?;
 
     let mut errors = parse_errors_v2(&content);
-    let no_update_keys_errors = parse_no_update_keys_section(&content);
-    errors.extend(no_update_keys_errors);
     let warnings = parse_warnings_v2(&content);
 
     let error_count = errors.len();
@@ -1269,7 +1258,7 @@ fn parse_errors_v2(content: &str) -> Vec<LogError> {
     let mut errors = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
 
-    let section_headers = ["skipped mods", "skipped mods:", "no update keys", "no update keys:"];
+    let section_headers = ["skipped mods", "skipped mods:"];
     let log_prefix_re = Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+\w+\s+\w+\]\s*").expect("Invalid regex: log_prefix3");
 
     for line in content.lines() {

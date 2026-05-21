@@ -146,7 +146,7 @@ export default function NexusModBrowser() {
   const [downloadStatus, setDownloadStatus] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [hasSearched, setHasSearched] = useState(false);
-  const [apiKey] = useState(() => localStorage.getItem('svl-nexus-api-key') || '');
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('svl-nexus-api-key') || '');
   const [trendingMods, setTrendingMods] = useState<NexusModSearchResult[]>([]);
   const [trendingLoading, setTrendingLoading] = useState(false);
   const [trendingLoaded, setTrendingLoaded] = useState(false);
@@ -161,6 +161,14 @@ export default function NexusModBrowser() {
     if (!neverShowTutorial) {
       setShowTutorial(true);
     }
+  }, []);
+
+  useEffect(() => {
+    const handleApiKeyChange = () => {
+      setApiKey(localStorage.getItem('svl-nexus-api-key') || '');
+    };
+    window.addEventListener('nexus-api-key-changed', handleApiKeyChange);
+    return () => window.removeEventListener('nexus-api-key-changed', handleApiKeyChange);
   }, []);
 
   useEffect(() => {

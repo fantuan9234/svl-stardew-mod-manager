@@ -25,12 +25,15 @@ export default function NexusApiConfig() {
     }
     const key = apiKey.trim();
     localStorage.setItem('svl-nexus-api-key', key);
+    window.dispatchEvent(new CustomEvent('nexus-api-key-changed'));
     await verifyNexusConnection(key);
   };
 
   const handleDisconnect = () => {
     disconnect();
     setApiKey('');
+    localStorage.removeItem('svl-nexus-api-key');
+    window.dispatchEvent(new CustomEvent('nexus-api-key-changed'));
     message.info(t('app.nexusApi.disconnected'));
   };
 

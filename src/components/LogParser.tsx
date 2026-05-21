@@ -59,7 +59,6 @@ const ERROR_TYPE_KEYS: Record<string, string> = {
   AbandonedMod: 'app.logParser.errorTypeAbandonedMod',
   ObsoleteMod: 'app.logParser.errorTypeObsoleteMod',
   NeedsWorkaround: 'app.logParser.errorTypeNeedsWorkaround',
-  NoUpdateKeys: 'app.logParser.errorTypeNoUpdateKeys',
 };
 
 const SEVERITY_COLOR_MAP: Record<string, 'error' | 'warning' | 'info'> = {
@@ -290,57 +289,99 @@ export default function LogParser({ isOpen, onClose, smapiInstalled, onFixComple
           />
         )}
 
-        {result.errors.map((error, index) => {
-          const alertType = getAlertType(error.severity);
-          const typeLabel = getTypeLabel(error.error_type);
-          const isFixable = FIXABLE_ERROR_TYPES.includes(error.error_type);
+        {(() => {
+          const updateErrors = result.errors.filter(e => e.error_type === 'UpdateAvailable');
+          const otherErrors = result.errors.filter(e => e.error_type !== 'UpdateAvailable');
+
           return (
-            <Alert
-              key={index}
-              type={alertType}
-              showIcon
-              message={
-                <span>
-                  <Tag className={SEVERITY_TAG_CLASS[error.severity] || 'svl-tag-default'} style={{ marginRight: 6 }}>
-                    {typeLabel}
-                  </Tag>
-                  {error.mod_name && error.mod_name !== 'Unknown' && (
-                    <strong>{error.mod_name}</strong>
-                  )}
-                  {isFixable && (
-                    <Tag color="blue" style={{ marginLeft: 6, fontSize: 11 }}>
-                      {t('app.logParser.fixable')}
-                    </Tag>
-                  )}
-                  {isFixable && (
-                    <Button
-                      type="link"
-                      size="small"
-                      icon={<DownloadOutlined />}
-                      loading={fixingIndex === index}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleFixSingle(error, index);
-                      }}
-                      style={{ marginLeft: 4, padding: '0 4px', fontSize: 12 }}
-                    >
-                      {fixingIndex === index ? t('app.logParser.downloading') : t('app.logParser.downloadFix')}
-                    </Button>
-                  )}
-                </span>
-              }
-              description={
-                <div className="svl-log-error-detail">
-                  <p className="svl-log-error-solution" style={{ whiteSpace: 'pre-line', lineHeight: 1.8 }}>{error.solution}</p>
-                  <details className="svl-log-raw-details">
-                    <summary>{t('app.logParser.rawLog')}</summary>
-                    <pre className="svl-log-raw-code">{error.raw_line}</pre>
-                  </details>
-                </div>
-              }
-            />
+            <>
+              {otherErrors.map((error, index) => {
+                const alertType = getAlertType(error.severity);
+                const typeLabel = getTypeLabel(error.error_type);
+                const isFixable = FIXABLE_ERROR_TYPES.includes(error.error_type);
+                return (
+                  <Alert
+                    key={index}
+                    type={alertType}
+                    showIcon
+                    message={
+                      <span>
+                        <Tag className={SEVERITY_TAG_CLASS[error.severity] || 'svl-tag-default'} style={{ marginRight: 6 }}>
+                          {typeLabel}
+                        </Tag>
+                        {error.mod_name && error.mod_name !== 'Unknown' && (
+                          <strong>{error.mod_name}</strong>
+                        )}
+                        {isFixable && (
+                          <Tag color="blue" style={{ marginLeft: 6, fontSize: 11 }}>
+                            {t('app.logParser.fixable')}
+                          </Tag>
+                        )}
+                        {isFixable && (
+                          <Button
+                            type="link"
+                            size="small"
+                            icon={<DownloadOutlined />}
+                            loading={fixingIndex === index}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleFixSingle(error, index);
+                            }}
+                            style={{ marginLeft: 4, padding: '0 4px', fontSize: 12 }}
+                          >
+                            {fixingIndex === index ? t('app.logParser.downloading') : t('app.logParser.downloadFix')}
+                          </Button>
+                        )}
+                      </span>
+                    }
+                    description={
+                      <div className="svl-log-error-detail">
+                        <p className="svl-log-error-solution" style={{ whiteSpace: 'pre-line', lineHeight: 1.8 }}>{error.solution}</p>
+                        <details className="svl-log-raw-details">
+                          <summary>{t('app.logParser.rawLog')}</summary>
+                          <pre className="svl-log-raw-code">{error.raw_line}</pre>
+                        </details>
+                      </div>
+                    }
+                  />
+                );
+              })}
+
+              {updateErrors.length > 0 && (
+                <Alert
+                  type="info"
+                  showIcon
+                  message={
+                    <span>
+                      <Tag className="svl-tag-info" style={{ marginRight: 6 }}>
+                        {getTypeLabel('UpdateAvailable')}
+                      </Tag>
+                      <strong>{t('app.logParser.errorTypeUpdateAvailable')} ({updateErrors.length})</strong>
+                    </span>
+                  }
+                  description={
+                    <div>
+                      <p style={{ marginBottom: 8, lineHeight: 1.6 }}>
+                        {updateErrors.map((e, i) => (
+                          <span key={i}>
+                            {e.mod_name && e.mod_name !== 'Unknown' ? <strong>{e.mod_name}</strong> : e.solution}
+                            {i < updateErrors.length - 1 && '、'}
+                          </span>
+                        ))}
+                      </p>
+                      <details className="svl-log-raw-details">
+                        <summary>{t('app.logParser.rawLog')}</summary>
+                        {updateErrors.map((e, i) => (
+                          <pre key={i} className="svl-log-raw-code">{e.raw_line}</pre>
+                        ))}
+                      </details>
+                    </div>
+                  }
+                />
+              )}
+            </>
           );
-        })}
+        })()}
       </div>
     );
   };

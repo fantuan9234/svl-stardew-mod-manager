@@ -917,3 +917,45 @@ export async function clearThumbnailCache(): Promise<number> {
 export async function getThumbnailCacheInfo(): Promise<ThumbnailCacheInfo> {
   return invoke<ThumbnailCacheInfo>('get_thumbnail_cache_info');
 }
+
+export interface MissingDependency {
+  unique_id: string;
+  display_name: string;
+  is_required: boolean;
+  minimum_version: string | null;
+  nexus_mod_id: string | null;
+  nexus_url: string;
+  required_by: string[];
+}
+
+export interface DependencyScanResult {
+  total_installed: number;
+  total_missing: number;
+  missing_dependencies: MissingDependency[];
+}
+
+export interface DependencyInstallResult {
+  success: boolean;
+  mod_name: string;
+  message: string;
+}
+
+export async function scanAllMissingDependencies(
+  modsPath: string
+): Promise<DependencyScanResult> {
+  return invoke<DependencyScanResult>('scan_all_missing_dependencies', { modsPath });
+}
+
+export async function autoInstallMissingDependency(
+  uniqueId: string,
+  nexusModId: string | null,
+  modsPath: string,
+  apiKey: string
+): Promise<DependencyInstallResult> {
+  return invoke<DependencyInstallResult>('auto_install_missing_dependency', {
+    uniqueId,
+    nexusModId,
+    modsPath,
+    apiKey,
+  });
+}
