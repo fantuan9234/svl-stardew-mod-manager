@@ -21,7 +21,7 @@
       "sync": "Sync",
       "settings": "Settings",
       "nexusBrowser": "Nexus Mods",
-      "toolbox": "Storage"
+      "toolbox": "Toolbox"
     },
     "sync": {
       "comingSoon": "Sync Feature Coming Soon",
@@ -896,8 +896,10 @@
       "close": "Close"
     },
     "toolbox": {
-      "title": "Storage Analysis",
-      "subtitle": "Analyze disk usage per mod and find space hogs",
+      "title": "Toolbox",
+      "subtitle": "Select a tool to inspect and maintain your mods",
+      "storageTitle": "Storage Analysis",
+      "storageDesc": "Analyze disk usage per mod and find space hogs",
       "modName": "Mod Name",
       "size": "Size",
       "fileCount": "Files",
