@@ -63,16 +63,6 @@ export default function AppLayout() {
   const [isMaximized, setIsMaximized] = useState(false);
   const [errorCount, setErrorCount] = useState(0);
   const logCheckUnlistenRef = useRef<(() => void) | null>(null);
-  const [visitedPages, setVisitedPages] = useState<Set<string>>(new Set([location.pathname]));
-
-  useEffect(() => {
-    setVisitedPages(prev => {
-      if (prev.has(location.pathname)) return prev;
-      const next = new Set(prev);
-      next.add(location.pathname);
-      return next;
-    });
-  }, [location.pathname]);
 
   const [forceUpdateInfo, setForceUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [forceDownloading, setForceDownloading] = useState(false);
@@ -371,20 +361,10 @@ export default function AppLayout() {
         </aside>
 
         <main className="svl-main">
-          {Object.entries(pageMap).map(([path, PageComponent]) => {
-            const isActive = location.pathname === path;
-            if (!visitedPages.has(path)) return null;
-            return (
-              <div
-                key={path}
-                style={{
-                  display: isActive ? 'contents' : 'none',
-                }}
-              >
-                <PageComponent />
-              </div>
-            );
-          })}
+          {(() => {
+            const PageComponent = pageMap[location.pathname];
+            return PageComponent ? <PageComponent /> : null;
+          })()}
         </main>
       </div>
       <HomeModal />
