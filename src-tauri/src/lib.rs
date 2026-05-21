@@ -25,6 +25,7 @@ mod mod_backup;
 mod mod_security;
 mod app_updater;
 mod dep_resolver;
+mod storage_analyzer;
 
 use smapi::{detect_game_path, check_smapi_status, set_custom_game_path, open_smapi_installer, restore_svl_window};
 use smapi_installer::{install_smapi_local, open_smapi_zip_dialog};
@@ -49,6 +50,7 @@ use mod_backup::{backup_mod_before_update, restore_mod_from_backup, list_mod_bac
 use mod_security::{start_game_monitor, stop_game_monitor, get_monitor_status, check_mod_security, batch_check_mod_security};
 use app_updater::{check_app_update_from_server, download_app_update_from_server, get_update_server_url, get_current_app_version, run_installer, auto_check_app_update};
 use dep_resolver::{scan_all_missing_dependencies, auto_install_missing_dependency};
+use storage_analyzer::analyze_mod_storage;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -193,6 +195,7 @@ pub fn run() {
             run_installer,
             scan_all_missing_dependencies,
             auto_install_missing_dependency,
+            analyze_mod_storage,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

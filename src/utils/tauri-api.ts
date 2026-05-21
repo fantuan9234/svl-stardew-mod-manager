@@ -959,3 +959,45 @@ export async function autoInstallMissingDependency(
     apiKey,
   });
 }
+
+export interface ConflictReport {
+  mod_name: string;
+  unique_id: string;
+  conflict_type: 'MissingDependency' | 'OptionalDependencyMissing' | 'ContentPackConflict' | 'Incompatibility' | 'HardcodedPatch' | 'AssetConflict' | 'ContentPackTargetConflict' | 'VersionConflict';
+  description: string;
+  severity: 'Error' | 'Warning' | 'Info';
+  solution: string;
+  affected_mods: string[] | null;
+}
+
+export async function checkConflicts(mods: ModInfo[]): Promise<ConflictReport[]> {
+  return invoke<ConflictReport[]>('check_conflicts', { mods });
+}
+
+export interface ModStorageInfo {
+  name: string;
+  unique_id: string;
+  folder_path: string;
+  size_bytes: number;
+  size_formatted: string;
+  file_count: number;
+  enabled: boolean;
+  is_content_pack: boolean;
+  version: string;
+}
+
+export interface StorageAnalysisResult {
+  mods: ModStorageInfo[];
+  total_size_bytes: number;
+  total_size_formatted: string;
+  total_mods: number;
+  enabled_size_bytes: number;
+  enabled_size_formatted: string;
+  disabled_size_bytes: number;
+  disabled_size_formatted: string;
+  largest_mod: ModStorageInfo | null;
+}
+
+export async function analyzeModStorage(mods: ModInfo[]): Promise<StorageAnalysisResult> {
+  return invoke<StorageAnalysisResult>('analyze_mod_storage', { mods });
+}

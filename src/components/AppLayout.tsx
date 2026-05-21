@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { MinusOutlined, BorderOutlined, CloseOutlined, SwitcherOutlined } from '@ant-design/icons';
 import { Badge, Modal, Button, Typography, Progress, Tag, message } from 'antd';
-import { CloudDownloadOutlined, CheckCircleOutlined, SyncOutlined, FolderOutlined, SaveOutlined, CoffeeOutlined, SearchOutlined, GlobalOutlined } from '@ant-design/icons';
+import { CloudDownloadOutlined, CheckCircleOutlined, SyncOutlined, FolderOutlined, SaveOutlined, CoffeeOutlined, SearchOutlined, GlobalOutlined, ToolOutlined } from '@ant-design/icons';
 import chickenImg from '../assets/chicken.png';
 import HomeModal from './HomeModal';
 import { openUrl } from '../utils/openUrl';
@@ -17,6 +17,7 @@ import SyncPage from '../pages/SyncPage';
 import Settings from '../pages/Settings';
 import DonatePage from '../pages/DonatePage';
 import LogViewer from '../pages/LogViewer';
+import Toolbox from '../pages/Toolbox';
 import { downloadAppUpdateFromServer, AppUpdateInfo, AppUpdateProgress } from '../utils/tauri-api';
 
 function isTauriEnvironment(): boolean {
@@ -38,6 +39,7 @@ const pageMap: Record<string, React.ComponentType<any>> = {
   '/settings': Settings,
   '/donate': DonatePage,
   '/log-viewer': LogViewer,
+  '/toolbox': Toolbox,
 };
 
 const navItems = [
@@ -46,6 +48,7 @@ const navItems = [
   { key: '/profiles', icon: <FolderOutlined />, label: 'app.nav.profiles' },
   { key: '/saves', icon: <SaveOutlined />, label: 'app.nav.saves' },
   { key: '/sync', icon: <SyncOutlined />, label: 'app.nav.sync' },
+  { key: '/toolbox', icon: <ToolOutlined />, label: 'app.nav.toolbox' },
   { key: '/settings', icon: '⚙️', label: 'app.nav.settings' },
   { key: '/donate', icon: <CoffeeOutlined />, label: 'sidebar.donate' },
   { key: '/log-viewer', icon: '', label: '', hidden: true },
