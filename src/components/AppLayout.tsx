@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { MinusOutlined, BorderOutlined, CloseOutlined, SwitcherOutlined, LoadingOutlined } from '@ant-design/icons';
-import { Badge, Modal, Button, Typography, Progress, Tag, message, Spin, Tooltip } from 'antd';
+import { Badge, Modal, Button, Typography, Progress, Tag, message, Spin } from 'antd';
 import { CloudDownloadOutlined, CheckCircleOutlined, SyncOutlined, FolderOutlined, SaveOutlined, CoffeeOutlined, SearchOutlined, GlobalOutlined, ToolOutlined } from '@ant-design/icons';
 import chickenImg from '../assets/chicken.png';
 import HomeModal from './HomeModal';
@@ -50,12 +50,9 @@ const navItems = [
   { key: '/saves', icon: <SaveOutlined />, label: 'app.nav.saves' },
   { key: '/sync', icon: <SyncOutlined />, label: 'app.nav.sync' },
   { key: '/toolbox', icon: <ToolOutlined />, label: 'app.nav.toolbox' },
-  { key: '/log-viewer', icon: '', label: '', hidden: true },
-];
-
-const bottomItems = [
   { key: '/settings', icon: '⚙️', label: 'app.nav.settings' },
   { key: '/donate', icon: <CoffeeOutlined />, label: 'sidebar.donate' },
+  { key: '/log-viewer', icon: '', label: '', hidden: true },
 ];
 
 const { Title, Text, Paragraph } = Typography;
@@ -301,18 +298,18 @@ export default function AppLayout() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 8,
-              padding: '10px 14px',
+              gap: 6,
+              padding: '7px 12px',
               borderRadius: '8px',
               cursor: 'pointer',
               color: '#c49a3b',
               fontWeight: 600,
-              fontSize: 14,
+              fontSize: 13,
               background: 'rgba(196, 154, 59, 0.08)',
               border: '1px solid rgba(196, 154, 59, 0.25)',
               transition: 'all 0.2s ease',
               userSelect: 'none',
-              margin: '0 16px 8px',
+              margin: '0 12px 6px',
             }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLDivElement).style.background = 'rgba(196, 154, 59, 0.15)';
@@ -356,21 +353,6 @@ export default function AppLayout() {
           </nav>
 
           <div className="svl-sidebar-footer">
-            <div className="svl-bottom-nav">
-              {bottomItems.map((item) => {
-                const isActive = location.pathname === item.key;
-                return (
-                  <Tooltip key={item.key} title={t(item.label)} placement="right">
-                    <div
-                      className={`svl-bottom-nav-item ${isActive ? 'active' : ''}`}
-                      onClick={() => startTransition(() => navigate(item.key))}
-                    >
-                      <span>{item.icon}</span>
-                    </div>
-                  </Tooltip>
-                );
-              })}
-            </div>
             <img
               src={chickenImg}
               alt={t('app.altChicken')}

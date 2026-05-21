@@ -1203,9 +1203,9 @@ textarea,
   align-items: center;
   justify-content: center;
   overflow: visible;
-  padding: 20px 0 16px;
-  min-height: 80px;
-  margin-bottom: 12px;
+  padding: 12px 0 8px;
+  min-height: 60px;
+  margin-bottom: 4px;
 }
 
 .svl-logo-icon {
@@ -1257,20 +1257,25 @@ textarea,
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.svl-nav::-webkit-scrollbar {
+  width: 0;
 }
 
 .svl-nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 10px;
+  padding: 7px 12px;
   border-radius: var(--svl-radius-sm);
   cursor: pointer;
   transition: var(--svl-transition);
   color: var(--svl-text-secondary);
   font-weight: 500;
-  font-size: 14px;
+  font-size: 13px;
   position: relative;
   user-select: none;
   border: 1px solid transparent;
@@ -1316,45 +1321,15 @@ textarea,
 }
 
 .svl-sidebar-footer {
-  padding: 12px 8px;
+  padding: 8px 8px;
   margin-top: auto;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.svl-bottom-nav {
-  display: flex;
-  gap: 4px;
-}
-
-.svl-bottom-nav-item {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
-  color: var(--svl-text-muted);
-  transition: all 0.15s ease;
-}
-
-.svl-bottom-nav-item:hover {
-  background: var(--svl-hover);
-  color: var(--svl-text);
-}
-
-.svl-bottom-nav-item.active {
-  background: var(--svl-primary-bg);
-  color: var(--svl-primary);
 }
 
 .svl-chicken {
-  width: 80px;
-  height: 80px;
+  width: 56px;
+  height: 56px;
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
