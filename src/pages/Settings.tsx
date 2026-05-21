@@ -4,6 +4,7 @@ import i18n from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import NexusApiConfig from '../components/NexusApiConfig';
 
+
 const { Title, Text } = Typography;
 
 export default function Settings() {
@@ -52,7 +53,7 @@ export default function Settings() {
             type={i18n.language === 'en' ? 'primary' : 'default'}
             onClick={() => handleLanguageChange('en')}
           >
-            英文
+            English
           </Button>
         </Space>
       </div>

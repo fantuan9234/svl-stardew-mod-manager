@@ -5,6 +5,7 @@ import { Tag, Tooltip } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
 import { openUrl } from '../utils/openUrl';
 import { useModUrl } from '../hooks/useModUrl';
+import { useImageUrl } from '../hooks/useImageUrl';
 
 interface ModCardProps {
   mod: ModInfo;
@@ -16,21 +17,23 @@ interface ModCardProps {
   onSelect?: () => void;
 }
 
-const categoryColors: Record<string, string> = {
-  visual: 'blue',
-  gameplay: 'green',
-  expansion: 'purple',
-  framework: 'orange',
-  ui: 'cyan',
-  seasonal: 'gold',
-  multiplayer: 'magenta',
-  other: 'default',
+const categoryClassNames: Record<string, string> = {
+  visual: 'svl-cat-visual',
+  gameplay: 'svl-cat-gameplay',
+  expansion: 'svl-cat-expansion',
+  framework: 'svl-cat-framework',
+  ui: 'svl-cat-ui',
+  seasonal: 'svl-cat-seasonal',
+  multiplayer: 'svl-cat-multiplayer',
+  other: 'svl-cat-other',
 };
 
 export default function ModCard({ mod, icon, iconColor, isSelected, onToggle, onUninstall, onSelect }: ModCardProps) {
   const { t } = useTranslation();
   const [enabled, setEnabled] = useState(mod.enabled);
   const { url: resolvedUrl, isLoading, resolve } = useModUrl();
+  const thumbnailUrl = useImageUrl(mod.thumbnail_path);
+  const screenshotUrl = useImageUrl(mod.screenshot_path);
 
   useEffect(() => {
     setEnabled(mod.enabled);
@@ -53,13 +56,13 @@ export default function ModCard({ mod, icon, iconColor, isSelected, onToggle, on
 
   return (
     <div className={`svl-mod-card ${mod.has_conflict ? 'has-conflict' : ''} ${isSelected ? 'selected' : ''}`}>
-      {mod.thumbnail_path ? (
+      {mod.thumbnail_path && thumbnailUrl ? (
         <div className="svl-mod-screenshot" onClick={onSelect}>
-          <img src={`file:///${mod.thumbnail_path.replace(/\\/g, '/')}`} alt={mod.name} />
+          <img src={thumbnailUrl} alt={mod.name} />
         </div>
-      ) : mod.screenshot_path ? (
+      ) : mod.screenshot_path && screenshotUrl ? (
         <div className="svl-mod-screenshot" onClick={onSelect}>
-          <img src={`file:///${mod.screenshot_path.replace(/\\/g, '/')}`} alt={mod.name} />
+          <img src={screenshotUrl} alt={mod.name} />
         </div>
       ) : (
         <div
@@ -80,7 +83,7 @@ export default function ModCard({ mod, icon, iconColor, isSelected, onToggle, on
             </span>
           )}
           {mod.has_update && (
-            <Tag color="red" className="svl-update-badge">
+            <Tag className="svl-tag-danger svl-update-badge">
               {t('app.modDetail.updateAvailable')}
             </Tag>
           )}
@@ -90,8 +93,8 @@ export default function ModCard({ mod, icon, iconColor, isSelected, onToggle, on
           {t('app.modCard.by')} {mod.author}
         </div>
         <div className="svl-mod-category">
-          <Tag color={categoryColors[mod.category] || 'default'}>
-            {mod.category}
+          <Tag className={categoryClassNames[mod.category] || 'svl-cat-other'}>
+            {t(`app.categories.${mod.category}`, mod.category)}
           </Tag>
         </div>
       </div>

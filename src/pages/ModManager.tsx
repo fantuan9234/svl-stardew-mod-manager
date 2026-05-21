@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { message, Tooltip, notification, Modal, Typography } from 'antd';
@@ -12,6 +12,7 @@ import {
 import {
   detectGamePath,
   checkSmapiStatus,
+  setCustomGamePath,
   scanMods,
   launchGame,
   getGameSessionInfo,
@@ -19,6 +20,11 @@ import {
   toggleMod,
   deleteMod,
   checkAllModsUpdates,
+  downloadModUpdate,
+  backupModBeforeUpdate,
+  profileGetActive,
+  profileClearActive,
+  parseSmapiLog,
   type SmapiInfo,
   type ModInfo,
   type GamePathInfo,
@@ -30,6 +36,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { useModTags } from '../hooks/useModTags';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { open } from '@tauri-apps/plugin-dialog';
 import { openUrl } from '../utils/openUrl';
 import ModList from '../components/ModList';
 import ModDetail from '../components/ModDetail';
@@ -39,6 +46,13 @@ import ProfileSelector from '../components/ProfileSelector';
 import Onboarding from '../components/Onboarding';
 import ModInstallWizard from '../components/ModInstallWizard';
 import ApiKeyReminder from '../components/ApiKeyReminder';
+import LoadOrderModal from '../components/LoadOrderModal';
+import ModConfigEditor from '../components/ModConfigEditor';
+import ModBackupManager from '../components/ModBackupManager';
+import ModBackupConfirmModal from '../components/ModBackupConfirmModal';
+import GameMonitor from '../components/GameMonitor';
+import SecurityScanner from '../components/SecurityScanner';
+import LogParser from '../components/LogParser';
 
 const SMAPI_OFFICIAL_URL = 'https://smapi.io';
 
@@ -68,10 +82,40 @@ export default function ModManager() {
   const [showInstallWizard, setShowInstallWizard] = useState(false);
   const [updateStatuses, setUpdateStatuses] = useState<ModUpdateStatus[]>([]);
   const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [downloadingModIds, setDownloadingModIds] = useState<Set<string>>(new Set());
+  const [showUpdatePanel, setShowUpdatePanel] = useState(false);
+  const [selectedUpdateMods, setSelectedUpdateMods] = useState<Set<string>>(new Set());
+
+  const [showLoadOrder, setShowLoadOrder] = useState(false);
+  const [showConfigEditor, setShowConfigEditor] = useState(false);
+  const [showBackupManager, setShowBackupManager] = useState(false);
+  const [showGameMonitor, setShowGameMonitor] = useState(false);
+  const [showSecurityScanner, setShowSecurityScanner] = useState(false);
+  const [showLogParser, setShowLogParser] = useState(false);
+  const [selectedModForConfig, setSelectedModForConfig] = useState<ModInfo | null>(null);
+  const [selectedModForBackup, setSelectedModForBackup] = useState<ModInfo | null>(null);
+  const [activeProfileName, setActiveProfileName] = useState<string | null>(null);
+
+  // Backup confirmation modal state
+  const [showBackupConfirm, setShowBackupConfirm] = useState(false);
+  const [backupTargetMod, setBackupTargetMod] = useState<{ modPath: string; nexusModId: string; uniqueId?: string } | null>(null);
+  const [pendingDownloadNexusId, setPendingDownloadNexusId] = useState<string | null>(null);
+
+  // Batch update backup state
+  const [batchBackupQueue, setBatchBackupQueue] = useState<Array<{ modPath: string; name: string; uniqueId: string; version: string }>>([]);
+  const [pendingBatchUpdate, setPendingBatchUpdate] = useState<Array<{ unique_id: string; name: string; download_url: string | null; nexus_mod_id: string | null }> | null>(null);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRefreshRef = useRef(false);
   const installProgressUnlistenRef = useRef<(() => void) | null>(null);
+  const handleRefreshRef = useRef<(() => Promise<void>) | null>(null);
+  const smapiInfoRef = useRef<SmapiInfo | null>(null);
+  const gamePathInfoRef = useRef<GamePathInfo | null>(null);
+
+  useEffect(() => {
+    smapiInfoRef.current = smapiInfo;
+    gamePathInfoRef.current = gamePathInfo;
+  });
 
   useEffect(() => {
     const firstRun = localStorage.getItem('svl-first-run');
@@ -80,6 +124,16 @@ export default function ModManager() {
       localStorage.setItem('svl-first-run', 'false');
     }
     handleInit();
+
+    const needsRefresh = sessionStorage.getItem('svl-mod-installed');
+    if (needsRefresh === 'true') {
+      sessionStorage.removeItem('svl-mod-installed');
+      setTimeout(() => {
+        if (handleRefreshRef.current) {
+          handleRefreshRef.current();
+        }
+      }, 1200);
+    }
 
     const setupListener = async () => {
       if (installProgressUnlistenRef.current) {
@@ -98,13 +152,17 @@ export default function ModManager() {
           }
           refreshTimerRef.current = setTimeout(() => {
             refreshTimerRef.current = null;
-            handleRefresh();
+            if (handleRefreshRef.current) {
+              handleRefreshRef.current();
+            }
             invoke('check_smapi_log').catch(() => {});
             if (pendingRefreshRef.current) {
               pendingRefreshRef.current = false;
               refreshTimerRef.current = setTimeout(() => {
                 refreshTimerRef.current = null;
-                handleRefresh();
+                if (handleRefreshRef.current) {
+                  handleRefreshRef.current();
+                }
                 invoke('check_smapi_log').catch(() => {});
               }, 500);
             }
@@ -135,10 +193,20 @@ export default function ModManager() {
       getGameSessionInfo().then((info) => {
         if (!info.is_running) {
           setGameRunning(false);
+          setLaunching(false);
           setGameDuration('');
           restoreSvlWindow();
           getCurrentWindow().unminimize().catch(() => {});
           message.info(t('app.launchBar.gameExited'));
+
+          const path = smapiInfo?.game_path || gamePathInfo?.detected_path;
+          if (path && smapiInfo?.installed) {
+            parseSmapiLog()
+              .then(() => {
+                setShowLogParser(true);
+              })
+              .catch(() => {});
+          }
         } else {
           const pidStr = info.pid ? `PID: ${info.pid}` : '';
           setGameDuration(pidStr);
@@ -146,7 +214,7 @@ export default function ModManager() {
       }).catch(() => {});
     }, 5000);
     return () => clearInterval(interval);
-  }, [gameRunning, t]);
+  }, [gameRunning, t, smapiInfo, gamePathInfo]);
 
   const handleInit = async () => {
     try {
@@ -166,6 +234,8 @@ export default function ModManager() {
             const modList = await scanMods(status.game_path);
             console.log('[handleInit] Found', modList.length, 'mods:', modList.map(m => m.name));
             setMods(modList);
+            const activeProfile = await profileGetActive(status.game_path);
+            setActiveProfileName(activeProfile);
           } catch (scanErr) {
             console.error('scanMods failed:', scanErr);
             message.error(typeof scanErr === 'string' ? scanErr : String(scanErr));
@@ -198,10 +268,9 @@ export default function ModManager() {
         duration: 3,
         placement: 'bottomRight',
       });
-
-      getCurrentWindow().minimize().catch(() => {});
-    } catch {
-    } finally {
+    } catch (err) {
+      const detail = typeof err === 'string' ? err : String(err);
+      message.error(`${t('app.launchBar.launchFailed')}: ${detail}`);
       setLaunching(false);
     }
   };
@@ -251,17 +320,54 @@ export default function ModManager() {
     }
   }, [smapiInfo, gamePathInfo, t]);
 
-  const handleRefresh = async () => {
+  const handleChangeGamePath = useCallback(async () => {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: t('app.pages.modManager.selectGameDir'),
+      });
+      if (!selected) return;
+
+      const dirPath = typeof selected === 'string' ? selected : selected;
+      setDetecting(true);
+      const pathInfo = await setCustomGamePath(dirPath);
+      setGamePathInfo(pathInfo);
+
+      if (pathInfo.detected_path) {
+        const status = await checkSmapiStatus(pathInfo.detected_path);
+        setSmapiInfo(status);
+        if (status.installed && status.game_path) {
+          const modList = await scanMods(status.game_path);
+          setMods(modList);
+          message.success(t('app.pages.modManager.gamePathChanged'));
+        } else {
+          message.warning(t('app.errors.smapiNotInstalled'));
+        }
+      } else {
+        message.error(t('app.errors.gamePathNotFound'));
+      }
+    } catch (err) {
+      console.error('[handleChangeGamePath] failed:', err);
+      message.error(t('app.errors.gamePathNotFound'));
+    } finally {
+      setDetecting(false);
+    }
+  }, [t]);
+
+  const handleRefresh = useCallback(async () => {
     console.log('[handleRefresh] Starting diagnostic refresh...');
     console.time('handleRefresh');
-    const path = smapiInfo?.game_path || gamePathInfo?.detected_path;
-    console.log('[handleRefresh] Resolved path:', path);
-    console.log('[handleRefresh] smapiInfo:', smapiInfo);
-    console.log('[handleRefresh] gamePathInfo:', gamePathInfo);
+    const currentSmapi = smapiInfoRef.current;
+    const currentGamePath = gamePathInfoRef.current;
+    const path = currentSmapi?.game_path || currentGamePath?.detected_path;
+    console.log('[handleRefresh] Resolved path from refs:', path);
+    console.log('[handleRefresh] smapiInfoRef.game_path:', currentSmapi?.game_path);
+    console.log('[handleRefresh] gamePathInfoRef.detected_path:', currentGamePath?.detected_path);
     if (path) {
       try {
         const modList = await scanMods(path);
-        console.log('[handleRefresh] scanMods returned', modList.length, 'mods');
+        console.log('[handleRefresh] scanMods returned', modList.length, 'mods:', modList.map(m => m.name));
         setMods(modList);
       } catch (err) {
         console.error('[handleRefresh] scanMods failed:', err);
@@ -272,14 +378,23 @@ export default function ModManager() {
     }
     console.timeEnd('handleRefresh');
     console.log('[handleRefresh] Diagnostic refresh complete.');
-  };
+  }, []);
 
-  const handleInstallSuccess = () => {
+  useEffect(() => {
+    handleRefreshRef.current = handleRefresh;
+  });
+
+  const handleInstallSuccess = useCallback(() => {
     console.log('[handleInstallSuccess] triggered, scheduling refresh in 800ms');
     setTimeout(() => {
-      handleRefresh();
+      console.log('[handleInstallSuccess] timeout fired, calling handleRefreshRef.current');
+      if (handleRefreshRef.current) {
+        handleRefreshRef.current();
+      } else {
+        console.error('[handleInstallSuccess] handleRefreshRef.current is null!');
+      }
     }, 800);
-  };
+  }, []);
 
   const handleProfileChange = (_profile: ProfileListItem) => {
     setMods(prevMods =>
@@ -288,10 +403,40 @@ export default function ModManager() {
         enabled: true,
       }))
     );
+    setActiveProfileName(_profile.name);
     handleRefresh();
   };
 
   const handleToggleMod = async (modId: string) => {
+    const mod = mods.find(m => m.unique_id === modId);
+    if (!mod) return;
+
+    if (activeProfileName) {
+      Modal.confirm({
+        title: t('app.modCard.exitProfileTitle'),
+        content: t('app.modCard.exitProfileContent', { profile: activeProfileName }),
+        okText: t('app.profiles.exitProfile'),
+        cancelText: t('app.common.cancel'),
+        onOk: async () => {
+          const path = smapiInfo?.game_path || gamePathInfo?.detected_path;
+          if (path) {
+            try {
+              await profileClearActive(path);
+              setActiveProfileName(null);
+              doToggleMod(modId);
+            } catch {
+              message.error(t('app.modCard.toggleFailed'));
+            }
+          }
+        },
+      });
+      return;
+    }
+
+    doToggleMod(modId);
+  };
+
+  const doToggleMod = async (modId: string) => {
     const mod = mods.find(m => m.unique_id === modId);
     if (!mod) return;
     try {
@@ -314,16 +459,117 @@ export default function ModManager() {
     }
   };
 
+  const handleEnableAllMods = async () => {
+    if (activeProfileName) {
+      Modal.confirm({
+        title: t('app.modCard.exitProfileTitle'),
+        content: t('app.modCard.exitProfileContent', { profile: activeProfileName }),
+        okText: t('app.profiles.exitProfile'),
+        cancelText: t('app.common.cancel'),
+        onOk: async () => {
+          const path = smapiInfo?.game_path || gamePathInfo?.detected_path;
+          if (path) {
+            try {
+              await profileClearActive(path);
+              setActiveProfileName(null);
+              doEnableAllMods();
+            } catch (err) {
+              message.error(String(err));
+            }
+          }
+        },
+      });
+      return;
+    }
+    doEnableAllMods();
+  };
+
+  const doEnableAllMods = async () => {
+    const disabledMods = mods.filter(m => !m.enabled);
+    if (disabledMods.length === 0) {
+      message.info(t('app.modList.batchEnableSuccess', { count: 0 }));
+      return;
+    }
+    let successCount = 0;
+    for (const mod of disabledMods) {
+      try {
+        const extraPaths = mod.is_group && mod.sub_mods.length > 0
+          ? mod.sub_mods.map(sm => sm.folder_path)
+          : undefined;
+        const result = await toggleMod(mod.folder_path, true, extraPaths);
+        if (result) successCount++;
+      } catch {}
+    }
+    message.success(t('app.modList.batchEnableSuccess', { count: successCount }));
+    handleRefresh();
+  };
+
+  const handleDisableAllMods = async () => {
+    if (activeProfileName) {
+      Modal.confirm({
+        title: t('app.modCard.exitProfileTitle'),
+        content: t('app.modCard.exitProfileContent', { profile: activeProfileName }),
+        okText: t('app.profiles.exitProfile'),
+        cancelText: t('app.common.cancel'),
+        onOk: async () => {
+          const path = smapiInfo?.game_path || gamePathInfo?.detected_path;
+          if (path) {
+            try {
+              await profileClearActive(path);
+              setActiveProfileName(null);
+              doDisableAllMods();
+            } catch (err) {
+              message.error(String(err));
+            }
+          }
+        },
+      });
+      return;
+    }
+    doDisableAllMods();
+  };
+
+  const doDisableAllMods = async () => {
+    const enabledMods = mods.filter(m => m.enabled && !m.is_required);
+    if (enabledMods.length === 0) {
+      message.info(t('app.modList.batchDisableSuccess', { count: 0 }));
+      return;
+    }
+    let successCount = 0;
+    for (const mod of enabledMods) {
+      try {
+        const extraPaths = mod.is_group && mod.sub_mods.length > 0
+          ? mod.sub_mods.map(sm => sm.folder_path)
+          : undefined;
+        const result = await toggleMod(mod.folder_path, false, extraPaths);
+        if (result) successCount++;
+      } catch {}
+    }
+    message.success(t('app.modList.batchDisableSuccess', { count: successCount }));
+    handleRefresh();
+  };
+
   const handleDeleteMod = async (modId: string) => {
     const mod = mods.find(m => m.unique_id === modId);
     if (!mod) return;
-    try {
-      await deleteMod(mod.folder_path);
-      handleRefresh();
-      message.success(t('app.modCard.uninstallSuccess'));
-    } catch {
-      message.error(t('app.modCard.uninstallFailed'));
-    }
+
+    Modal.confirm({
+      title: t('app.modCard.uninstall'),
+      content: t('app.modList.batchDeleteWarning'),
+      okText: t('app.common.delete'),
+      cancelText: t('app.common.cancel'),
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await deleteMod(mod.folder_path);
+          setSelectedMod(null);
+          handleRefresh();
+          message.success(t('app.modCard.uninstallSuccess'));
+        } catch {
+          message.error(t('app.modCard.uninstallFailed'));
+        }
+      },
+    });
   };
 
   const handleOpenModFolder = async (modId: string) => {
@@ -341,10 +587,16 @@ export default function ModManager() {
     const mod = mods.find(m => m.unique_id === modId);
     if (!mod) return;
     try {
-      const updates = await invoke('check_mod_updates', { uniqueId: mod.unique_id });
-      if (updates && (updates as any).has_update) {
+      const apiKey = localStorage.getItem('svl-nexus-api-key') || undefined;
+      const result = await invoke<{ unique_id: string; has_update: boolean; latest_version: string | null; update_source: string | null }>('check_single_mod_update', {
+        uniqueId: mod.unique_id,
+        currentVersion: mod.version,
+        modFolderPath: mod.folder_path,
+        apiKey: apiKey || null,
+      });
+      if (result && result.has_update) {
         message.info(t('app.modDetail.updateAvailable'));
-        setSelectedMod({ ...mod, has_update: true });
+        setSelectedMod({ ...mod, has_update: true, latest_version: result.latest_version });
       } else {
         message.success(t('app.modCard.upToDate'));
       }
@@ -362,21 +614,25 @@ export default function ModManager() {
 
     setCheckingUpdates(true);
     try {
-      const apiKey = localStorage.getItem('nexus-api-key') || '';
+      const apiKey = localStorage.getItem('svl-nexus-api-key') || '';
       const updates = await checkAllModsUpdates(
         mods.map(m => ({
           unique_id: m.unique_id,
           name: m.name,
           version: m.version,
           folder_path: m.folder_path,
-          nexus_mod_id: m.url?.match(/mods\/(\d+)/)?.[1] || null,
+          nexus_mod_id: m.nexus_mod_id ? String(m.nexus_mod_id) : null,
         })),
         apiKey || undefined
       );
 
       setUpdateStatuses(updates);
+      setShowUpdatePanel(true);
       
-      const updateCount = updates.filter(u => u.has_update).length;
+      const updatable = updates.filter(u => u.has_update);
+      setSelectedUpdateMods(new Set(updatable.map(u => u.unique_id)));
+      
+      const updateCount = updatable.length;
       if (updateCount > 0) {
         message.info(t('app.modList.foundUpdates', { count: updateCount }));
       } else {
@@ -399,42 +655,242 @@ export default function ModManager() {
     }
   };
 
-  const handleBatchUpdate = async () => {
-    const modsToUpdate = updateStatuses.filter(u => u.has_update);
+  const handleBatchUpdate = () => {
+    const modsToUpdate = updateStatuses.filter(u => u.has_update && selectedUpdateMods.has(u.unique_id));
     if (modsToUpdate.length === 0) {
-      message.warning(t('app.modList.noModsToUpdate'));
+      message.warning(t('app.modList.noSelectedMods'));
       return;
     }
 
-    Modal.confirm({
-      title: t('app.modList.batchUpdateConfirm', { count: modsToUpdate.length }),
-      content: t('app.modList.batchUpdateWarning'),
-      okText: t('app.modList.batchUpdate'),
-      cancelText: t('app.common.cancel'),
-      onOk: async () => {
-        try {
-          const apiKey = localStorage.getItem('nexus-api-key') || '';
-          const result = await invoke<{updated: number, total: number}>('batch_update_mods', {
-            modsToUpdate: modsToUpdate.map(u => ({
-              unique_id: u.unique_id,
-              name: u.name,
-              download_url: u.download_url,
-            })),
-            apiKey,
-          });
+    // Find mods that have existing installations and need backup
+    const modsNeedingBackup: Array<{ modPath: string; name: string; uniqueId: string; version: string }> = [];
+    for (const u of modsToUpdate) {
+      const existingMod = mods.find(m => m.unique_id === u.unique_id);
+      if (existingMod && existingMod.folder_path) {
+        modsNeedingBackup.push({
+          modPath: existingMod.folder_path,
+          name: existingMod.name,
+          uniqueId: existingMod.unique_id,
+          version: existingMod.version,
+        });
+      }
+    }
 
-          message.success(t('app.modList.batchUpdateSuccess', {
-            updated: result.updated,
-            total: result.total,
-          }));
+    if (modsNeedingBackup.length > 0) {
+      // Show backup confirmation for the first mod
+      setBatchBackupQueue(modsNeedingBackup);
+      setPendingBatchUpdate(modsToUpdate.map(u => ({
+        unique_id: u.unique_id,
+        name: u.name,
+        download_url: u.download_url,
+        nexus_mod_id: u.nexus_mod_id,
+      })));
+      setBackupTargetMod({
+        modPath: modsNeedingBackup[0].modPath,
+        nexusModId: '',
+        uniqueId: modsNeedingBackup[0].uniqueId,
+      });
+      setShowBackupConfirm(true);
+      return;
+    }
 
-          handleRefresh();
-        } catch (err) {
-          console.error('[handleBatchUpdate] failed:', err);
-          message.error(t('app.modList.batchUpdateFailed'));
-        }
-      },
+    // No backups needed, proceed directly
+    executeBatchUpdate(modsToUpdate);
+  };
+
+  const executeBatchUpdate = async (modsToUpdate: typeof updateStatuses) => {
+    try {
+      const apiKey = localStorage.getItem('svl-nexus-api-key') || '';
+      const result = await invoke<{updated: number, total: number}>('batch_update_mods', {
+        modsToUpdate: modsToUpdate.map(u => ({
+          unique_id: u.unique_id,
+          name: u.name,
+          download_url: u.download_url,
+          nexus_mod_id: u.nexus_mod_id,
+        })),
+        apiKey,
+        modsPath: modsPath,
+      });
+
+      message.success(t('app.modList.batchUpdateSuccess', {
+        updated: result.updated,
+        total: result.total,
+      }));
+
+      handleRefresh();
+      setShowUpdatePanel(false);
+      setSelectedUpdateMods(new Set());
+    } catch (err) {
+      console.error('[handleBatchUpdate] failed:', err);
+      message.error(t('app.modList.batchUpdateFailed'));
+    }
+  };
+
+  const toggleUpdateModSelect = (uniqueId: string) => {
+    setSelectedUpdateMods(prev => {
+      const next = new Set(prev);
+      if (next.has(uniqueId)) {
+        next.delete(uniqueId);
+      } else {
+        next.add(uniqueId);
+      }
+      return next;
     });
+  };
+
+  const selectAllUpdateMods = () => {
+    setSelectedUpdateMods(new Set(
+      updateStatuses.filter(u => u.has_update).map(u => u.unique_id)
+    ));
+  };
+
+  const deselectAllUpdateMods = () => {
+    setSelectedUpdateMods(new Set());
+  };
+
+  const invertUpdateModSelection = () => {
+    const updatableIds = new Set(updateStatuses.filter(u => u.has_update).map(u => u.unique_id));
+    setSelectedUpdateMods(prev => {
+      const next = new Set<string>();
+      updatableIds.forEach(id => {
+        if (!prev.has(id)) next.add(id);
+      });
+      return next;
+    });
+  };
+
+  const handleDownloadModUpdate = async (nexusModId: string, uniqueId?: string) => {
+    const apiKey = localStorage.getItem('svl-nexus-api-key') || '';
+    if (!apiKey) {
+      message.warning(t('app.logParser.needApiKey'));
+      return;
+    }
+    if (!modsPath) {
+      message.error(t('app.pages.modManager.gameNotFound'));
+      return;
+    }
+
+    // Find the mod to backup
+    const targetMod = mods.find(m => m.unique_id === uniqueId);
+    if (targetMod && targetMod.folder_path) {
+      setBackupTargetMod({ modPath: targetMod.folder_path, nexusModId, uniqueId });
+      setPendingDownloadNexusId(nexusModId);
+      setShowBackupConfirm(true);
+    } else {
+      // No mod found or no path, proceed without backup
+      await doDownloadModUpdate(nexusModId, uniqueId, apiKey);
+    }
+  };
+
+  // Internal function: actually performs the download
+  const doDownloadModUpdate = async (nexusModId: string, uniqueId?: string, apiKey?: string) => {
+    const key = apiKey || localStorage.getItem('svl-nexus-api-key') || '';
+    setDownloadingModIds(prev => new Set(prev).add(nexusModId));
+    try {
+      const result = await downloadModUpdate(nexusModId, key, modsPath, uniqueId);
+      message.success(result);
+      handleRefresh();
+      setUpdateStatuses(prev => prev.filter(u => u.nexus_mod_id !== nexusModId));
+    } catch (err) {
+      console.error('[doDownloadModUpdate] failed:', err);
+      message.error(typeof err === 'string' ? err : String(err));
+    } finally {
+      setDownloadingModIds(prev => {
+        const next = new Set(prev);
+        next.delete(nexusModId);
+        return next;
+      });
+    }
+  };
+
+  // Backup confirmation handlers
+  const handleBackupConfirm = async (customBackupDir: string | null) => {
+    // If we're in batch update mode, process the batch backup queue
+    if (pendingBatchUpdate && batchBackupQueue.length > 0) {
+      await processBatchBackupQueue(customBackupDir);
+      return;
+    }
+
+    // Single mod update mode
+    if (!backupTargetMod) return;
+    const { modPath, nexusModId, uniqueId } = backupTargetMod;
+    setShowBackupConfirm(false);
+    try {
+      await backupModBeforeUpdate(modPath, customBackupDir || undefined);
+      message.success('备份完成，正在下载更新...');
+      await doDownloadModUpdate(nexusModId, uniqueId);
+    } catch (err) {
+      console.error('[handleBackupConfirm] backup failed:', err);
+      message.error('备份失败，但将继续下载更新');
+      await doDownloadModUpdate(nexusModId, uniqueId);
+    }
+    setBackupTargetMod(null);
+    setPendingDownloadNexusId(null);
+  };
+
+  const processBatchBackupQueue = async (customBackupDir: string | null) => {
+    const queue = [...batchBackupQueue];
+    if (queue.length === 0) {
+      setBatchBackupQueue([]);
+      setPendingBatchUpdate(null);
+      setBackupTargetMod(null);
+      if (pendingBatchUpdate) {
+        await executeBatchUpdate(
+          updateStatuses.filter(u => 
+            pendingBatchUpdate.some(p => p.unique_id === u.unique_id)
+          )
+        );
+      }
+      return;
+    }
+
+    // Backup each mod in the queue sequentially
+    for (let i = 0; i < queue.length; i++) {
+      const current = queue[i];
+      try {
+        await backupModBeforeUpdate(current.modPath, customBackupDir || undefined);
+      } catch (err) {
+        console.error('[processBatchBackupQueue] backup failed:', err);
+        message.warning(`备份 ${current.name} 失败，将继续更新`);
+      }
+    }
+
+    // All backups complete, now execute the batch update
+    setBatchBackupQueue([]);
+    setPendingBatchUpdate(null);
+    setBackupTargetMod(null);
+    if (pendingBatchUpdate) {
+      await executeBatchUpdate(
+        updateStatuses.filter(u => 
+          pendingBatchUpdate.some(p => p.unique_id === u.unique_id)
+        )
+      );
+    }
+  };
+
+  const handleBackupSkip = async () => {
+    setShowBackupConfirm(false);
+    
+    // If we're in batch update mode
+    if (pendingBatchUpdate) {
+      // Skip remaining backups and execute batch update
+      setBatchBackupQueue([]);
+      setPendingBatchUpdate(null);
+      setBackupTargetMod(null);
+      await executeBatchUpdate(
+        updateStatuses.filter(u => 
+          pendingBatchUpdate.some(p => p.unique_id === u.unique_id)
+        )
+      );
+      return;
+    }
+
+    // Single mod update mode
+    if (pendingDownloadNexusId && backupTargetMod) {
+      await doDownloadModUpdate(pendingDownloadNexusId, backupTargetMod.uniqueId);
+    }
+    setBackupTargetMod(null);
+    setPendingDownloadNexusId(null);
   };
 
   const gameFound = !!gamePathInfo?.detected_path;
@@ -442,39 +898,97 @@ export default function ModManager() {
   const gamePath = smapiInfo?.game_path || gamePathInfo?.detected_path || '';
   const modsPath = gamePath ? `${gamePath}\\Mods` : '';
 
-  const filteredMods = mods.filter(mod => {
-    if (searchText) {
-      const lowerSearch = searchText.toLowerCase();
-      const nameMatch = mod.name.toLowerCase().includes(lowerSearch);
-      const authorMatch = mod.author.toLowerCase().includes(lowerSearch);
-      const idMatch = mod.unique_id.toLowerCase().includes(lowerSearch);
-      const tagMatch = (getTags(mod.unique_id) || []).some(tag =>
-        tag.toLowerCase().includes(lowerSearch),
-      );
-      if (!nameMatch && !authorMatch && !idMatch && !tagMatch) {
+  const handleOpenConfigEditor = (modId: string) => {
+    const mod = mods.find(m => m.unique_id === modId);
+    if (!mod) return;
+    setSelectedModForConfig(mod);
+    setShowConfigEditor(true);
+  };
+
+  const handleOpenBackupManager = (modId: string) => {
+    const mod = mods.find(m => m.unique_id === modId);
+    if (!mod) return;
+    setSelectedModForBackup(mod);
+    setShowBackupManager(true);
+  };
+
+  const handleBackupRestore = () => {
+    handleRefresh();
+  };
+
+  const filteredMods = useMemo(() => {
+    console.log('[filteredMods] Input mods count:', mods.length);
+    console.log('[filteredMods] Input mods names:', mods.map(m => m.name));
+
+    const subModIds = new Set<string>();
+    mods.forEach(mod => {
+      if (mod.is_group && mod.sub_mods) {
+        mod.sub_mods.forEach(sm => subModIds.add(sm.unique_id));
+      }
+    });
+
+    const result = mods.filter(mod => {
+      if (subModIds.has(mod.unique_id)) {
+        console.log('[filteredMods] Filtered out sub_mod already in group:', mod.name);
         return false;
       }
-    }
 
-    if (filterType === 'enabled' && !mod.enabled) return false;
-    if (filterType === 'disabled' && mod.enabled) return false;
+      if (searchText) {
+        const lowerSearch = searchText.toLowerCase();
+        const nameMatch = mod.name.toLowerCase().includes(lowerSearch);
+        const authorMatch = mod.author.toLowerCase().includes(lowerSearch);
+        const idMatch = mod.unique_id.toLowerCase().includes(lowerSearch);
+        const tagMatch = (getTags(mod.unique_id) || []).some(tag =>
+          tag.toLowerCase().includes(lowerSearch),
+        );
+        if (!nameMatch && !authorMatch && !idMatch && !tagMatch) {
+          console.log('[filteredMods] Filtered out by search:', mod.name);
+          return false;
+        }
+      }
 
-    if (categoryFilter !== 'all' && mod.category !== categoryFilter) return false;
+      if (filterType === 'enabled' && !mod.enabled) {
+        console.log('[filteredMods] Filtered out by enabled filter:', mod.name);
+        return false;
+      }
+      if (filterType === 'disabled' && mod.enabled) {
+        console.log('[filteredMods] Filtered out by disabled filter:', mod.name);
+        return false;
+      }
 
-    if (statusFilter === 'hasUpdate' && !mod.has_update) return false;
-    if (statusFilter === 'hasConflict' && !mod.has_conflict) return false;
-    if (statusFilter === 'uncategorized' && mod.category !== 'other') return false;
+      if (categoryFilter !== 'all' && mod.category !== categoryFilter) {
+        console.log('[filteredMods] Filtered out by category:', mod.name, 'cat=', mod.category, 'filter=', categoryFilter);
+        return false;
+      }
 
-    return true;
-  }).sort((a, b) => {
-    switch (sortBy) {
-      case 'name-az': return a.name.localeCompare(b.name);
-      case 'name-za': return b.name.localeCompare(a.name);
-      case 'author': return a.author.localeCompare(b.author);
-      case 'version': return a.version.localeCompare(b.version);
-      default: return 0;
-    }
-  });
+      if (statusFilter === 'hasUpdate' && !mod.has_update) {
+        console.log('[filteredMods] Filtered out by hasUpdate:', mod.name);
+        return false;
+      }
+      if (statusFilter === 'hasConflict' && !mod.has_conflict) {
+        console.log('[filteredMods] Filtered out by hasConflict:', mod.name);
+        return false;
+      }
+      if (statusFilter === 'uncategorized' && mod.category !== 'other') {
+        console.log('[filteredMods] Filtered out by uncategorized:', mod.name, 'cat=', mod.category);
+        return false;
+      }
+
+      return true;
+    }).sort((a, b) => {
+      switch (sortBy) {
+        case 'name-az': return a.name.localeCompare(b.name);
+        case 'name-za': return b.name.localeCompare(a.name);
+        case 'author': return a.author.localeCompare(b.author);
+        case 'version': return a.version.localeCompare(b.version);
+        default: return 0;
+      }
+    });
+    
+    console.log('[filteredMods] Output count:', result.length);
+    console.log('[filteredMods] Output names:', result.map(m => m.name));
+    return result;
+  }, [mods, searchText, filterType, categoryFilter, statusFilter, sortBy, getTags]);
 
   return (
     <>
@@ -502,6 +1016,7 @@ export default function ModManager() {
 
         <ProfileSelector
           onProfileChange={handleProfileChange}
+          onProfileExit={() => setActiveProfileName(null)}
           onManageProfiles={() => navigate('/profiles')}
         />
 
@@ -513,14 +1028,93 @@ export default function ModManager() {
           {checkingUpdates ? t('app.modList.checkingUpdates') : t('app.modList.checkAllUpdates')}
         </button>
 
-        {updateStatuses.filter(u => u.has_update).length > 0 && (
-          <button
-            className="svl-batch-update-btn"
-            onClick={handleBatchUpdate}
-          >
-            {t('app.modList.batchUpdate', { count: updateStatuses.filter(u => u.has_update).length })}
-          </button>
-        )}
+        {showUpdatePanel && updateStatuses.filter(u => u.has_update).length > 0 && (() => {
+          const updatable = updateStatuses.filter(u => u.has_update);
+          const allSelected = updatable.every(u => selectedUpdateMods.has(u.unique_id));
+          const selectedCount = updatable.filter(u => selectedUpdateMods.has(u.unique_id)).length;
+          return (
+          <div className="svl-update-panel">
+            <div className="svl-update-panel-header">
+              <span className="svl-update-panel-title">
+                {t('app.modList.foundUpdates', { count: updatable.length })}
+                {selectedCount > 0 && <span className="svl-update-selected-count"> ({selectedCount})</span>}
+              </span>
+              <div className="svl-update-panel-header-actions">
+                <button className="svl-select-all-btn" onClick={allSelected ? deselectAllUpdateMods : selectAllUpdateMods}>
+                  {allSelected ? t('app.modList.deselectAll') : t('app.modList.selectAll')}
+                </button>
+                <button className="svl-invert-selection-btn" onClick={invertUpdateModSelection}>
+                  {t('app.modList.invertSelection')}
+                </button>
+                <button className="svl-close-update-panel-btn" onClick={() => { setShowUpdatePanel(false); setSelectedUpdateMods(new Set()); }}>✕</button>
+              </div>
+            </div>
+            <div className="svl-update-list">
+              {updatable.map((u) => (
+                <div
+                  key={u.unique_id}
+                  className={`svl-update-item ${selectedUpdateMods.has(u.unique_id) ? 'svl-update-item-selected' : ''}`}
+                  onClick={() => toggleUpdateModSelect(u.unique_id)}
+                >
+                  <input
+                    type="checkbox"
+                    className="svl-update-checkbox"
+                    checked={selectedUpdateMods.has(u.unique_id)}
+                    onChange={() => toggleUpdateModSelect(u.unique_id)}
+                    onClick={e => e.stopPropagation()}
+                  />
+                  <span className="svl-update-item-name">{u.name}</span>
+                  <span className="svl-update-item-version" title={u.changelog || undefined}>
+                    {u.current_version} → {u.latest_version
+                      || (u.update_source === 'SmapiList' && u.changelog
+                          ? t('app.modList.smapiStatus')
+                          : u.update_source === 'NexusApi'
+                            ? t('app.modList.needsNexusCheck')
+                            : '?')}
+                  </span>
+                  {u.nexus_mod_id ? (
+                    <button
+                      className="svl-download-update-btn"
+                      onClick={(e) => { e.stopPropagation(); handleDownloadModUpdate(u.nexus_mod_id!, u.unique_id); }}
+                      disabled={downloadingModIds.has(u.nexus_mod_id)}
+                    >
+                      {downloadingModIds.has(u.nexus_mod_id) ? t('app.modList.downloading') : t('app.modList.downloadUpdate')}
+                    </button>
+                  ) : u.download_url ? (
+                    <button
+                      className="svl-download-update-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const match = u.download_url?.match(/mods\/(\d+)/);
+                        if (match) {
+                          handleDownloadModUpdate(match[1], u.unique_id);
+                        } else {
+                          message.warning(t('app.modList.cannotAutoDownload'));
+                        }
+                      }}
+                    >
+                      {t('app.modList.downloadUpdate')}
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <div className="svl-update-panel-footer">
+              <span className="svl-update-footer-hint">
+                {selectedCount === 0
+                  ? t('app.modList.selectModsHint')
+                  : t('app.modList.selectedCount', { count: selectedCount, total: updatable.length })}
+              </span>
+              <button
+                className="svl-batch-update-btn"
+                onClick={handleBatchUpdate}
+                disabled={selectedCount === 0}
+              >
+                {t('app.modList.batchUpdate', { count: selectedCount })}
+              </button>
+            </div>
+          </div>
+        );})()}
 
         <div className="svl-header-actions">
           <div className="svl-filter-group">
@@ -583,12 +1177,36 @@ export default function ModManager() {
               <option value="author">{t('app.pages.modManager.sortAuthor')}</option>
               <option value="version">{t('app.pages.modManager.sortVersion')}</option>
             </select>
+            <button
+              className="svl-batch-toggle-btn svl-batch-enable-btn"
+              onClick={handleEnableAllMods}
+              disabled={gameRunning || mods.length === 0}
+              title={t('app.modList.batchEnable')}
+            >
+              {t('app.modList.enableAll')}
+            </button>
+            <button
+              className="svl-batch-toggle-btn svl-batch-disable-btn"
+              onClick={handleDisableAllMods}
+              disabled={gameRunning || mods.length === 0}
+              title={t('app.modList.batchDisable')}
+            >
+              {t('app.modList.disableAll')}
+            </button>
           </div>
 
         </div>
       </div>
 
-      <div className="svl-game-status-bar">
+      <div
+        className="svl-game-status-bar"
+        style={{
+          backgroundImage: 'linear-gradient(135deg, rgba(26, 21, 16, 0.95) 0%, rgba(45, 36, 24, 0.9) 100%), url(/images/stardew-farm-screenshot.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
         {gameFound ? (
           <div className="svl-game-status svl-game-status--found">
             <span className="svl-game-status-icon">✓</span>
@@ -599,7 +1217,7 @@ export default function ModManager() {
             <button className="svl-open-game-dir-btn" onClick={handleOpenGamePath} title={t('app.smapiInstaller.openGamePath')}>
               <FolderOpenOutlined />
             </button>
-            <button className="svl-change-btn" onClick={handleInit}>
+            <button className="svl-change-btn" onClick={handleChangeGamePath}>
               {t('app.pages.modManager.change')}
             </button>
           </div>
@@ -667,7 +1285,18 @@ export default function ModManager() {
       <div className="svl-content">
         {!gameFound ? (
           <div className="svl-empty-state">
-            <div className="svl-empty-icon">🎮</div>
+            <img
+              src="/images/stardew-hero.jpg"
+              alt={t('app.altStardewValley')}
+              style={{
+                width: '320px',
+                height: 'auto',
+                borderRadius: '16px',
+                marginBottom: '24px',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                imageRendering: 'auto',
+              }}
+            />
             <div className="svl-empty-title">{t('app.pages.modManager.gameNotFound')}</div>
             <div className="svl-empty-desc">{t('app.pages.modManager.gameNotFoundDesc')}</div>
             <div className="svl-empty-hint" style={{ marginTop: 16, marginBottom: 16, maxWidth: 500 }}>
@@ -746,6 +1375,8 @@ export default function ModManager() {
                     onSelectMod={setSelectedMod}
                     onOpenModFolder={handleOpenModFolder}
                     onCheckUpdate={handleCheckUpdate}
+                    onOpenConfigEditor={handleOpenConfigEditor}
+                    onOpenBackupManager={handleOpenBackupManager}
                     onAddTag={addTag}
                     onRemoveTag={removeTag}
                     getTags={getTags}
@@ -759,6 +1390,9 @@ export default function ModManager() {
                     mod={selectedMod}
                     installedMods={mods}
                     onClose={() => setSelectedMod(null)}
+                    onToggleMod={handleToggleMod}
+                    onDeleteMod={handleDeleteMod}
+                    onCheckUpdate={handleCheckUpdate}
                     onAddTag={addTag}
                     onRemoveTag={removeTag}
                     getTags={getTags}
@@ -781,7 +1415,89 @@ export default function ModManager() {
         onClose={() => setShowInstallWizard(false)}
         modsPath={modsPath}
         onInstallComplete={handleInstallSuccess}
+        existingMods={mods}
+        gamePath={gamePath}
       />
+
+      <LoadOrderModal
+        visible={showLoadOrder}
+        onClose={() => setShowLoadOrder(false)}
+        mods={mods}
+        gamePath={gamePath}
+        onOrderApplied={handleRefresh}
+      />
+
+      <ModConfigEditor
+        visible={showConfigEditor}
+        onClose={() => { setShowConfigEditor(false); setSelectedModForConfig(null); }}
+        modPath={selectedModForConfig?.folder_path || ''}
+        onConfigUpdated={handleRefresh}
+      />
+
+      {selectedModForBackup && (
+        <ModBackupManager
+          visible={showBackupManager}
+          onClose={() => { setShowBackupManager(false); setSelectedModForBackup(null); }}
+          modPath={selectedModForBackup.folder_path}
+          modUniqueId={selectedModForBackup.unique_id}
+          modName={selectedModForBackup.name}
+          onRestore={handleBackupRestore}
+        />
+      )}
+
+      <ModBackupConfirmModal
+        visible={showBackupConfirm}
+        modName={
+          pendingBatchUpdate && batchBackupQueue.length > 0
+            ? `${batchBackupQueue[0].name} (批量备份 ${batchBackupQueue.length} 个模组)`
+            : backupTargetMod
+              ? mods.find(m => m.unique_id === backupTargetMod.uniqueId)?.name || ''
+              : ''
+        }
+        modUniqueId={
+          pendingBatchUpdate && batchBackupQueue.length > 0
+            ? batchBackupQueue[0].uniqueId
+            : backupTargetMod?.uniqueId || ''
+        }
+        modVersion={
+          pendingBatchUpdate && batchBackupQueue.length > 0
+            ? batchBackupQueue[0].version
+            : backupTargetMod
+              ? mods.find(m => m.unique_id === backupTargetMod.uniqueId)?.version || ''
+              : ''
+        }
+        _defaultBackupDir={gamePath ? `${gamePath}\\svl-backups` : ''}
+        onCancel={() => {
+          setShowBackupConfirm(false);
+          setPendingDownloadNexusId(null);
+          if (pendingBatchUpdate) {
+            setBatchBackupQueue([]);
+            setPendingBatchUpdate(null);
+          }
+          setBackupTargetMod(null);
+        }}
+        onConfirm={handleBackupConfirm}
+        onSkipBackup={handleBackupSkip}
+      />
+
+      <GameMonitor
+        visible={showGameMonitor}
+        onClose={() => setShowGameMonitor(false)}
+        totalMods={mods.length}
+      />
+
+      <SecurityScanner
+        visible={showSecurityScanner}
+        onClose={() => setShowSecurityScanner(false)}
+        mods={mods}
+      />
+
+      <LogParser
+        isOpen={showLogParser}
+        onClose={() => setShowLogParser(false)}
+        smapiInstalled={smapiInfo?.installed}
+      />
+
     </>
   );
 }

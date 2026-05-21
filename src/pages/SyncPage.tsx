@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import { message, Select, Button, Modal, Input, Tag } from 'antd';
 import { ExportOutlined, CloudUploadOutlined, FileZipOutlined, UploadOutlined } from '@ant-design/icons';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -17,6 +18,7 @@ const LOAD_TIMEOUT_MS = 10000;
 
 export default function SyncPage() {
   const { t } = useTranslation();
+  const location = useLocation();
   const [gamePath, setGamePath] = useState<string>('');
   const [profiles, setProfiles] = useState<ProfileListItem[]>([]);
   const [profilesLoaded, setProfilesLoaded] = useState(false);
@@ -35,7 +37,11 @@ export default function SyncPage() {
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const isSyncPageActive = location.pathname === '/sync';
+
   useEffect(() => {
+    if (!isSyncPageActive) return;
+
     let disposed = false;
     const unlisten = getCurrentWindow().onDragDropEvent((event) => {
       if (disposed) return;
@@ -74,7 +80,7 @@ export default function SyncPage() {
       disposed = true;
       unlisten.then(fn => fn()).catch(() => {});
     };
-  }, [t]);
+  }, [t, isSyncPageActive]);
 
   useEffect(() => {
     checkSmapiStatus()
@@ -169,7 +175,7 @@ export default function SyncPage() {
     try {
       const selected = await open({
         multiple: false,
-        filters: [{ name: 'Modpacks', extensions: ['zip'] }]
+        filters: [{ name: t('app.modpacks'), extensions: ['zip'] }]
       });
       
       if (selected && typeof selected === 'string') {
@@ -337,7 +343,7 @@ export default function SyncPage() {
               </div>
               
               {importModpackFile && (
-                <Tag color="blue" style={{ marginTop: 16, fontSize: 14, padding: '6px 12px' }}>
+                <Tag className="svl-tag-info" style={{ marginTop: 16, fontSize: 14, padding: '6px 12px' }}>
                   <FileZipOutlined style={{ marginRight: 6 }} />
                   {importModpackFileName}
                 </Tag>

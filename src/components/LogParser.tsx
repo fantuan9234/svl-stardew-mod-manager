@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Modal, Button, Spin, Empty, Tag } from 'antd';
+import { Alert, Modal, Button, Spin, Empty, Tag, Space, Progress, message } from 'antd';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { CheckCircleOutlined, CloseCircleOutlined, ToolOutlined, DownloadOutlined } from '@ant-design/icons';
 
 interface ParsedLogError {
   mod_name: string;
@@ -10,6 +12,8 @@ interface ParsedLogError {
   raw_line: string;
   solution: string;
   severity: string;
+  missing_dep_id?: string;
+  missing_dep_name?: string;
 }
 
 interface ParseSmapiLogResult {
@@ -20,19 +24,42 @@ interface ParseSmapiLogResult {
   smapi_not_installed: boolean;
 }
 
+interface FixDetail {
+  mod_name: string;
+  error_type: string;
+  action: string;
+  success: boolean;
+  message: string;
+}
+
+interface FixResult {
+  total: number;
+  fixed: number;
+  failed: number;
+  details: FixDetail[];
+}
+
 interface LogParserProps {
   isOpen: boolean;
   onClose: () => void;
   smapiInstalled?: boolean;
+  onFixComplete?: () => void;
 }
 
-const ERROR_TYPE_MAP: Record<string, { label: string }> = {
-  MissingDependency: { label: '缺少前置' },
-  MissingDll: { label: 'DLL缺失' },
-  FailedLoading: { label: '加载失败' },
-  UpdateAvailable: { label: '可更新' },
-  ModuleError: { label: '模块错误' },
-  UnknownError: { label: '未知错误' },
+const ERROR_TYPE_KEYS: Record<string, string> = {
+  MissingDependency: 'app.logParser.errorTypeMissingDep',
+  MissingDll: 'app.logParser.errorTypeMissingDll',
+  FailedLoading: 'app.logParser.errorTypeFailedLoading',
+  UpdateAvailable: 'app.logParser.errorTypeUpdateAvailable',
+  ModuleError: 'app.logParser.errorTypeModuleError',
+  VersionMismatch: 'app.logParser.errorTypeVersionMismatch',
+  DllLoadFailed: 'app.logParser.errorTypeDllLoadFailed',
+  UnknownError: 'app.logParser.errorTypeUnknown',
+  BrokenMod: 'app.logParser.errorTypeBrokenMod',
+  AbandonedMod: 'app.logParser.errorTypeAbandonedMod',
+  ObsoleteMod: 'app.logParser.errorTypeObsoleteMod',
+  NeedsWorkaround: 'app.logParser.errorTypeNeedsWorkaround',
+  NoUpdateKeys: 'app.logParser.errorTypeNoUpdateKeys',
 };
 
 const SEVERITY_COLOR_MAP: Record<string, 'error' | 'warning' | 'info'> = {
@@ -41,19 +68,24 @@ const SEVERITY_COLOR_MAP: Record<string, 'error' | 'warning' | 'info'> = {
   Info: 'info',
 };
 
-const SEVERITY_TAG_COLOR: Record<string, string> = {
-  Error: 'error',
-  Warning: 'warning',
-  Info: 'processing',
+const SEVERITY_TAG_CLASS: Record<string, string> = {
+  Error: 'svl-tag-error',
+  Warning: 'svl-tag-warning',
+  Info: 'svl-tag-info',
 };
 
-export default function LogParser({ isOpen, onClose, smapiInstalled }: LogParserProps) {
+const FIXABLE_ERROR_TYPES = ['MissingDependency', 'BrokenMod', 'AbandonedMod', 'ObsoleteMod'];
+
+export default function LogParser({ isOpen, onClose, smapiInstalled, onFixComplete }: LogParserProps) {
   const { t } = useTranslation();
   const [result, setResult] = useState<ParseSmapiLogResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [fullLog, setFullLog] = useState<string | null>(null);
-  const [fullLogLoading, setFullLogLoading] = useState(false);
-  const [fullLogVisible, setFullLogVisible] = useState(false);
+  const [fixing, setFixing] = useState(false);
+  const [fixProgress, setFixProgress] = useState<number>(0);
+  const [fixCurrentMod, setFixCurrentMod] = useState<string>('');
+  const [fixResultVisible, setFixResultVisible] = useState(false);
+  const [fixResult, setFixResult] = useState<FixResult | null>(null);
+  const [fixingIndex, setFixingIndex] = useState<number>(-1);
 
   const fetchLog = useCallback(async () => {
     setLoading(true);
@@ -77,28 +109,27 @@ export default function LogParser({ isOpen, onClose, smapiInstalled }: LogParser
     }
   }, [isOpen, fetchLog]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const unlisten = listen('fix-progress', (event) => {
+      const data = event.payload as any;
+      if (data.mod_name) {
+        setFixCurrentMod(data.mod_name);
+      }
+      if (data.status === 'success' || data.status === 'failed') {
+        setFixProgress((prev) => prev + 1);
+      }
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [isOpen]);
+
   const handleRefresh = () => {
     setResult(null);
-    setFullLog(null);
     fetchLog();
-  };
-
-  const handleOpenFullLog = async () => {
-    if (!result?.log_path) return;
-
-    setFullLogLoading(true);
-    setFullLogVisible(true);
-    try {
-      const content = await invoke<string>('read_log_file', {
-        filePath: result.log_path,
-      });
-      setFullLog(content);
-    } catch (err) {
-      console.error('[LogParser] read_log_file failed:', err);
-      setFullLog(String(err));
-    } finally {
-      setFullLogLoading(false);
-    }
   };
 
   const handleOpenLogFolder = async () => {
@@ -110,10 +141,68 @@ export default function LogParser({ isOpen, onClose, smapiInstalled }: LogParser
     }
   };
 
+  const handleFixAll = async () => {
+    if (!result || result.errors.length === 0) return;
+
+    const fixableErrors = result.errors.filter((e) => FIXABLE_ERROR_TYPES.includes(e.error_type));
+    if (fixableErrors.length === 0) {
+      message.warning(t('app.logParser.noFixableErrors'));
+      return;
+    }
+
+    const apiKey = localStorage.getItem('svl-nexus-api-key') || '';
+    if (!apiKey) {
+      message.error(t('app.logParser.needApiKey'));
+      return;
+    }
+
+    setFixing(true);
+    setFixProgress(0);
+    setFixCurrentMod('');
+
+    try {
+      const fixRes = await invoke<FixResult>('fix_all_log_errors', {
+        errors: fixableErrors,
+        apiKey,
+      });
+      setFixResult(fixRes);
+      setFixResultVisible(true);
+      if (onFixComplete) {
+        onFixComplete();
+      }
+    } catch (err) {
+      message.error(String(err));
+    } finally {
+      setFixing(false);
+    }
+  };
+
+  const handleFixSingle = async (error: ParsedLogError, index: number) => {
+    const apiKey = localStorage.getItem('svl-nexus-api-key') || '';
+    if (!apiKey) {
+      message.error(t('app.logParser.needApiKey'));
+      return;
+    }
+
+    setFixingIndex(index);
+    try {
+      const detail = await invoke<FixDetail>('fix_single_log_error', {
+        error,
+        apiKey,
+      });
+      message.success(detail.message);
+      handleRefresh();
+    } catch (err) {
+      message.error(String(err));
+    } finally {
+      setFixingIndex(-1);
+    }
+  };
+
   if (!isOpen) return null;
 
   const getTypeLabel = (errorType: string) => {
-    return ERROR_TYPE_MAP[errorType]?.label || ERROR_TYPE_MAP.UnknownError.label;
+    return t(ERROR_TYPE_KEYS[errorType] || ERROR_TYPE_KEYS.UnknownError);
   };
 
   const getAlertType = (severity: string) => {
@@ -173,17 +262,38 @@ export default function LogParser({ isOpen, onClose, smapiInstalled }: LogParser
 
     const errorCount = result.errors.filter(e => e.severity === 'Error').length;
     const warningCount = result.errors.filter(e => e.severity === 'Warning').length;
+    const fixableCount = result.errors.filter(e => FIXABLE_ERROR_TYPES.includes(e.error_type)).length;
 
     return (
       <div className="svl-log-parser-errors">
         <div className="svl-log-parser-summary">
           <span>{t('app.logParser.errorCount', { count: result.errors.length })}</span>
-          {errorCount > 0 && <Tag color="error" style={{ marginLeft: 8 }}>{errorCount} {t('app.logParser.errors')}</Tag>}
-          {warningCount > 0 && <Tag color="warning" style={{ marginLeft: 4 }}>{warningCount} {t('app.logParser.warnings')}</Tag>}
+          {errorCount > 0 && <Tag className="svl-tag-error" style={{ marginLeft: 8 }}>{errorCount} {t('app.logParser.errors')}</Tag>}
+          {warningCount > 0 && <Tag className="svl-tag-warning" style={{ marginLeft: 4 }}>{warningCount} {t('app.logParser.warnings')}</Tag>}
+          {fixableCount > 0 && (
+            <Tag color="blue" style={{ marginLeft: 4 }}>{fixableCount} {t('app.logParser.fixable')}</Tag>
+          )}
         </div>
+
+        {fixing && (
+          <Alert
+            type="info"
+            showIcon
+            message={t('app.logParser.fixing', { mod: fixCurrentMod })}
+            description={
+              <Progress
+                percent={Math.round((fixProgress / result.errors.length) * 100)}
+                status="active"
+              />
+            }
+            style={{ marginBottom: 12 }}
+          />
+        )}
+
         {result.errors.map((error, index) => {
           const alertType = getAlertType(error.severity);
           const typeLabel = getTypeLabel(error.error_type);
+          const isFixable = FIXABLE_ERROR_TYPES.includes(error.error_type);
           return (
             <Alert
               key={index}
@@ -191,17 +301,37 @@ export default function LogParser({ isOpen, onClose, smapiInstalled }: LogParser
               showIcon
               message={
                 <span>
-                  <Tag color={SEVERITY_TAG_COLOR[error.severity] || 'default'} style={{ marginRight: 6 }}>
+                  <Tag className={SEVERITY_TAG_CLASS[error.severity] || 'svl-tag-default'} style={{ marginRight: 6 }}>
                     {typeLabel}
                   </Tag>
                   {error.mod_name && error.mod_name !== 'Unknown' && (
                     <strong>{error.mod_name}</strong>
                   )}
+                  {isFixable && (
+                    <Tag color="blue" style={{ marginLeft: 6, fontSize: 11 }}>
+                      {t('app.logParser.fixable')}
+                    </Tag>
+                  )}
+                  {isFixable && (
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={<DownloadOutlined />}
+                      loading={fixingIndex === index}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFixSingle(error, index);
+                      }}
+                      style={{ marginLeft: 4, padding: '0 4px', fontSize: 12 }}
+                    >
+                      {fixingIndex === index ? t('app.logParser.downloading') : t('app.logParser.downloadFix')}
+                    </Button>
+                  )}
                 </span>
               }
               description={
                 <div className="svl-log-error-detail">
-                  <p className="svl-log-error-solution">{error.solution}</p>
+                  <p className="svl-log-error-solution" style={{ whiteSpace: 'pre-line', lineHeight: 1.8 }}>{error.solution}</p>
                   <details className="svl-log-raw-details">
                     <summary>{t('app.logParser.rawLog')}</summary>
                     <pre className="svl-log-raw-code">{error.raw_line}</pre>
@@ -214,6 +344,8 @@ export default function LogParser({ isOpen, onClose, smapiInstalled }: LogParser
       </div>
     );
   };
+
+  const fixableCount = result?.errors.filter(e => FIXABLE_ERROR_TYPES.includes(e.error_type)).length || 0;
 
   return (
     <div className="svl-log-parser-overlay" onClick={onClose}>
@@ -228,23 +360,30 @@ export default function LogParser({ isOpen, onClose, smapiInstalled }: LogParser
             <button
               className="svl-log-parser-analyze-btn"
               onClick={handleRefresh}
-              disabled={loading}
+              disabled={loading || fixing}
             >
               {loading ? t('app.logParser.analyzing') : t('app.logParser.refreshButton')}
             </button>
-            {result?.log_path && (
+            {fixableCount > 0 && (
+              <Button
+                type="primary"
+                icon={<ToolOutlined />}
+                onClick={handleFixAll}
+                loading={fixing}
+                disabled={fixing}
+                style={{ marginLeft: 8 }}
+              >
+                {fixing ? t('app.logParser.fixing', { mod: fixCurrentMod }) : t('app.logParser.fixAll', { count: fixableCount })}
+              </Button>
+            )}
+            {result?.log_path && result.log_path.includes('Mods') && (
               <>
                 <button
                   className="svl-log-parser-open-btn"
-                  onClick={handleOpenFullLog}
-                >
-                  {t('app.logParser.openFullLog')}
-                </button>
-                <button
-                  className="svl-log-parser-open-btn"
                   onClick={handleOpenLogFolder}
+                  disabled={fixing}
                 >
-                  {t('app.logParser.openLogFolder')}
+                  {t('app.logParser.openModsFolder')}
                 </button>
               </>
             )}
@@ -254,23 +393,47 @@ export default function LogParser({ isOpen, onClose, smapiInstalled }: LogParser
         </div>
 
         <Modal
-          title={t('app.logParser.fullLogTitle')}
-          open={fullLogVisible}
-          onCancel={() => setFullLogVisible(false)}
+          title={t('app.logParser.fixResultTitle')}
+          open={fixResultVisible}
+          onCancel={() => {
+            setFixResultVisible(false);
+            handleRefresh();
+          }}
           footer={[
-            <Button key="close" onClick={() => setFullLogVisible(false)}>
-              {t('app.logParser.close')}
+            <Button key="refresh" type="primary" onClick={() => {
+              setFixResultVisible(false);
+              handleRefresh();
+            }}>
+              {t('app.logParser.refreshAndClose')}
             </Button>,
           ]}
-          width={800}
-          className="svl-log-full-modal"
+          width={600}
         >
-          {fullLogLoading ? (
-            <div style={{ textAlign: 'center', padding: 40 }}>
-              <Spin />
+          {fixResult && (
+            <div>
+              <Space style={{ marginBottom: 16 }}>
+                <Tag color="success">{t('app.logParser.fixSuccess', { count: fixResult.fixed })}</Tag>
+                {fixResult.failed > 0 && <Tag color="error">{t('app.logParser.fixFailed', { count: fixResult.failed })}</Tag>}
+              </Space>
+              <div style={{ maxHeight: 300, overflow: 'auto' }}>
+                {fixResult.details.map((detail, i) => (
+                  <div key={i} style={{ marginBottom: 8, padding: 8, background: '#1a1a1a', borderRadius: 4 }}>
+                    <Space>
+                      {detail.success ? (
+                        <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                      ) : (
+                        <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                      )}
+                      <strong>{detail.mod_name}</strong>
+                      <Tag style={{ fontSize: 11 }}>{detail.action}</Tag>
+                    </Space>
+                    <p style={{ margin: '4px 0 0', fontSize: 12, color: '#999', whiteSpace: 'pre-line' }}>
+                      {detail.message}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
-          ) : (
-            <pre className="svl-log-full-content">{fullLog}</pre>
           )}
         </Modal>
       </div>

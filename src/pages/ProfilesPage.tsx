@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { message, Modal, Input, Tag, Button, Empty, Table, Checkbox, Spin, Divider, Tooltip } from 'antd';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
+import { writeFile } from '@tauri-apps/plugin-fs';
 import { listen } from '@tauri-apps/api/event';
 import {
   PlusOutlined,
@@ -13,6 +14,8 @@ import {
   CopyOutlined,
   SwapOutlined,
   LogoutOutlined,
+  PictureOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import {
   profileCreate,
@@ -28,9 +31,11 @@ import {
   profileImport,
   scanProfileMods,
   checkSmapiStatus,
+  scanMods,
   type ProfileListItem,
   type ProfileModInfo,
   type SmapiInfo,
+  type ModInfo,
 } from '../utils/tauri-api';
 
 export default function ProfilesPage() {
@@ -60,6 +65,11 @@ export default function ProfilesPage() {
   const [copying, setCopying] = useState(false);
 
   const [exiting, setExiting] = useState(false);
+
+  const [cardModalOpen, setCardModalOpen] = useState(false);
+  const [cardProfileMods, setCardProfileMods] = useState<ModInfo[]>([]);
+  const [cardProfileName, setCardProfileName] = useState('');
+  const [cardLoading, setCardLoading] = useState(false);
 
   useEffect(() => {
     checkSmapiStatus()
@@ -221,6 +231,346 @@ export default function ProfilesPage() {
     }
   };
 
+  const handleOpenCardModal = async (profileName: string) => {
+    setCardProfileName(profileName);
+    setCardModalOpen(true);
+    setCardLoading(true);
+    try {
+      const allMods = await scanMods(gamePath);
+      const states = await profileGetModStates(gamePath, profileName);
+      const enabledMods = allMods.filter((m) => states[m.unique_id] !== false);
+      setCardProfileMods(enabledMods);
+    } catch (err: any) {
+      message.error(err?.toString() || '加载模组失败');
+    } finally {
+      setCardLoading(false);
+    }
+  };
+
+  const handleSaveCardImage = async () => {
+    // Load real sprite images
+    const loadImg = (src: string): Promise<HTMLImageElement> =>
+      new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(img);
+        img.src = src;
+      });
+
+    const [chickenImg, woodFenceImg] = await Promise.all([
+      loadImg('/chicken.png'),
+      loadImg('/wood-fence.png'),
+    ]);
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const cardWidth = 900;
+    const signBorder = 36;
+    const signInnerMargin = 24;
+    const titleHeight = 72;
+    const tableHeaderHeight = 44;
+    const footerHeight = 64;
+    const rowHeight = 40;
+    const borderWidth = 4;
+
+    const signContentWidth = cardWidth - signBorder * 2;
+    const tableTopOffset = signBorder + signInnerMargin + titleHeight + tableHeaderHeight + 12;
+    const totalHeight = tableTopOffset + cardProfileMods.length * rowHeight + footerHeight + signInnerMargin;
+
+    canvas.width = cardWidth;
+    canvas.height = totalHeight;
+
+    const colors = {
+      sky: '#87CEEB',
+      skyWhite: '#C5E8F7',
+      grass: '#567D46',
+      grassLight: '#6B9B57',
+      grassDark: '#3E5C2A',
+      path: '#B8956A',
+      pathLight: '#C9A87E',
+      wood: '#8B5E3C',
+      woodLight: '#A0724A',
+      woodDark: '#5E3D1F',
+      parchment: '#F5DEB3',
+      parchmentDark: '#E8CFA0',
+      text: '#3E2723',
+      textLight: '#5D4037',
+      gold: '#FFD700',
+      vine: '#2E7D32',
+      vineLight: '#4CAF50',
+      leaf: '#388E3C',
+    };
+
+    // Load farmer sprite from user file
+    const farmerSprite = await loadImg('/farmer-sprite.png');
+
+    // Background: Use real farm screenshot (cover mode to avoid stretch)
+    const bgImg = await loadImg('/images/stardew-farm-screenshot.jpg');
+    const bgScale = Math.max(cardWidth / bgImg.width, totalHeight / bgImg.height);
+    const bgDrawW = bgImg.width * bgScale;
+    const bgDrawH = bgImg.height * bgScale;
+    const bgX = (cardWidth - bgDrawW) / 2;
+    const bgY = (totalHeight - bgDrawH) / 2;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(bgImg, bgX, bgY, bgDrawW, bgDrawH);
+    ctx.imageSmoothingEnabled = true;
+
+    // Darken background slightly for readability
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillRect(0, 0, cardWidth, totalHeight);
+
+    const signX = signBorder;
+    const signY = signBorder;
+    const signW = signContentWidth;
+    const signH = totalHeight - signBorder * 2;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    roundRect(ctx, signX + 6, signY + 6, signW, signH, 12);
+    ctx.fill();
+
+    ctx.fillStyle = colors.wood;
+    roundRect(ctx, signX, signY, signW, signH, 12);
+    ctx.fill();
+
+    ctx.strokeStyle = colors.woodLight;
+    ctx.lineWidth = 3;
+    roundRect(ctx, signX, signY, signW, signH, 12);
+    ctx.stroke();
+
+    ctx.strokeStyle = colors.woodDark;
+    ctx.lineWidth = borderWidth;
+    roundRect(ctx, signX + 4, signY + 4, signW - 8, signH - 8, 10);
+    ctx.stroke();
+
+    const innerX = signX + 4 + borderWidth + 4;
+    const innerY = signY + 4 + borderWidth + 4;
+    const innerW = signW - 8 - borderWidth * 2 - 8;
+    const innerH = signH - 8 - borderWidth * 2 - 8;
+
+    const parchmentGrad = ctx.createLinearGradient(innerX, innerY, innerX, innerY + innerH);
+    parchmentGrad.addColorStop(0, colors.parchment);
+    parchmentGrad.addColorStop(1, colors.parchmentDark);
+    ctx.fillStyle = parchmentGrad;
+    roundRect(ctx, innerX, innerY, innerW, innerH, 6);
+    ctx.fill();
+
+    ctx.strokeStyle = colors.woodLight;
+    ctx.lineWidth = 2;
+    roundRect(ctx, innerX, innerY, innerW, innerH, 6);
+    ctx.stroke();
+
+    const titleY = innerY + 12;
+    ctx.fillStyle = colors.woodLight;
+    for (let dx = innerX + innerW / 2 - 60; dx < innerX + innerW / 2 + 60; dx += 6) {
+      ctx.fillRect(dx, titleY + titleHeight - 8, 4, 4);
+    }
+
+    ctx.fillStyle = colors.text;
+    ctx.font = 'bold 32px "SimHei", "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('我的星露谷模组清单', cardWidth / 2, titleY + titleHeight - 20);
+
+    const drawLeaf = (lx: number, ly: number, angle: number) => {
+      ctx.save();
+      ctx.translate(lx, ly);
+      ctx.rotate(angle);
+      ctx.imageSmoothingEnabled = false;
+      const fw = woodFenceImg.width;
+      const fh = woodFenceImg.height;
+      ctx.drawImage(woodFenceImg, 0, 0, fw, fh, -12, -8, 24, 16);
+      ctx.imageSmoothingEnabled = true;
+      ctx.restore();
+    };
+    drawLeaf(innerX + 20, titleY + titleHeight / 2, -0.3);
+    drawLeaf(innerX + 40, titleY + titleHeight / 2 - 10, -0.1);
+    drawLeaf(innerX + innerW - 20, titleY + titleHeight / 2, 0.3);
+    drawLeaf(innerX + innerW - 40, titleY + titleHeight / 2 - 10, 0.1);
+
+    const drawChicken = (cx: number, cy: number, size: number = 48) => {
+      ctx.imageSmoothingEnabled = false;
+      const chW = chickenImg.width;
+      const chH = chickenImg.height;
+      const chScale = size / Math.max(chW, chH);
+      const chDrawW = chW * chScale;
+      const chDrawH = chH * chScale;
+      ctx.drawImage(chickenImg, 0, 0, chW, chH, cx - chDrawW / 2, cy - chDrawH / 2, chDrawW, chDrawH);
+      ctx.imageSmoothingEnabled = true;
+    };
+    drawChicken(innerX + innerW - 30, titleY + titleHeight / 2);
+
+    const tableTop = innerY + titleHeight + 16;
+    const tableLeft = innerX + 16;
+    const tableRight = innerX + innerW - 16;
+    const tableWidth = tableRight - tableLeft;
+    const nameColW = tableWidth * 0.45;
+    const idColW = tableWidth * 0.55;
+
+    ctx.fillStyle = 'rgba(139, 120, 90, 0.15)';
+    ctx.fillRect(tableLeft, tableTop, tableWidth, tableHeaderHeight);
+
+    ctx.strokeStyle = colors.woodLight;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(tableLeft, tableTop, tableWidth, tableHeaderHeight);
+
+    ctx.fillStyle = colors.text;
+    ctx.font = 'bold 16px "SimHei", "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('模组名称', tableLeft + nameColW / 2, tableTop + tableHeaderHeight / 2 + 6);
+    ctx.fillText('模组尾号', tableLeft + nameColW + idColW / 2, tableTop + tableHeaderHeight / 2 + 6);
+
+    ctx.strokeStyle = colors.woodLight;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(tableLeft, tableTop + tableHeaderHeight);
+    ctx.lineTo(tableRight, tableTop + tableHeaderHeight);
+    ctx.stroke();
+
+    const iconColors = ['#FF69B4', '#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#795548'];
+    cardProfileMods.forEach((mod, idx) => {
+      const rowY = tableTop + tableHeaderHeight + idx * rowHeight;
+
+      if (idx % 2 === 0) {
+        ctx.fillStyle = 'rgba(139, 120, 90, 0.08)';
+        ctx.fillRect(tableLeft, rowY, tableWidth, rowHeight);
+      }
+
+      ctx.strokeStyle = 'rgba(139, 120, 90, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(tableLeft, rowY + rowHeight);
+      ctx.lineTo(tableRight, rowY + rowHeight);
+      ctx.stroke();
+
+      const iconColor = iconColors[idx % iconColors.length];
+      const iconX = tableLeft + 10;
+      const iconY = rowY + rowHeight / 2;
+
+      ctx.fillStyle = iconColor;
+      ctx.fillRect(iconX - 6, iconY - 6, 12, 12);
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillRect(iconX - 4, iconY - 4, 8, 8);
+
+      ctx.fillStyle = colors.text;
+      ctx.font = 'bold 14px "SimHei", "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'left';
+      let modName = mod.name;
+      if (modName.length > 28) modName = modName.substring(0, 26) + '...';
+      ctx.fillText(modName, tableLeft + 22, rowY + rowHeight / 2 + 5);
+
+      const nexusDisplay = mod.nexus_mod_id ? String(mod.nexus_mod_id) : '-';
+      ctx.fillStyle = colors.text;
+      ctx.font = 'bold 14px "SimHei", "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(nexusDisplay, tableLeft + nameColW + idColW / 2, rowY + rowHeight / 2 + 5);
+    });
+
+    const tableBottom = tableTop + tableHeaderHeight + cardProfileMods.length * rowHeight;
+    ctx.strokeStyle = colors.woodLight;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(tableLeft, tableBottom);
+    ctx.lineTo(tableRight, tableBottom);
+    ctx.stroke();
+
+    const footerTop = tableBottom + 20;
+    ctx.strokeStyle = colors.woodLight;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(innerX + 40, footerTop);
+    ctx.lineTo(innerX + innerW - 40, footerTop);
+    ctx.stroke();
+
+    ctx.fillStyle = colors.woodLight;
+    for (let dx = innerX + innerW / 2 - 50; dx < innerX + innerW / 2 + 50; dx += 6) {
+      ctx.fillRect(dx, footerTop + 4, 4, 4);
+    }
+
+    const drawFarmer = (fx: number, fy: number) => {
+      ctx.imageSmoothingEnabled = false;
+      const fsW = farmerSprite.width;
+      const fsH = farmerSprite.height;
+      const fsScale = 40 / Math.max(fsW, fsH);
+      const fsDrawW = fsW * fsScale;
+      const fsDrawH = fsH * fsScale;
+      ctx.drawImage(farmerSprite, fx - fsDrawW / 2, fy - fsDrawH / 2, fsDrawW, fsDrawH);
+      ctx.imageSmoothingEnabled = true;
+    };
+    drawFarmer(cardWidth / 2 - 100, footerTop + 16);
+    drawChicken(cardWidth / 2 + 100, footerTop + 16);
+
+    const drawVine = (side: 'left' | 'right', startY: number, endY: number) => {
+      const baseX = side === 'left' ? signX + 12 : signX + signW - 12;
+      const dir = side === 'left' ? 1 : -1;
+      for (let vy = startY; vy < endY; vy += 24) {
+        ctx.fillStyle = colors.vine;
+        ctx.fillRect(baseX - 2, vy, 4, 24);
+        ctx.fillStyle = colors.vineLight;
+        ctx.beginPath();
+        ctx.ellipse(baseX + dir * 10, vy + 6, 10, 5, dir * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = colors.leaf;
+        ctx.beginPath();
+        ctx.ellipse(baseX + dir * 10, vy + 18, 8, 4, dir * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+    drawVine('left', innerY + 20, innerY + innerH - 20);
+    drawVine('right', innerY + 20, innerY + innerH - 20);
+
+    const drawScrew = (sx: number, sy: number) => {
+      ctx.fillStyle = '#888';
+      ctx.beginPath();
+      ctx.arc(sx, sy, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#666';
+      ctx.beginPath();
+      ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#444';
+      ctx.fillRect(sx - 3, sy - 1, 6, 2);
+    };
+    drawScrew(signX + 14, signY + 14);
+    drawScrew(signX + signW - 14, signY + 14);
+    drawScrew(signX + 14, signY + signH - 14);
+    drawScrew(signX + signW - 14, signY + signH - 14);
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const base64 = dataUrl.replace('data:image/png;base64,', '');
+    const fileName = cardProfileName + '_模组清单.png';
+    try {
+      const filePath = await save({ filters: [{ name: 'PNG Image', extensions: ['png'] }], defaultPath: fileName });
+      if (filePath) {
+        const binaryString = atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+        await writeFile(filePath, bytes);
+        message.success('卡片已保存为图片: ' + filePath);
+      } else {
+        message.info('已取消保存');
+      }
+    } catch (err: any) {
+      message.error('保存失败: ' + (err?.toString() || '未知错误'));
+    }
+  };
+
+  function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
   const handleToggleEditMod = (uniqueId: string) => {
     setEditModStates(prev => ({
       ...prev,
@@ -283,10 +633,10 @@ export default function ProfilesPage() {
 
   const handleExport = async (profileName: string) => {
     try {
-      const selected = await open({
+      const selected = await save({
         title: t('app.profiles.exportProfile'),
         defaultPath: `${profileName}.svl_profile`,
-        filters: [{ name: 'Profile', extensions: ['svl_profile', 'json'] }],
+        filters: [{ name: t('app.profileFile'), extensions: ['svl_profile', 'json'] }],
       });
       if (selected) {
         await profileExport(gamePath, profileName, selected as string);
@@ -301,7 +651,7 @@ export default function ProfilesPage() {
     try {
       const selected = await open({
         title: t('app.profiles.importProfile'),
-        filters: [{ name: 'Profile', extensions: ['svl_profile', 'json'] }],
+        filters: [{ name: t('app.profileFile'), extensions: ['svl_profile', 'json'] }],
         multiple: false,
       });
       if (selected) {
@@ -328,7 +678,7 @@ export default function ProfilesPage() {
             </Tag>
           )}
           {record.is_protected && (
-            <Tag color="orange" style={{ marginLeft: 4 }}>
+            <Tag className="svl-tag-warning" style={{ marginLeft: 4 }}>
               {t('app.profilesPage.protected')}
             </Tag>
           )}
@@ -381,6 +731,14 @@ export default function ProfilesPage() {
             onClick={() => handleOpenEditModal(record.name)}
           >
             {t('app.profiles.editMods')}
+          </Button>
+          <Button
+            size="small"
+            type="link"
+            icon={<PictureOutlined />}
+            onClick={() => handleOpenCardModal(record.name)}
+          >
+            {t('app.profilesPage.generateCard')}
           </Button>
           <Divider type="vertical" />
           <Tooltip title={t('app.profilesPage.copy')}>
@@ -570,7 +928,7 @@ export default function ProfilesPage() {
                       <span style={{ marginLeft: 8, flex: 1 }}>
                         {mod.name}
                         {mod.is_required && (
-                          <Tag color="orange" style={{ marginLeft: 6, fontSize: 11, lineHeight: '18px' }}>
+                          <Tag className="svl-tag-warning" style={{ marginLeft: 6, fontSize: 11, lineHeight: '18px' }}>
                             {t('app.modCard.requiredMod')}
                           </Tag>
                         )}
@@ -639,7 +997,7 @@ export default function ProfilesPage() {
                     <span style={{ marginLeft: 8, flex: 1 }}>
                       {mod.name}
                       {mod.is_required && (
-                        <Tag color="orange" style={{ marginLeft: 6, fontSize: 11, lineHeight: '18px' }}>
+                        <Tag className="svl-tag-warning" style={{ marginLeft: 6, fontSize: 11, lineHeight: '18px' }}>
                           {t('app.modCard.requiredMod')}
                         </Tag>
                       )}
@@ -675,6 +1033,187 @@ export default function ProfilesPage() {
             placeholder={t('app.profilesPage.namePlaceholder')}
           />
         </div>
+      </Modal>
+
+      <Modal
+        title={t('app.profilesPage.modCard')}
+        open={cardModalOpen}
+        onCancel={() => setCardModalOpen(false)}
+        width={600}
+        footer={[
+          <Button key="close" onClick={() => setCardModalOpen(false)}>
+            {t('app.profilesPage.close')}
+          </Button>,
+          <Button
+            key="save"
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={handleSaveCardImage}
+            disabled={cardProfileMods.length === 0}
+          >
+            {t('app.profilesPage.saveCardImage')}
+          </Button>,
+        ]}
+      >
+        {cardLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Spin size="large" />
+          </div>
+        ) : (
+          <div
+            style={{
+              marginTop: 16,
+              borderRadius: 16,
+              overflow: 'hidden',
+              fontFamily: "'Microsoft YaHei', sans-serif",
+              position: 'relative',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+              backgroundImage: 'url(/images/stardew-farm-screenshot.jpg)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              padding: 36,
+            }}
+          >
+            {/* Wood sign */}
+            <div
+              style={{
+                position: 'relative',
+                zIndex: 10,
+                background: '#8B5E3C',
+                borderRadius: 12,
+                padding: 4,
+                boxShadow: '0 6px 24px rgba(0,0,0,0.2)',
+              }}
+            >
+              {/* Screws */}
+              <div style={{ position: 'absolute', top: 10, left: 10, width: 12, height: 12, borderRadius: '50%', background: '#666', border: '2px solid #888' }} />
+              <div style={{ position: 'absolute', top: 10, right: 10, width: 12, height: 12, borderRadius: '50%', background: '#666', border: '2px solid #888' }} />
+              <div style={{ position: 'absolute', bottom: 10, left: 10, width: 12, height: 12, borderRadius: '50%', background: '#666', border: '2px solid #888' }} />
+              <div style={{ position: 'absolute', bottom: 10, right: 10, width: 12, height: 12, borderRadius: '50%', background: '#666', border: '2px solid #888' }} />
+
+              {/* Inner parchment */}
+              <div
+                style={{
+                  background: 'linear-gradient(180deg, #F5DEB3 0%, #E8CFA0 100%)',
+                  borderRadius: 8,
+                  padding: '16px 20px',
+                  border: '4px solid #5E3D1F',
+                }}
+              >
+                {/* Title */}
+                <div style={{ textAlign: 'center', marginBottom: 16, position: 'relative' }}>
+                  <img src="/wood-fence.png" alt="" style={{ width: 18, height: 18, verticalAlign: 'middle', marginRight: 4, imageRendering: 'pixelated' }} />
+                  <span style={{ color: '#3E2723', fontSize: 28, fontWeight: 'bold' }}>我的星露谷模组清单</span>
+                  <img src="/wood-fence.png" alt="" style={{ width: 18, height: 18, verticalAlign: 'middle', marginLeft: 4, imageRendering: 'pixelated' }} />
+                  <img src="/chicken.png" alt="" style={{ position: 'absolute', right: 10, top: 2, width: 28, height: 28, imageRendering: 'pixelated' }} />
+                </div>
+
+                {/* Divider dots */}
+                <div style={{ textAlign: 'center', color: '#A0724A', letterSpacing: 4, marginBottom: 12 }}>·····················</div>
+
+                {/* Table header */}
+                <div
+                  style={{
+                    display: 'flex',
+                    background: 'rgba(139, 120, 90, 0.15)',
+                    border: '1px solid #A0724A',
+                    borderRadius: 4,
+                    marginBottom: 4,
+                    padding: '8px 12px',
+                  }}
+                >
+                  <span style={{ flex: 1, color: '#3E2723', fontWeight: 'bold', fontSize: 15, textAlign: 'center' }}>模组名称</span>
+                  <span style={{ flex: 1, color: '#3E2723', fontWeight: 'bold', fontSize: 15, textAlign: 'center' }}>模组尾号</span>
+                </div>
+
+                {/* Mod list */}
+                <div style={{ maxHeight: 360, overflow: 'auto' }}>
+                  {cardProfileMods.map((mod, idx) => {
+                    const iconColors = ['#FF69B4', '#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#795548'];
+                    const iconColor = iconColors[idx % iconColors.length];
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '8px 12px',
+                          borderBottom: '1px solid rgba(139, 120, 90, 0.3)',
+                          background: idx % 2 === 0 ? 'rgba(139, 120, 90, 0.08)' : 'transparent',
+                        }}
+                      >
+                        {/* Mod icon */}
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: 14,
+                            height: 14,
+                            background: iconColor,
+                            borderRadius: 3,
+                            marginRight: 10,
+                            position: 'relative',
+                          }}
+                        >
+                          <span style={{ position: 'absolute', top: 2, left: 2, width: 10, height: 10, background: 'rgba(255,255,255,0.3)', borderRadius: 2 }} />
+                        </span>
+                        <span
+                          style={{
+                            flex: 1,
+                            color: '#3E2723',
+                            fontSize: 14,
+                            fontWeight: 'bold',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {mod.name}
+                        </span>
+                        <span
+                          style={{
+                            flex: 1,
+                            color: '#3E2723',
+                            fontSize: 14,
+                            fontWeight: 'bold',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {mod.nexus_mod_id ? String(mod.nexus_mod_id) : '-'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Bottom divider */}
+                <div style={{ textAlign: 'center', color: '#A0724A', letterSpacing: 4, margin: '12px 0 8px' }}>·····················</div>
+
+                {/* Farmer and chicken footer */}
+                <div style={{ textAlign: 'center' }}>
+                  <img src="/farmer-sprite.png" alt="" style={{ width: 24, height: 32, verticalAlign: 'middle', marginRight: 8, imageRendering: 'pixelated' }} />
+                  <img src="/chicken.png" alt="" style={{ width: 20, height: 20, verticalAlign: 'middle', marginLeft: 8, imageRendering: 'pixelated' }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Vine decorations on sides */}
+            <div style={{ position: 'absolute', top: 40, left: 8, opacity: 0.8, zIndex: 5 }}>
+              <img src="/wood-fence.png" alt="" style={{ width: 16, height: 16, display: 'block', marginBottom: 16, imageRendering: 'pixelated' }} />
+              <img src="/wood-fence.png" alt="" style={{ width: 16, height: 16, display: 'block', marginBottom: 16, imageRendering: 'pixelated' }} />
+              <img src="/wood-fence.png" alt="" style={{ width: 16, height: 16, display: 'block', marginBottom: 16, imageRendering: 'pixelated' }} />
+            </div>
+            <div style={{ position: 'absolute', top: 40, right: 8, opacity: 0.8, zIndex: 5 }}>
+              <img src="/wood-fence.png" alt="" style={{ width: 16, height: 16, display: 'block', marginBottom: 16, imageRendering: 'pixelated' }} />
+              <img src="/wood-fence.png" alt="" style={{ width: 16, height: 16, display: 'block', marginBottom: 16, imageRendering: 'pixelated' }} />
+              <img src="/wood-fence.png" alt="" style={{ width: 16, height: 16, display: 'block', marginBottom: 16, imageRendering: 'pixelated' }} />
+              <img src="/wood-fence.png" alt="" style={{ width: 16, height: 16, display: 'block', marginBottom: 16, imageRendering: 'pixelated' }} />
+              <img src="/wood-fence.png" alt="" style={{ width: 16, height: 16, display: 'block', imageRendering: 'pixelated' }} />
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

@@ -1,9 +1,46 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
 use log::info;
+
+/// SMAPI必需前置mod列表（这些mod是运行大多数mod的基础框架，不能被禁用）
+/// 参考：https://www.nexusmods.com/stardewvalley/mods/ 和 SMAPI官方文档
+const ESSENTIAL_MOD_IDS: &[&str] = &[
+    // SMAPI核心（虽然SMAPI本身不是mod，但这些是必需的）
+    "SMAPI", // SMAPI本身
+    
+    // 内容补丁框架 - 99%的内容mod都需要这个
+    "Pathoschild.ContentPatcher", // Content Patcher (Nexus ID: 1915)
+    
+    // 通用框架mod - 大量mod依赖
+    "spacechase0.SpaceCore", // SpaceCore (Nexus ID: 6114)
+    "furyx639.ExpandedPreconditionsUtility", // Expanded Preconditions Utility - EPU (Nexus ID: 9250)
+    "stardewvalleyexpanded", // Stardew Valley Expanded的前置
+    
+    // JSON和资产加载
+    "spacechase0.JsonAssets", // Json Assets (JA) (Nexus ID: 1720)
+    
+    // 菜单和UI框架
+    "Omegasis.LevelAutomaticSave", // Level Automatic Save (Nexus ID: 5129)
+    "Cherry.Coc", // Common UI Components
+    
+    // 多语言支持
+    "furyx639.Grammaticus", // Grammaticus (Nexus ID: 13567)
+];
+
+/// 检查mod是否是必需前置mod
+fn is_essential_mod(mod_id: &str) -> bool {
+    ESSENTIAL_MOD_IDS.iter().any(|&id| id.eq_ignore_ascii_case(mod_id))
+}
+
+/// 获取所有必需前置mod的unique_id列表
+#[tauri::command]
+pub fn get_essential_mod_ids() -> Result<Vec<String>, String> {
+    Ok(ESSENTIAL_MOD_IDS.iter().map(|s| s.to_string()).collect())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Profile {
@@ -49,7 +86,14 @@ pub fn get_profiles_dir(game_path: &str) -> Result<PathBuf, String> {
 }
 
 fn get_profile_file_path(profile_name: &str, profiles_dir: &PathBuf) -> PathBuf {
-    profiles_dir.join(format!("{}.json", profile_name))
+    let safe_name: String = profile_name
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+        .collect();
+    if safe_name.is_empty() {
+        return profiles_dir.join("default.json");
+    }
+    profiles_dir.join(format!("{}.json", safe_name))
 }
 
 fn get_active_profile_file_path(game_path: &str) -> PathBuf {
@@ -115,6 +159,7 @@ pub fn scan_mods_for_profiles(game_path: &str) -> Vec<ModInfo> {
         Ok(full_mods) => {
             info!("[profiles] scanned {} mods", full_mods.len());
             let mut result = Vec::new();
+            let mut seen_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
             for m in full_mods {
                 let folder_name = std::path::PathBuf::from(&m.folder_path)
                     .file_name()
@@ -124,40 +169,16 @@ pub fn scan_mods_for_profiles(game_path: &str) -> Vec<ModInfo> {
                 let unique_id = if m.unique_id.is_empty() {
                     folder_name.clone()
                 } else {
-                    m.unique_id
+                    m.unique_id.clone()
                 };
                 let name = if m.name.is_empty() {
                     folder_name.clone()
                 } else {
-                    m.name
+                    m.name.clone()
                 };
 
-                if m.is_group && !m.sub_mods.is_empty() {
-                    for sub in &m.sub_mods {
-                        let sub_folder_name = std::path::PathBuf::from(&sub.folder_path)
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or("unknown")
-                            .to_string();
-                        result.push(ModInfo {
-                            unique_id: if sub.unique_id.is_empty() {
-                                sub_folder_name.clone()
-                            } else {
-                                sub.unique_id.clone()
-                            },
-                            name: if sub.name.is_empty() {
-                                sub_folder_name.clone()
-                            } else {
-                                sub.name.clone()
-                            },
-                            version: if sub.version.is_empty() { "0.0.0".to_string() } else { sub.version.clone() },
-                            author: if sub.author.is_empty() { "Unknown".to_string() } else { sub.author.clone() },
-                            is_required: sub.is_required,
-                            folder_path: sub.folder_path.clone(),
-                            folder_name: sub_folder_name,
-                        });
-                    }
-                } else {
+                if !seen_ids.contains(&unique_id) {
+                    seen_ids.insert(unique_id.clone());
                     result.push(ModInfo {
                         unique_id,
                         name,
@@ -178,26 +199,252 @@ pub fn scan_mods_for_profiles(game_path: &str) -> Vec<ModInfo> {
     }
 }
 
+/// 递归扫描Mods文件夹，获取所有mod的实际路径（包括已禁用的）
+fn scan_all_mod_folders(mods_path: &PathBuf) -> Vec<(String, PathBuf)> {
+    let mut results = Vec::new();
+    
+    if let Ok(entries) = fs::read_dir(mods_path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            
+            // 读取manifest获取unique_id
+            let manifest_path = path.join("manifest.json");
+            if manifest_path.exists() {
+                if let Ok(content) = fs::read_to_string(&manifest_path) {
+                    let cleaned = crate::mod_parser::remove_trailing_commas(&content);
+                    let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                    if let Ok(manifest) = serde_json::from_str::<crate::mod_parser::ModManifest>(cleaned) {
+                        if let Some(uid) = &manifest.unique_id {
+                            results.push((uid.clone(), path.clone()));
+                        }
+                    }
+                }
+            }
+            
+            // 递归扫描子文件夹
+            let nested = scan_all_mod_folders(&path);
+            results.extend(nested);
+        }
+    }
+    
+    results
+}
+
+/// 获取主mod文件夹的路径（用于组mod）
+fn get_root_mod_path(mods_path: &PathBuf, folder_path: &PathBuf) -> PathBuf {
+    let mut current = folder_path.clone();
+    loop {
+        let parent = match current.parent() {
+            Some(p) => p.to_path_buf(),
+            None => return current,
+        };
+        if parent == *mods_path {
+            return current;
+        }
+        current = parent;
+    }
+}
+
 pub(crate) fn apply_profile_mod_states(game_path: &str, profile: &Profile) -> Result<(), String> {
     let mods_path = PathBuf::from(game_path).join("Mods");
     if !mods_path.exists() {
         return Err("Mods folder does not exist".to_string());
     }
 
-    let all_mods = scan_mods_for_profiles(game_path);
-    let enabled_set: std::collections::HashSet<&str> = profile.enabled_mod_ids.iter().map(|s| s.as_str()).collect();
-
-    info!("[profiles] Applying profile '{}' with {} enabled mods, found {} total mods", profile.name, enabled_set.len(), all_mods.len());
-    for id in &enabled_set {
-        info!("[profiles]   enabled: {}", id);
+    info!("[profiles] ========== APPLYING PROFILE MOD STATES ==========");
+    info!("[profiles] Profile: {}, enabled_mod_ids count: {}", profile.name, profile.enabled_mod_ids.len());
+    info!("[profiles] Enabled mod IDs:");
+    for id in &profile.enabled_mod_ids {
+        info!("[profiles]   - {}", id);
     }
 
-    for mod_info in &all_mods {
+    // 获取完整的模组信息（包括组mod信息）
+    let full_mods = crate::mod_parser::scan_mods(Some(game_path.to_string()))
+        .map_err(|e| format!("Failed to scan mods: {}", e))?;
+    
+    info!("[profiles] Scanned {} total mods", full_mods.len());
+    for m in &full_mods {
+        info!("[profiles]   Mod: {} ({}), is_group={}, folder_path={}", m.name, m.unique_id, m.is_group, m.folder_path);
+        if m.is_group {
+            info!("[profiles]     Sub-mods:");
+            for sub in &m.sub_mods {
+                info!("[profiles]       - {} ({})", sub.name, sub.unique_id);
+            }
+        }
+    }
+    
+    // 识别所有组mod的主mod unique_id
+    let mut group_main_mod_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // 收集组mod的子mod unique_id
+    let mut group_sub_mod_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+    
+    for m in &full_mods {
+        if m.is_group && !m.sub_mods.is_empty() {
+            // 主mod在档案中应该被跳过
+            group_main_mod_ids.insert(m.unique_id.clone());
+            // 子mod应该被正常处理
+            for sub in &m.sub_mods {
+                group_sub_mod_ids.insert(sub.unique_id.clone());
+            }
+        }
+    }
+
+    info!("[profiles] Group main mod IDs (to skip): {:?}", group_main_mod_ids);
+    info!("[profiles] Group sub-mod IDs (to handle separately): {:?}", group_sub_mod_ids);
+
+    // 直接扫描所有mod文件夹，获取实际路径（包括已禁用的）
+    let all_mod_folders = scan_all_mod_folders(&mods_path);
+    
+    info!("[profiles] Scanned {} mod folders for path mapping", all_mod_folders.len());
+    for (uid, path) in &all_mod_folders {
+        info!("[profiles]   -> {} = {}", uid, path.display());
+    }
+    
+    // 构建 unique_id -> 实际路径的映射
+    let mut id_to_path: std::collections::HashMap<String, PathBuf> = std::collections::HashMap::new();
+    for (uid, path) in all_mod_folders {
+        id_to_path.insert(uid, path);
+    }
+
+    // 对于不在映射中的mod（可能已被禁用），尝试扫描带.前缀的文件夹
+    for m in &full_mods {
+        if !id_to_path.contains_key(&m.unique_id) {
+            info!("[profiles] Mod {} not found in path mapping, searching disabled folders", m.unique_id);
+            let root_path = get_root_mod_path(&mods_path, &PathBuf::from(&m.folder_path));
+            let disabled_path = root_path.parent()
+                .map(|p| p.join(format!(".{}", root_path.file_name().and_then(|n| n.to_str()).unwrap_or(""))));
+            if let Some(disabled_path) = disabled_path {
+                if disabled_path.exists() {
+                    if let Ok(entries) = fs::read_dir(&disabled_path) {
+                        for entry in entries.flatten() {
+                            let sub_path = entry.path();
+                            if sub_path.is_dir() {
+                                let manifest_path = sub_path.join("manifest.json");
+                                if manifest_path.exists() {
+                                    if let Ok(content) = fs::read_to_string(&manifest_path) {
+                                        let cleaned = crate::mod_parser::remove_trailing_commas(&content);
+                                        let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                                        if let Ok(manifest) = serde_json::from_str::<crate::mod_parser::ModManifest>(cleaned) {
+                                            if let Some(uid) = &manifest.unique_id {
+                                                id_to_path.insert(uid.clone(), sub_path);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    info!("[profiles] Final id_to_path mapping contains {} entries", id_to_path.len());
+
+    // 构建 should_enable 的完整集合：档案中的 mod + group主模组对应的所有sub_mods
+    let mut full_enabled_set: std::collections::HashSet<String> = profile.enabled_mod_ids.iter().cloned().collect();
+
+    // 如果档案中包含了group主模组，自动把它的sub_mods也加入启用集合
+    for main_mod_id in &profile.enabled_mod_ids {
+        if group_main_mod_ids.contains(main_mod_id) {
+            if let Some(m) = full_mods.iter().find(|m| m.unique_id == *main_mod_id) {
+                for sub in &m.sub_mods {
+                    info!("[profiles] Auto-enabling sub-mod '{}' because parent group '{}' is enabled", sub.unique_id, main_mod_id);
+                    full_enabled_set.insert(sub.unique_id.clone());
+                }
+            }
+        }
+    }
+
+    info!("[profiles] Expanded enabled set to {} entries (including sub-mods of groups)", full_enabled_set.len());
+
+    let enabled_set: std::collections::HashSet<&str> = full_enabled_set.iter().map(|s| s.as_str()).collect();
+
+    info!("[profiles] Applying profile '{}' with {} enabled mods", profile.name, enabled_set.len());
+    info!("[profiles] Group main mods (to skip): {:?}", group_main_mod_ids);
+    info!("[profiles] Group sub-mod ids: {:?}", group_sub_mod_ids);
+    info!("[profiles] Found {} mod folders", id_to_path.len());
+
+    // 先处理组mod的子mod（只处理子mod，不处理主mod）
+    for (uid, path) in &id_to_path {
+        // 如果不是组mod的子mod，跳过
+        if !group_sub_mod_ids.contains(uid.as_str()) {
+            continue;
+        }
+
+        let should_enable = enabled_set.contains(uid.as_str());
+        
+        if !path.exists() {
+            info!("[profiles] Skipping {} - path does not exist", uid);
+            continue;
+        }
+
+        let folder_name = path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_string();
+
+        let is_currently_disabled = folder_name.starts_with('.') && !folder_name.starts_with("..");
+        info!("[profiles] Group sub-mod: {}, should_enable={}, folder_name='{}', is_disabled={}", uid, should_enable, folder_name, is_currently_disabled);
+
+        if should_enable && is_currently_disabled {
+            let clean_name = &folder_name[1..];
+            let new_path = path.parent()
+                .map(|p| p.join(clean_name))
+                .unwrap_or_else(|| path.clone());
+            if new_path.exists() && new_path != *path {
+                info!("[profiles] Cannot enable {} - target exists", uid);
+                continue;
+            }
+            info!("[profiles] Enabling {}: {} -> {}", uid, path.display(), new_path.display());
+            if let Err(e) = fs::rename(path, &new_path) {
+                info!("[profiles] Failed to enable mod {}: {}", uid, e);
+            }
+        } else if !should_enable && !is_currently_disabled {
+            let new_name = format!(".{}", folder_name);
+            let new_path = path.parent()
+                .map(|p| p.join(&new_name))
+                .unwrap_or_else(|| path.clone());
+            if new_path.exists() {
+                info!("[profiles] Cannot disable {} - target exists", uid);
+                continue;
+            }
+            info!("[profiles] Disabling {}: {} -> {}", uid, path.display(), new_path.display());
+            if let Err(e) = fs::rename(path, &new_path) {
+                info!("[profiles] Failed to disable mod {}: {}", uid, e);
+            }
+        }
+    }
+
+    // 再处理非组mod和组mod的主mod（普通mod、必需的mod、以及组mod的主mod文件夹）
+    // 注意：组mod的子mod已在上方处理，这里只跳过子mod，主mod需要正常处理
+    info!("[profiles] === Processing non-group mods and group main mods ===");
+    for mod_info in &full_mods {
+        if group_sub_mod_ids.contains(&mod_info.unique_id) {
+            info!("[profiles] Skipping group sub-mod (already processed): {} ({})", mod_info.unique_id, mod_info.name);
+            continue;
+        }
+
         let should_enable = enabled_set.contains(mod_info.unique_id.as_str());
-        let mod_path = PathBuf::from(&mod_info.folder_path);
+        
+        // 使用实际的文件夹路径
+        let mod_path = id_to_path.get(&mod_info.unique_id);
+        let mod_path = match mod_path {
+            Some(p) => p.clone(),
+            None => {
+                // 可能已经被禁用了，尝试查找带.前缀的路径
+                info!("[profiles] Mod {} path not found in mapping, trying disabled path", mod_info.unique_id);
+                continue;
+            }
+        };
+
+        info!("[profiles] Checking non-group mod: {} ({}), should_enable={}, actual_path={}", mod_info.unique_id, mod_info.name, should_enable, mod_path.display());
 
         if !mod_path.exists() {
-            info!("[profiles] Skipping {} - path does not exist: {}", mod_info.unique_id, mod_path.display());
+            info!("[profiles]   Skipping - path does not exist: {}", mod_path.display());
             continue;
         }
 
@@ -207,6 +454,7 @@ pub(crate) fn apply_profile_mod_states(game_path: &str, profile: &Profile) -> Re
             .to_string();
 
         let is_currently_disabled = folder_name.starts_with('.') && !folder_name.starts_with("..");
+        info!("[profiles]   folder_name='{}', is_disabled={}, is_required={}", folder_name, is_currently_disabled, mod_info.is_required);
 
         if should_enable && is_currently_disabled {
             let clean_name = &folder_name[1..];
@@ -221,7 +469,7 @@ pub(crate) fn apply_profile_mod_states(game_path: &str, profile: &Profile) -> Re
             if let Err(e) = fs::rename(&mod_path, &new_path) {
                 info!("[profiles] Failed to enable mod {}: {}", mod_info.unique_id, e);
             }
-        } else if !should_enable && !is_currently_disabled && !mod_info.is_required {
+        } else if !should_enable && !is_currently_disabled {
             let new_name = format!(".{}", folder_name);
             let new_path = mod_path.parent()
                 .map(|p| p.join(&new_name))
@@ -234,6 +482,8 @@ pub(crate) fn apply_profile_mod_states(game_path: &str, profile: &Profile) -> Re
             if let Err(e) = fs::rename(&mod_path, &new_path) {
                 info!("[profiles] Failed to disable mod {}: {}", mod_info.unique_id, e);
             }
+        } else {
+            info!("[profiles]   No action needed (should_enable={}, is_disabled={}, is_required={})", should_enable, is_currently_disabled, mod_info.is_required);
         }
     }
 
@@ -334,6 +584,23 @@ pub fn profile_get_active(game_path: String) -> Result<Option<String>, String> {
 
 pub fn apply_profile(game_path: &str, profile_name: &str) -> Result<Profile, String> {
     let profile = load_profile(game_path, profile_name)?;
+
+    // 保存当前mod状态，以便退出档案时恢复
+    let current_mods = crate::mod_parser::scan_mods(Some(game_path.to_string()))
+        .unwrap_or_default();
+    let current_states: Vec<(String, bool)> = current_mods.iter()
+        .map(|m| (m.unique_id.clone(), m.enabled))
+        .collect();
+    
+    let states_dir = PathBuf::from(game_path).join("SVL_Data");
+    if !states_dir.exists() {
+        let _ = fs::create_dir_all(&states_dir);
+    }
+    let pre_profile_path = states_dir.join("pre_profile_state.json");
+    if let Ok(json) = serde_json::to_string(&current_states) {
+        let _ = fs::write(&pre_profile_path, json);
+        info!("[profiles] Saved pre-profile state to {:?}", pre_profile_path);
+    }
 
     apply_profile_mod_states(game_path, &profile)?;
 
@@ -458,11 +725,74 @@ pub fn profile_get_mod_states(
 
 #[tauri::command]
 pub fn profile_clear_active(game_path: String) -> Result<bool, String> {
+    // 读取保存的前置状态
+    let states_dir = PathBuf::from(&game_path).join("SVL_Data");
+    let pre_profile_path = states_dir.join("pre_profile_state.json");
+    
+    if pre_profile_path.exists() {
+        if let Ok(content) = fs::read_to_string(&pre_profile_path) {
+            if let Ok(states) = serde_json::from_str::<Vec<(String, bool)>>(&content) {
+                info!("[profiles] Restoring {} mod states from pre-profile", states.len());
+                
+                // 应用前置状态
+                let mods_path = PathBuf::from(&game_path).join("Mods");
+                if mods_path.exists() {
+                    let all_mod_folders = scan_all_mod_folders(&mods_path);
+                    let mut id_to_path: std::collections::HashMap<String, PathBuf> = std::collections::HashMap::new();
+                    for (uid, path) in all_mod_folders {
+                        id_to_path.insert(uid, path);
+                    }
+                    
+                    for (mod_id, should_enabled) in &states {
+                        if let Some(mod_path) = id_to_path.get(mod_id) {
+                            if !mod_path.exists() {
+                                continue;
+                            }
+                            
+                            let folder_name = mod_path.file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("")
+                                .to_string();
+                            
+                            let is_currently_disabled = folder_name.starts_with('.') && !folder_name.starts_with("..");
+                            
+                            if *should_enabled && is_currently_disabled {
+                                let clean_name = &folder_name[1..];
+                                let new_path = mod_path.parent()
+                                    .map(|p| p.join(clean_name))
+                                    .unwrap_or_else(|| mod_path.clone());
+                                if !new_path.exists() || new_path == *mod_path {
+                                    let _ = fs::rename(mod_path, &new_path);
+                                    info!("[profiles] Restored mod {} (enabled)", mod_id);
+                                }
+                            } else if !should_enabled && !is_currently_disabled {
+                                let new_name = format!(".{}", folder_name);
+                                let new_path = mod_path.parent()
+                                    .map(|p| p.join(&new_name))
+                                    .unwrap_or_else(|| mod_path.clone());
+                                if !new_path.exists() {
+                                    let _ = fs::rename(mod_path, &new_path);
+                                    info!("[profiles] Restored mod {} (disabled)", mod_id);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     let active_path = get_active_profile_file_path(&game_path);
     if active_path.exists() {
         fs::remove_file(&active_path)
             .map_err(|e| format!("Failed to clear active profile: {}", e))?;
     }
+    
+    // 删除前置状态文件
+    if pre_profile_path.exists() {
+        let _ = fs::remove_file(&pre_profile_path);
+    }
+    
     Ok(true)
 }
 

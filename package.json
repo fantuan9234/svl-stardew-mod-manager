@@ -1,29 +1,36 @@
 {
   "name": "svl",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.1.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test:frontend": "vitest run"
+    "test:frontend": "vitest run",
+    "build:tauri": "cmd /c \"set CI=false&& tauri build\"",
+    "build:tauri:watch": "cmd /c \"set CI=false&& npm run build && tauri build\""
   },
   "dependencies": {
     "@ant-design/icons": "^6.2.2",
     "@tanstack/react-virtual": "^3.13.24",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "antd": "^6.3.7",
     "i18next": "^26.0.8",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-i18next": "^17.0.6",
-    "react-router-dom": "^7.14.2"
+    "react-router-dom": "^7.14.2",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tauri-apps/cli": "^2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -31,8 +38,15 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "jsdom": "^29.1.1",
+    "playwright": "^1.60.0",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
     "vitest": "^4.1.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp"
+    ]
   }
 }

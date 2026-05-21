@@ -507,6 +507,7 @@ pub fn get_save_profile_binding(save_path: String) -> Result<Option<String>, Str
 pub fn launch_game_with_save_profile(
     game_path: String,
     save_path: String,
+    app: tauri::AppHandle,
 ) -> Result<crate::smapi_launcher::LaunchResult, String> {
     let save_path_buf = PathBuf::from(&save_path);
     let folder_name = save_path_buf
@@ -518,11 +519,27 @@ pub fn launch_game_with_save_profile(
     let bindings = load_bindings();
     let profile_name = bindings.get(&folder_name);
 
+    println!("[saves_manager] Launch with save profile:");
+    println!("[saves_manager]   Save folder: {}", folder_name);
+    println!("[saves_manager]   Linked profile: {:?}", profile_name);
+
     if let Some(profile) = profile_name {
-        crate::profiles::apply_profile(&game_path, profile)?;
+        println!("[saves_manager] Applying profile: {}", profile);
+        match crate::profiles::apply_profile(&game_path, profile) {
+            Ok(applied_profile) => {
+                println!("[saves_manager] Profile applied successfully: {}", applied_profile.name);
+                println!("[saves_manager] Enabled mods count: {}", applied_profile.enabled_mod_ids.len());
+            }
+            Err(e) => {
+                println!("[saves_manager] Failed to apply profile: {}", e);
+                return Err(format!("Failed to apply profile: {}", e));
+            }
+        }
+    } else {
+        println!("[saves_manager] No profile linked for this save");
     }
 
-    crate::smapi_launcher::launch_game(game_path)
+    crate::smapi_launcher::launch_game(game_path, app)
 }
 
 #[tauri::command]

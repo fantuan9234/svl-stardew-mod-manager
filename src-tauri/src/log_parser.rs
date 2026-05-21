@@ -4,9 +4,38 @@ use std::collections::HashSet;
 use std::fs;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::LazyLock;
+use tauri::Emitter;
 
 use crate::mod_name_resolver::resolve_mod_name;
+use crate::smapi::find_game_path;
+use crate::nexus_api::search_nexus_mods;
+
+/// 系统环境检测结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemCheck {
+    pub dotnet_version: Option<String>,
+    pub dotnet_installed: bool,
+}
+
+/// 自动修复结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FixResult {
+    pub total: usize,
+    pub fixed: usize,
+    pub failed: usize,
+    pub details: Vec<FixDetail>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FixDetail {
+    pub mod_name: String,
+    pub error_type: String,
+    pub action: String,
+    pub success: bool,
+    pub message: String,
+}
 
 const TAIL_SIZE: u64 = 64 * 1024;
 
@@ -17,6 +46,10 @@ pub struct ParsedLogError {
     pub raw_line: String,
     pub solution: String,
     pub severity: String,
+    #[serde(default)]
+    pub missing_dep_id: Option<String>,
+    #[serde(default)]
+    pub missing_dep_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,6 +143,214 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             },
         },
         Rule {
+            error_type: "MissingDll".into(),
+            pattern: Regex::new(r"(?i)因为.*?DLL\s*'([^']+)'").expect("Invalid regex: MissingDll3"),
+            severity: "Error".into(),
+            extract: |caps| {
+                let dll = caps.get(1).map(|m| m.as_str()).unwrap_or("未知.dll");
+                let mod_name = extract_mod_from_dll(dll);
+                (mod_name.clone(), format!("{} 的 .dll 文件 '{}' 不存在。这通常意味着MOD文件损坏或安装不完整。请重新下载并安装这个MOD。", mod_name, dll))
+            },
+        },
+        Rule {
+            error_type: "DllLoadFailed".into(),
+            pattern: Regex::new(r"(?i)(failed|无法|失败).*?加载.*?\.dll").expect("Invalid regex: DllLoadFailed"),
+            severity: "Error".into(),
+            extract: |caps| {
+                let _ = caps;
+                ("Unknown".into(), "MOD 的 DLL 文件加载失败。可能是文件损坏、版本不兼容或缺少运行库。请重新下载该 MOD，或安装 .NET Desktop Runtime。".into())
+            },
+        },
+        Rule {
+            error_type: "ManifestError".into(),
+            pattern: Regex::new(r"(?i)(failed|无法|失败).*?读取.*?manifest").expect("Invalid regex: ManifestError"),
+            severity: "Error".into(),
+            extract: |_caps| {
+                ("Unknown".into(), "无法读取 MOD 的 manifest.json 文件。该文件可能已损坏、格式错误或权限不足。请重新下载该 MOD。".into())
+            },
+        },
+        Rule {
+            error_type: "ManifestError".into(),
+            pattern: Regex::new(r"(?i)manifest.*?(failed|无法|失败).*?读取").expect("Invalid regex: ManifestError2"),
+            severity: "Error".into(),
+            extract: |_caps| {
+                ("Unknown".into(), "无法读取 MOD 的 manifest.json 文件。该文件可能已损坏、格式错误或权限不足。请重新下载该 MOD。".into())
+            },
+        },
+        Rule {
+            error_type: "CompatibilityError".into(),
+            pattern: Regex::new(r"(?i)(不兼容|incompatible).*?game|game.*?(不兼容|incompatible)").expect("Invalid regex: CompatibilityError"),
+            severity: "Error".into(),
+            extract: |caps| {
+                let _ = caps;
+                ("Unknown".into(), "该 MOD 与当前游戏版本不兼容。请检查 MOD 页面是否支持你当前的星露谷物语版本，或等待 MOD 作者更新。".into())
+            },
+        },
+        Rule {
+            error_type: "VersionMismatch".into(),
+            pattern: Regex::new(r"(?i)(version|版本).*?(不匹配|mismatch|不一致|不支持).*?(SMAPI|game|游戏)").expect("Invalid regex: VersionMismatch"),
+            severity: "Error".into(),
+            extract: |_caps| {
+                ("Unknown".into(), "MOD 版本与 SMAPI 或游戏版本不匹配。请更新 SMAPI 到最新版本，或下载兼容你当前版本的 MOD。".into())
+            },
+        },
+        Rule {
+            error_type: "VersionMismatch".into(),
+            pattern: Regex::new(r"(?i)(.+?)\s+\d+\.\d+.*?no\s+longer\s+compatible").expect("Invalid regex: VersionMismatch2"),
+            severity: "Error".into(),
+            extract: |caps| {
+                let mod_name = caps.get(1).map(|m| m.as_str().trim()).unwrap_or("Unknown").to_string();
+                let solution = format!(
+                    "{} 已不再兼容当前版本的 SMAPI。请按以下步骤操作：\n\
+                    1. 前往 https://smapi.io/mods 搜索该 MOD，下载最新版本\n\
+                    2. 如果找不到更新版本，尝试联系 MOD 作者\n\
+                    3. 暂时从 Mods 文件夹移除该 MOD，等待更新",
+                    mod_name
+                );
+                (mod_name.clone(), solution)
+            },
+        },
+        Rule {
+            error_type: "VersionMismatch".into(),
+            pattern: Regex::new(r"(?i)(.+?)\s+\d+\.\d+.*?it's\s+no\s+longer\s+compatible").expect("Invalid regex: VersionMismatch3"),
+            severity: "Error".into(),
+            extract: |caps| {
+                let mod_name = caps.get(1).map(|m| m.as_str().trim()).unwrap_or("Unknown").to_string();
+                let solution = format!(
+                    "{} 已不再兼容当前版本的 SMAPI。请按以下步骤操作：\n\
+                    1. 前往 https://smapi.io/mods 搜索该 MOD，下载最新版本\n\
+                    2. 如果找不到更新版本，尝试联系 MOD 作者\n\
+                    3. 暂时从 Mods 文件夹移除该 MOD，等待更新",
+                    mod_name
+                );
+                (mod_name.clone(), solution)
+            },
+        },
+        Rule {
+            error_type: "DllLoadFailed".into(),
+            pattern: Regex::new(r"(?i)^-\s+(.+?)\s+(\d+\.\d+[\d.]*)\s+because\s+its\s+DLL\s+(couldn't|could not)\s+be\s+loaded").expect("Invalid regex: SkippedModsDllFailed"),
+            severity: "Error".into(),
+            extract: |caps| {
+                let mod_name = caps.get(1).map(|m| m.as_str().trim()).unwrap_or("Unknown").to_string();
+                let version = caps.get(2).map(|m| m.as_str()).unwrap_or("未知版本");
+                let solution = format!(
+                    "{} {} 的 DLL 文件无法被加载，已被 SMAPI 跳过。请按以下步骤排查：\n\
+                    1. 前往 Nexus Mods 或 smapi.io/mods 搜索该 MOD，下载最新版本\n\
+                    2. 确认 MOD 支持你当前的星露谷物语和 SMAPI 版本\n\
+                    3. 安装最新的 .NET Desktop Runtime（下载：https://dotnet.microsoft.com/download/dotnet）\n\
+                    4. 检查 MOD 文件夹中 .dll 文件是否存在且完整",
+                    mod_name, version
+                );
+                (mod_name, solution)
+            },
+        },
+        Rule {
+            error_type: "DllLoadFailed".into(),
+            pattern: Regex::new(r"(?i)(.+?)\s+\d+\.\d+.*?because\s+its\s+DLL\s+(couldn't|could not)\s+be\s+loaded").expect("Invalid regex: DllLoadFailed3"),
+            severity: "Error".into(),
+            extract: |caps| {
+                let mod_name = caps.get(1).map(|m| m.as_str().trim()).unwrap_or("Unknown").to_string();
+                let solution = format!(
+                    "{} 的 DLL 文件无法被加载。请按以下步骤排查：\n\
+                    1. 重新下载该 MOD 的最新版本\n\
+                    2. 确认 MOD 支持你当前的星露谷物语和 SMAPI 版本\n\
+                    3. 安装最新的 .NET Desktop Runtime（下载：https://dotnet.microsoft.com/download/dotnet）\n\
+                    4. 检查 MOD 文件夹中 .dll 文件是否存在且完整",
+                    mod_name
+                );
+                (mod_name.clone(), solution)
+            },
+        },
+        Rule {
+            error_type: "DllLoadFailed".into(),
+            pattern: Regex::new(r"(?i)Rewriting\s+(.+?)\.dll\s+failed").expect("Invalid regex: DllLoadFailed4"),
+            severity: "Error".into(),
+            extract: |caps| {
+                let dll_name = caps.get(1).map(|m| m.as_str()).unwrap_or("Unknown").to_string();
+                let solution = format!(
+                    "SMAPI 尝试重写 {}.dll 文件失败。请按以下步骤操作：\n\
+                    1. 前往 smapi.io/mods 搜索该 MOD，检查是否有新版本可用\n\
+                    2. 如果没有更新，尝试联系 MOD 作者反馈兼容性问题\n\
+                    3. 暂时禁用该 MOD，等待作者更新",
+                    dll_name
+                );
+                (dll_name.clone(), solution)
+            },
+        },
+        Rule {
+            error_type: "SystemError".into(),
+            pattern: Regex::new(r"(?i)System\.Exception").expect("Invalid regex: SystemError"),
+            severity: "Error".into(),
+            extract: |_caps| {
+                ("Unknown".into(), "SMAPI 运行过程中发生系统级异常。请查看完整日志了解详细信息。".into())
+            },
+        },
+        Rule {
+            error_type: "AssemblyError".into(),
+            pattern: Regex::new(r"(?i)Failed to resolve assembly.*?'([^']+)'").expect("Invalid regex: AssemblyError"),
+            severity: "Error".into(),
+            extract: |caps| {
+                let assembly = caps.get(1).map(|m| m.as_str()).unwrap_or("未知程序集").to_string();
+                let solution = format!(
+                    "缺少 .NET 程序集依赖: {}。\n\
+                    请按以下步骤解决：\n\
+                    1. 下载并安装 .NET Desktop Runtime（推荐 .NET 8.0）：https://dotnet.microsoft.com/download/dotnet\n\
+                    2. 安装后重启电脑\n\
+                    3. 如果问题仍然存在，尝试更新该 MOD 到最新版本",
+                    assembly
+                );
+                (assembly.clone(), solution)
+            },
+        },
+        Rule {
+            error_type: "NamespaceError".into(),
+            pattern: Regex::new(r"(?i)无法识别.*?命名空间|namespace.*?(not found|不存在|未找到)").expect("Invalid regex: NamespaceError"),
+            severity: "Error".into(),
+            extract: |_caps| {
+                ("Unknown".into(), "MOD 引用的命名空间不存在。可能是缺少前置 MOD 或 MOD 版本过旧。请检查 MOD 是否需要更新或安装额外的前置依赖。".into())
+            },
+        },
+        Rule {
+            error_type: "JsonParseError".into(),
+            pattern: Regex::new(r"(?i)(JSON|json).*?(格式错误|parse error|解析失败|invalid)").expect("Invalid regex: JsonParseError"),
+            severity: "Error".into(),
+            extract: |_caps| {
+                ("Unknown".into(), "MOD 的 JSON 配置文件格式有误。可能是文件损坏或编辑时出现了语法错误。请重新下载该 MOD 或检查 JSON 文件语法。".into())
+            },
+        },
+        Rule {
+            error_type: "FileNotFound".into(),
+            pattern: Regex::new(r"(?i)(文件|file).*?(不存在|not found|找不到|缺失).*?\.json").expect("Invalid regex: FileNotFound"),
+            severity: "Error".into(),
+            extract: |_caps| {
+                ("Unknown".into(), "MOD 所需的 JSON 文件不存在。可能是安装不完整或解压出错。请重新下载并安装该 MOD。".into())
+            },
+        },
+        Rule {
+            error_type: "ContentPatcherError".into(),
+            pattern: Regex::new(r"(?i)\[Content Patcher\].*?(ERROR|error|错误)").expect("Invalid regex: ContentPatcherError"),
+            severity: "Error".into(),
+            extract: |_caps| {
+                ("Unknown".into(), "Content Patcher 遇到错误。可能是 content.json 格式错误或路径配置有误。请检查使用该 MOD 的 Content Patcher 配置文件。".into())
+            },
+        },
+        Rule {
+            error_type: "GenericError".into(),
+            pattern: Regex::new(r"(?i)\[ERROR\].*?mod.*?(failed|失败|错误)").expect("Invalid regex: GenericError"),
+            severity: "Error".into(),
+            extract: |_caps| {
+                ("Unknown".into(), "MOD 运行过程中出现错误。请查看原始日志了解详细信息，或尝试重新安装该 MOD。".into())
+            },
+        },
+        Rule {
+            error_type: "GenericError".into(),
+            pattern: Regex::new(r"(?i)\[ERROR\].*?mod.*?(error|错误|异常)").expect("Invalid regex: GenericError2"),
+            severity: "Error".into(),
+            extract: |_caps| {
+                ("Unknown".into(), "MOD 运行过程中出现错误。请查看原始日志了解详细信息，或尝试重新安装该 MOD。".into())
+            },
+        },
+        Rule {
             error_type: "FailedLoading".into(),
             pattern: Regex::new(r"(?i)这些mod无法被添加到您的游戏中|could\s*not\s*be\s*added\s*to\s*your\s*game").expect("Invalid regex: FailedLoading"),
             severity: "Error".into(),
@@ -145,6 +386,14 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             },
         },
         Rule {
+            error_type: "NoUpdateKeys".into(),
+            pattern: Regex::new(r"(?i)no\s+update\s+keys").expect("Invalid regex: NoUpdateKeys"),
+            severity: "Warning".into(),
+            extract: |_caps| {
+                ("Unknown".into(), "部分 MOD 的 manifest 中没有设置更新键（UpdateKeys），SMAPI 将无法自动通知这些 MOD 的更新。建议联系 MOD 作者添加 UpdateKeys。".into())
+            },
+        },
+        Rule {
             error_type: "ModuleError".into(),
             pattern: Regex::new(r"(?i)\[ERROR\].*?\|.*?\|(.+)").expect("Invalid regex: ModuleError"),
             severity: "Error".into(),
@@ -158,7 +407,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
 });
 
 static ERROR_INDICATORS: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(ERROR|FATAL|missing\s+dependen|failed\s+to\s+load|could\s+not|doesn't\s+exist|incompatible|exception|无法|缺少|不兼容|DLL)").expect("Invalid regex: error_indicators")
+    Regex::new(r"(?i)(\[FATAL|missing\s+dependen|failed\s+to\s+load|doesn't\s+exist|incompatible|no\s+longer\s+compatible|couldn't\s+be\s+loaded|could\s+not\s+be\s+loaded|these\s+mods\s+could\s+not\s+be\s+added|无法|缺少|不兼容|rewriting\s+.+?\.dll\s+failed|重写.+?\.dll\s+failed|failed\s+to\s+resolve\s+assembly|because\s+its\s+DLL|skipped\s+mods|dll\s+couldn't|no\s+update\s+keys|patches\s+which\s+aren't\s+expected|may\s+not\s+notify)").expect("Invalid regex: error_indicators")
 });
 
 static WARN_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -310,6 +559,8 @@ fn match_rules(line: &str, rules: &[Rule]) -> Option<ParsedLogError> {
                 raw_line: line.to_string(),
                 solution: final_solution,
                 severity: rule.severity.clone(),
+                missing_dep_id: None,
+                missing_dep_name: None,
             });
         }
     }
@@ -320,9 +571,33 @@ fn parse_log_errors(content: &str) -> Vec<ParsedLogError> {
     let mut errors = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
 
+    let section_headers = ["skipped mods", "skipped mods:"];
+    let log_prefix_re = Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+\w+\s+\w+\]\s*").expect("Invalid regex: log_prefix");
+
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
+            continue;
+        }
+
+        if section_headers.iter().any(|h| trimmed.to_lowercase().ends_with(h)) {
+            continue;
+        }
+
+        if trimmed.starts_with("--- End of") || trimmed.starts_with("--- end of") || (trimmed.starts_with("at ") && trimmed.contains('(')) || trimmed.starts_with("---\t") {
+            continue;
+        }
+
+        if (trimmed.contains("[INFO") || trimmed.contains("[TRACE")) && !trimmed.contains("[ERROR") && !trimmed.contains("[FATAL") {
+            continue;
+        }
+
+        if trimmed.contains("[ERROR game]") || trimmed.contains("[error game]") {
+            continue;
+        }
+
+        let content_after_prefix = log_prefix_re.replace(trimmed, "");
+        if content_after_prefix.chars().all(|c| c == '-' || c == '=' || c == ' ' || c == '─' || c == '·' || c == ':') && content_after_prefix.len() > 5 {
             continue;
         }
 
@@ -349,6 +624,8 @@ fn parse_log_errors(content: &str) -> Vec<ParsedLogError> {
             raw_line: trimmed.to_string(),
             solution: "此错误类型暂无法自动识别，建议查看 SMAPI 官方文档或社区寻求帮助。".into(),
             severity: "Warning".into(),
+            missing_dep_id: None,
+            missing_dep_name: None,
         });
     }
 
@@ -361,6 +638,8 @@ pub struct SmapiLogError {
     pub error_type: String,
     pub original_line: String,
     pub solution: String,
+    #[serde(default)]
+    pub missing_dep_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -368,6 +647,36 @@ pub struct CheckSmapiLogResult {
     pub has_error: bool,
     pub errors: Vec<SmapiLogError>,
     pub error_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModInfoBasic {
+    pub name: String,
+    pub unique_id: String,
+    pub version: String,
+    pub folder_name: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModHealthIssue {
+    pub mod_name: String,
+    pub unique_id: String,
+    pub issue_type: String,
+    pub severity: String,
+    pub issue_detail: String,
+    pub fixable: bool,
+    pub solution: String,
+    pub missing_dep_name: Option<String>,
+    pub missing_dep_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModHealthCheckResult {
+    pub has_issues: bool,
+    pub issues: Vec<ModHealthIssue>,
+    pub issue_count: usize,
+    pub total_mods: usize,
 }
 
 #[tauri::command]
@@ -384,20 +693,63 @@ pub fn open_path(path: String) -> Result<bool, String> {
     Ok(true)
 }
 
+#[derive(Debug, Clone, Deserialize)]
+struct SimpleManifestDep {
+    #[serde(rename = "UniqueID", alias = "UniqueId")]
+    unique_id: String,
+    #[serde(rename = "IsRequired", default = "default_true")]
+    is_required: bool,
+}
+
+fn default_true() -> bool { true }
+
+#[derive(Debug, Clone, Deserialize)]
+struct SimpleManifest {
+    #[serde(rename = "Name")]
+    name: Option<String>,
+    #[serde(rename = "UniqueID", alias = "UniqueId")]
+    unique_id: Option<String>,
+    #[serde(rename = "Version")]
+    version: Option<String>,
+    #[serde(rename = "Dependencies", default)]
+    dependencies: Vec<SimpleManifestDep>,
+}
+
+fn scan_mods_basic(mods_path: &PathBuf) -> Vec<ModInfoBasic> {
+    let mut mods = Vec::new();
+    let mod_dirs = crate::mod_parser::recursive_find_manifests(&mods_path);
+    for dir in &mod_dirs {
+        let manifest_path = dir.join("manifest.json");
+        let content = match fs::read_to_string(&manifest_path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let cleaned = crate::mod_parser::remove_trailing_commas(&content);
+        let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+        let manifest: SimpleManifest = match serde_json::from_str(cleaned) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let folder_name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+        let enabled = !folder_name.starts_with('.') || folder_name.starts_with("..");
+        mods.push(ModInfoBasic {
+            name: manifest.name.unwrap_or_else(|| folder_name.clone()),
+            unique_id: manifest.unique_id.unwrap_or_else(|| format!("unknown_{}", folder_name)),
+            version: manifest.version.unwrap_or_else(|| "unknown".to_string()),
+            folder_name,
+            enabled,
+        });
+    }
+    mods
+}
+
 #[tauri::command]
 pub fn check_smapi_log() -> Result<CheckSmapiLogResult, String> {
-    let log_path = match get_smapi_log_path() {
-        Some(p) => p,
-        None => {
-            return Ok(CheckSmapiLogResult {
-                has_error: false,
-                errors: vec![],
-                error_count: 0,
-            });
-        }
-    };
+    let (game_path, _) = crate::smapi::find_game_path()
+        .ok_or_else(|| "无法找到星露谷物语安装路径".to_string())?;
+    let mods_path = game_path.join("Mods");
 
-    if !log_path.exists() {
+    if !mods_path.exists() {
         return Ok(CheckSmapiLogResult {
             has_error: false,
             errors: vec![],
@@ -405,114 +757,451 @@ pub fn check_smapi_log() -> Result<CheckSmapiLogResult, String> {
         });
     }
 
-    let content = match fs::read_to_string(&log_path) {
-        Ok(c) => c,
-        Err(_) => {
-            return Ok(CheckSmapiLogResult {
-                has_error: false,
-                errors: vec![],
-                error_count: 0,
-            });
-        }
-    };
-
-    if content.is_empty() {
+    let installed_mods = scan_mods_basic(&mods_path);
+    if installed_mods.is_empty() {
         return Ok(CheckSmapiLogResult {
             has_error: false,
             errors: vec![],
             error_count: 0,
         });
     }
+
+    let enabled_unique_ids: HashSet<String> = installed_mods.iter()
+        .filter(|m| m.enabled)
+        .map(|m| m.unique_id.to_lowercase())
+        .collect();
+
+    let all_unique_ids_lower: HashSet<String> = installed_mods.iter()
+        .map(|m| m.unique_id.to_lowercase())
+        .collect();
 
     let mut errors: Vec<SmapiLogError> = Vec::new();
-    let mut has_error = false;
-    let mut seen: HashSet<String> = HashSet::new();
 
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
+    let mod_dirs = crate::mod_parser::recursive_find_manifests(&mods_path);
+    for dir in &mod_dirs {
+        let manifest_path = dir.join("manifest.json");
+        let content = match fs::read_to_string(&manifest_path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let cleaned = crate::mod_parser::remove_trailing_commas(&content);
+        let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+        let manifest: SimpleManifest = match serde_json::from_str(cleaned) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+
+        let mod_name = manifest.name.clone().unwrap_or_else(|| {
+            dir.file_name().and_then(|n| n.to_str()).unwrap_or("Unknown").to_string()
+        });
+        let unique_id = manifest.unique_id.clone().unwrap_or_else(|| format!("unknown_{}", mod_name));
+        let folder_name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let mod_enabled = !folder_name.starts_with('.') || folder_name.starts_with("..");
+
+        if mod_enabled {
+            for dep in &manifest.dependencies {
+                if !dep.is_required {
+                    continue;
+                }
+                let dep_id_lower = dep.unique_id.to_lowercase();
+                if !enabled_unique_ids.contains(&dep_id_lower) {
+                    let dep_name = resolve_dep_name(&dep.unique_id, &installed_mods);
+                    if all_unique_ids_lower.contains(&dep_id_lower) {
+                        errors.push(SmapiLogError {
+                            mod_name: mod_name.clone(),
+                            error_type: "MissingDependency".into(),
+                            original_line: String::new(),
+                            solution: format!(
+                                "{} 需要前置 MOD '{}'（UniqueID: {}），但它已被禁用。请在 MOD 管理器中启用该 MOD。",
+                                mod_name, dep_name, dep.unique_id
+                            ),
+                            missing_dep_id: Some(dep.unique_id.clone()),
+                        });
+                    } else {
+                        let nexus_hint = crate::smapi_data::get_mod_nexus_id(&dep.unique_id)
+                            .map(|id| format!("\nNexus 链接: https://www.nexusmods.com/stardewvalley/mods/{}", id))
+                            .unwrap_or_default();
+                        errors.push(SmapiLogError {
+                            mod_name: mod_name.clone(),
+                            error_type: "MissingDependency".into(),
+                            original_line: String::new(),
+                            solution: format!(
+                                "{} 需要前置 MOD '{}'（UniqueID: {}），但未安装。请去 Nexus Mods 搜索并下载此 MOD。{}",
+                                mod_name, dep_name, dep.unique_id, nexus_hint
+                            ),
+                            missing_dep_id: Some(dep.unique_id.clone()),
+                        });
+                    }
+                }
+            }
         }
 
-        if ERROR_INDICATORS.is_match(trimmed) {
-            has_error = true;
-        }
-
-        if seen.contains(trimmed) {
-            continue;
-        }
-
-        if let Some(parsed) = match_rules(trimmed, &RULES) {
-            seen.insert(trimmed.to_string());
-            errors.push(SmapiLogError {
-                mod_name: parsed.mod_name,
-                error_type: parsed.error_type,
-                original_line: parsed.raw_line,
-                solution: parsed.solution,
-            });
+        let compat_meta = crate::compatibility_list::get_mod_metadata(&unique_id);
+        if let Some(meta) = compat_meta {
+            if let Some(ref status) = meta.status {
+                match status.to_lowercase().as_str() {
+                    "broken" | "incompatible" => {
+                        let summary = meta.summary.as_deref().unwrap_or("该 MOD 与当前 SMAPI 版本不兼容");
+                        errors.push(SmapiLogError {
+                            mod_name: mod_name.clone(),
+                            error_type: "BrokenMod".into(),
+                            original_line: String::new(),
+                            solution: format!(
+                                "{} 已被 SMAPI 官方标记为不兼容。{}\n建议：检查 MOD 的 Nexus 页面是否有更新版本，或暂时禁用此 MOD。",
+                                mod_name, summary
+                            ),
+                            missing_dep_id: None,
+                        });
+                    }
+                    "abandoned" => {
+                        errors.push(SmapiLogError {
+                            mod_name: mod_name.clone(),
+                            error_type: "AbandonedMod".into(),
+                            original_line: String::new(),
+                            solution: format!(
+                                "{} 已被作者放弃维护，可能在未来的 SMAPI 版本中不再工作。建议寻找替代 MOD 或关注社区是否有接手维护的版本。",
+                                mod_name
+                            ),
+                            missing_dep_id: None,
+                        });
+                    }
+                    "obsolete" => {
+                        errors.push(SmapiLogError {
+                            mod_name: mod_name.clone(),
+                            error_type: "ObsoleteMod".into(),
+                            original_line: String::new(),
+                            solution: format!(
+                                "{} 已过时，不再需要。SMAPI 已内置了该 MOD 的功能，建议删除此 MOD。",
+                                mod_name
+                            ),
+                            missing_dep_id: None,
+                        });
+                    }
+                    "workaround" => {
+                        errors.push(SmapiLogError {
+                            mod_name: mod_name.clone(),
+                            error_type: "NeedsWorkaround".into(),
+                            original_line: String::new(),
+                            solution: format!(
+                                "{} 存在兼容性问题，但可以通过非官方补丁或设置解决。请查看 MOD 页面了解具体操作。",
+                                mod_name
+                            ),
+                            missing_dep_id: None,
+                        });
+                    }
+                    _ => {}
+                }
+            }
         }
     }
+
+    let has_error = !errors.is_empty();
+    let error_count = errors.len();
 
     Ok(CheckSmapiLogResult {
         has_error,
-        error_count: errors.len(),
+        error_count,
         errors,
     })
 }
 
+fn resolve_dep_name(unique_id: &str, installed_mods: &[ModInfoBasic]) -> String {
+    let id_lower = unique_id.to_lowercase();
+    for m in installed_mods {
+        if m.unique_id.to_lowercase() == id_lower {
+            return m.name.clone();
+        }
+    }
+    let compat_meta = crate::compatibility_list::get_mod_metadata(unique_id);
+    if let Some(meta) = compat_meta {
+        if !meta.name.is_empty() {
+            return meta.name;
+        }
+    }
+    unique_id.to_string()
+}
+
 #[tauri::command]
 pub fn parse_smapi_log(log_path: Option<String>) -> Result<ParseSmapiLogResult, String> {
-    let log_path = match log_path {
-        Some(path) => PathBuf::from(path),
-        None => match get_smapi_log_path() {
-            Some(p) => p,
-            None => {
-                let roaming = dirs::data_dir();
-                let smapi_dir = roaming.as_ref().map(|r| r.join("StardewValley").join("ErrorLogs"));
-                let smapi_exists = smapi_dir.as_ref().map_or(false, |d| d.exists());
+    let mut all_errors: Vec<ParsedLogError> = Vec::new();
+    let mut seen_keys: HashSet<String> = HashSet::new();
+    let mut actual_log_path = String::new();
+    let mut log_not_found = true;
+    let mut smapi_not_installed = false;
 
-                if !smapi_exists {
-                    return Ok(ParseSmapiLogResult {
-                        errors: vec![],
-                        log_path: String::new(),
-                        has_errors: false,
-                        log_not_found: true,
-                        smapi_not_installed: true,
-                    });
+    let resolved_log_path = log_path
+        .filter(|p| !p.is_empty() && PathBuf::from(p).exists())
+        .or_else(|| get_smapi_log_path().map(|p| p.to_string_lossy().to_string()));
+
+    if let Some(ref path) = resolved_log_path {
+        let pb = PathBuf::from(path);
+        if pb.exists() {
+            match read_log_tail(&pb) {
+                Ok(content) => {
+                    actual_log_path = path.clone();
+                    log_not_found = false;
+
+                    let log_errors = parse_errors_v2(&content);
+                    let nouk_errors = parse_no_update_keys_section(&content);
+
+                    for err in log_errors.iter().chain(nouk_errors.iter()) {
+                        let key = format!("{}|{}|{}", err.severity, err.translated_message, err.raw_message);
+                        if seen_keys.contains(&key) {
+                            continue;
+                        }
+                        seen_keys.insert(key);
+
+                        let missing_dep_id = if err.translated_message.starts_with("MissingDependency:") {
+                            extract_unique_id_from_solution(&err.solution)
+                        } else {
+                            None
+                        };
+
+                        all_errors.push(ParsedLogError {
+                            mod_name: extract_mod_name_from_translated(&err.translated_message),
+                            error_type: extract_error_type_from_translated(&err.translated_message),
+                            raw_line: err.raw_message.clone(),
+                            solution: err.solution.clone(),
+                            severity: err.severity.clone(),
+                            missing_dep_id,
+                            missing_dep_name: None,
+                        });
+                    }
                 }
-
-                return Ok(ParseSmapiLogResult {
-                    errors: vec![],
-                    log_path: String::new(),
-                    has_errors: false,
-                    log_not_found: true,
-                    smapi_not_installed: false,
-                });
+                Err(_) => {}
             }
-        },
-    };
-
-    if !log_path.exists() {
-        return Ok(ParseSmapiLogResult {
-            errors: vec![],
-            log_path: log_path.to_string_lossy().to_string(),
-            has_errors: false,
-            log_not_found: true,
-            smapi_not_installed: false,
-        });
+        }
     }
 
-    let content = read_log_tail(&log_path)?;
+    if let Some((game_path, _)) = crate::smapi::find_game_path() {
+        let mods_path = game_path.join("Mods");
+        if mods_path.exists() {
+            let (manifest_errors, _) = run_mod_health_check(&mods_path);
+            for err in manifest_errors {
+                let key = format!("{}|{}|{}", err.error_type, err.mod_name, err.raw_line);
+                if seen_keys.contains(&key) {
+                    continue;
+                }
+                seen_keys.insert(key);
+                all_errors.push(err);
+            }
+            if actual_log_path.is_empty() {
+                actual_log_path = mods_path.to_string_lossy().to_string();
+                log_not_found = false;
+            }
+        }
+    } else {
+        let roaming = dirs::data_dir();
+        let smapi_dir = roaming.as_ref().map(|r| r.join("StardewValley").join("ErrorLogs"));
+        smapi_not_installed = !smapi_dir.as_ref().map_or(false, |d| d.exists());
+    }
 
-    let errors = parse_log_errors(&content);
+    if actual_log_path.is_empty() {
+        if let Some(lp) = get_smapi_log_path() {
+            actual_log_path = lp.to_string_lossy().to_string();
+        }
+    }
+
+    let has_errors = !all_errors.is_empty();
 
     Ok(ParseSmapiLogResult {
-        has_errors: !errors.is_empty(),
-        errors,
-        log_path: log_path.to_string_lossy().to_string(),
-        log_not_found: false,
-        smapi_not_installed: false,
+        has_errors,
+        errors: all_errors,
+        log_path: actual_log_path,
+        log_not_found,
+        smapi_not_installed,
     })
+}
+
+fn extract_mod_name_from_translated(translated: &str) -> String {
+    if let Some(pos) = translated.find(": ") {
+        translated[pos + 2..].trim().to_string()
+    } else {
+        translated.to_string()
+    }
+}
+
+fn extract_error_type_from_translated(translated: &str) -> String {
+    if let Some(pos) = translated.find(": ") {
+        translated[..pos].trim().to_string()
+    } else {
+        "UnknownError".to_string()
+    }
+}
+
+fn extract_unique_id_from_solution(solution: &str) -> Option<String> {
+    let re = Regex::new(r"UniqueID:\s*([^\),，）]+)").ok()?;
+    let caps = re.captures(solution)?;
+    caps.get(1).map(|m| m.as_str().trim().to_string())
+}
+
+fn run_mod_health_check(mods_path: &PathBuf) -> (Vec<ParsedLogError>, usize) {
+    let installed_mods = scan_mods_basic(mods_path);
+    if installed_mods.is_empty() {
+        return (vec![], 0);
+    }
+
+    let enabled_unique_ids: HashSet<String> = installed_mods.iter()
+        .filter(|m| m.enabled)
+        .map(|m| m.unique_id.to_lowercase())
+        .collect();
+
+    let all_unique_ids_lower: HashSet<String> = installed_mods.iter()
+        .map(|m| m.unique_id.to_lowercase())
+        .collect();
+
+    let mut errors: Vec<ParsedLogError> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+
+    let mod_dirs = crate::mod_parser::recursive_find_manifests(mods_path);
+    for dir in &mod_dirs {
+        let manifest_path = dir.join("manifest.json");
+        let content = match fs::read_to_string(&manifest_path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let cleaned = crate::mod_parser::remove_trailing_commas(&content);
+        let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+        let manifest: SimpleManifest = match serde_json::from_str(cleaned) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+
+        let mod_name = manifest.name.clone().unwrap_or_else(|| {
+            dir.file_name().and_then(|n| n.to_str()).unwrap_or("Unknown").to_string()
+        });
+        let unique_id = manifest.unique_id.clone().unwrap_or_else(|| format!("unknown_{}", mod_name));
+        let folder_name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let mod_enabled = !folder_name.starts_with('.') || folder_name.starts_with("..");
+
+        let uid_key = unique_id.to_lowercase();
+
+        if mod_enabled {
+            for dep in &manifest.dependencies {
+                if !dep.is_required {
+                    continue;
+                }
+                let dep_id_lower = dep.unique_id.to_lowercase();
+                if !enabled_unique_ids.contains(&dep_id_lower) {
+                    let dep_name = resolve_dep_name(&dep.unique_id, &installed_mods);
+                    let dedup_key = format!("dep:{}:{}", uid_key, dep_id_lower);
+                    if seen.contains(&dedup_key) {
+                        continue;
+                    }
+                    seen.insert(dedup_key);
+
+                    if all_unique_ids_lower.contains(&dep_id_lower) {
+                        errors.push(ParsedLogError {
+                            mod_name: mod_name.clone(),
+                            error_type: "MissingDependency".into(),
+                            raw_line: String::new(),
+                            solution: format!(
+                                "{} 需要前置 MOD '{}'（UniqueID: {}），但它已被禁用。请在 MOD 管理器中启用该 MOD。",
+                                mod_name, dep_name, dep.unique_id
+                            ),
+                            severity: "Error".into(),
+                            missing_dep_id: Some(dep.unique_id.clone()),
+                            missing_dep_name: Some(dep_name.clone()),
+                        });
+                    } else {
+                        let nexus_hint = crate::smapi_data::get_mod_nexus_id(&dep.unique_id)
+                            .map(|id| format!("\nNexus 链接: https://www.nexusmods.com/stardewvalley/mods/{}", id))
+                            .unwrap_or_default();
+                        errors.push(ParsedLogError {
+                            mod_name: mod_name.clone(),
+                            error_type: "MissingDependency".into(),
+                            raw_line: String::new(),
+                            solution: format!(
+                                "{} 需要前置 MOD '{}'（UniqueID: {}），但未安装。请去 Nexus Mods 搜索并下载此 MOD。{}",
+                                mod_name, dep_name, dep.unique_id, nexus_hint
+                            ),
+                            severity: "Error".into(),
+                            missing_dep_id: Some(dep.unique_id.clone()),
+                            missing_dep_name: Some(dep_name.clone()),
+                        });
+                    }
+                }
+            }
+        }
+
+        let compat_key = format!("compat:{}", uid_key);
+        if seen.contains(&compat_key) {
+            continue;
+        }
+
+        let compat_meta = crate::compatibility_list::get_mod_metadata(&unique_id);
+        if let Some(meta) = compat_meta {
+            if let Some(ref status) = meta.status {
+                match status.to_lowercase().as_str() {
+                    "broken" | "incompatible" => {
+                        seen.insert(compat_key);
+                        let summary = meta.summary.as_deref().unwrap_or("该 MOD 与当前 SMAPI 版本不兼容");
+                        errors.push(ParsedLogError {
+                            mod_name: mod_name.clone(),
+                            error_type: "BrokenMod".into(),
+                            raw_line: String::new(),
+                            solution: format!(
+                                "{} 已被 SMAPI 官方标记为不兼容。{}\n建议：检查 MOD 的 Nexus 页面是否有更新版本，或暂时禁用此 MOD。",
+                                mod_name, summary
+                            ),
+                            severity: "Error".into(),
+                            missing_dep_id: None,
+                            missing_dep_name: None,
+                        });
+                    }
+                    "abandoned" => {
+                        seen.insert(compat_key);
+                        errors.push(ParsedLogError {
+                            mod_name: mod_name.clone(),
+                            error_type: "AbandonedMod".into(),
+                            raw_line: String::new(),
+                            solution: format!(
+                                "{} 已被作者放弃维护，可能在未来的 SMAPI 版本中不再工作。",
+                                mod_name
+                            ),
+                            severity: "Warning".into(),
+                            missing_dep_id: None,
+                            missing_dep_name: None,
+                        });
+                    }
+                    "obsolete" => {
+                        seen.insert(compat_key);
+                        errors.push(ParsedLogError {
+                            mod_name: mod_name.clone(),
+                            error_type: "ObsoleteMod".into(),
+                            raw_line: String::new(),
+                            solution: format!(
+                                "{} 已过时，不再需要。SMAPI 已内置了该 MOD 的功能，建议删除此 MOD。",
+                                mod_name
+                            ),
+                            severity: "Warning".into(),
+                            missing_dep_id: None,
+                            missing_dep_name: None,
+                        });
+                    }
+                    "workaround" => {
+                        seen.insert(compat_key);
+                        errors.push(ParsedLogError {
+                            mod_name: mod_name.clone(),
+                            error_type: "NeedsWorkaround".into(),
+                            raw_line: String::new(),
+                            solution: format!(
+                                "{} 存在兼容性问题，但可以通过非官方补丁或设置解决。",
+                                mod_name
+                            ),
+                            severity: "Warning".into(),
+                            missing_dep_id: None,
+                            missing_dep_name: None,
+                        });
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    let count = errors.len();
+    (errors, count)
 }
 
 #[tauri::command]
@@ -553,7 +1242,9 @@ pub fn analyze_log(log_path: Option<String>) -> Result<LogAnalysis, String> {
 
     let content = read_log_tail(&log_path)?;
 
-    let errors = parse_errors_v2(&content);
+    let mut errors = parse_errors_v2(&content);
+    let no_update_keys_errors = parse_no_update_keys_section(&content);
+    errors.extend(no_update_keys_errors);
     let warnings = parse_warnings_v2(&content);
 
     let error_count = errors.len();
@@ -578,20 +1269,38 @@ fn parse_errors_v2(content: &str) -> Vec<LogError> {
     let mut errors = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
 
+    let section_headers = ["skipped mods", "skipped mods:", "no update keys", "no update keys:"];
+    let log_prefix_re = Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+\w+\s+\w+\]\s*").expect("Invalid regex: log_prefix3");
+
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() || !ERROR_INDICATORS.is_match(trimmed) {
             continue;
         }
 
-        if seen.contains(trimmed) {
+        if section_headers.iter().any(|h| trimmed.to_lowercase().ends_with(h)) {
             continue;
         }
-        seen.insert(trimmed.to_string());
+
+        if trimmed.starts_with("--- End of") || trimmed.starts_with("--- end of") || (trimmed.starts_with("at ") && trimmed.contains('(')) {
+            continue;
+        }
+
+        let content_after_prefix = log_prefix_re.replace(trimmed, "");
+        if content_after_prefix.chars().all(|c| c == '-' || c == '=' || c == ' ' || c == '─' || c == '·' || c == ':') && content_after_prefix.len() > 5 {
+            continue;
+        }
+
+        let body = content_after_prefix.trim();
+
+        if seen.contains(body) {
+            continue;
+        }
+        seen.insert(body.to_string());
 
         let mut matched = false;
         for rule in RULES.iter() {
-            if let Some(caps) = rule.pattern.captures(trimmed) {
+            if let Some(caps) = rule.pattern.captures(body) {
                 let (mod_name, solution) = (rule.extract)(&caps);
                 let resolved = translate_mod_name(&mod_name);
                 let final_solution = if resolved != mod_name {
@@ -612,7 +1321,7 @@ fn parse_errors_v2(content: &str) -> Vec<LogError> {
         }
 
         if !matched {
-            let mod_name = extract_mod_name_from_line(trimmed);
+            let mod_name = extract_mod_name_from_line(body);
             let resolved = translate_mod_name(&mod_name);
             errors.push(LogError {
                 raw_message: trimmed.to_string(),
@@ -625,6 +1334,72 @@ fn parse_errors_v2(content: &str) -> Vec<LogError> {
     }
 
     errors
+}
+
+fn parse_no_update_keys_section(content: &str) -> Vec<LogError> {
+    let mut results = Vec::new();
+    let log_prefix_re = Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+\w+\s+\w+\]\s*").expect("Invalid regex: log_prefix_nouk");
+    let mut in_section = false;
+    let mut mod_names: Vec<String> = Vec::new();
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            if in_section && !mod_names.is_empty() {
+                break;
+            }
+            continue;
+        }
+
+        let body: String = log_prefix_re.replace(trimmed, "").trim().to_string();
+
+        if body.eq_ignore_ascii_case("No update keys") || body.eq_ignore_ascii_case("No update keys:") {
+            in_section = true;
+            continue;
+        }
+
+        if in_section {
+            if body.starts_with("---") || body.chars().all(|c| c == '-' || c == '=' || c == ' ' || c == '─') {
+                continue;
+            }
+            if body.starts_with("These mods have no update keys") || body.starts_with("mods. Consider") || body.starts_with("这些mod没有更新键") {
+                continue;
+            }
+            if body.contains("DEBUG SMAPI") && !body.contains("No update keys") && !body.starts_with("-") {
+                break;
+            }
+            if body.contains("INFO SMAPI") || body.contains("ERROR SMAPI") || body.contains("WARN SMAPI") || body.contains("TRACE SMAPI") {
+                if !body.starts_with("-") {
+                    break;
+                }
+            }
+            if let Some(stripped) = body.strip_prefix("- ") {
+                let mod_name = stripped.trim().to_string();
+                if !mod_name.is_empty() {
+                    mod_names.push(mod_name);
+                }
+            }
+        }
+    }
+
+    if !mod_names.is_empty() {
+        let mod_list = mod_names.join("、");
+        for name in &mod_names {
+            results.push(LogError {
+                raw_message: format!("No update keys: {}", name),
+                translated_message: format!("NoUpdateKeys: {}", name),
+                severity: "Warning".to_string(),
+                solution: format!(
+                    "{} 的 manifest 中没有设置更新键（UpdateKeys），SMAPI 将无法自动通知该 MOD 的更新。建议手动关注该 MOD 的更新，或联系 MOD 作者添加 UpdateKeys。",
+                    name
+                ),
+                solution_button_text: "logParser.viewSolution".to_string(),
+            });
+        }
+        let _ = mod_list;
+    }
+
+    results
 }
 
 fn parse_warnings_v2(content: &str) -> Vec<LogWarning> {
@@ -850,4 +1625,364 @@ fn analyze_ftm_error_content(content: &str) -> (String, String, String) {
         format!("日志中发现了 FTM 相关的错误，但具体类型无法自动识别。\n\n原始报错信息如下：\n{}", content.chars().take(500).collect::<String>()),
         "建议：\n1. 将上方原始报错信息复制到 SMAPI 社区或 Discord 寻求帮助\n2. 检查 FTM 页面是否有已知问题\n3. 尝试重新安装 FTM".to_string(),
     )
+}
+
+/// 检测系统 .NET 运行库状态
+#[tauri::command]
+pub fn check_dotnet_status() -> SystemCheck {
+    #[cfg(target_os = "windows")]
+    let output = {
+        use std::os::windows::process::CommandExt;
+        Command::new("dotnet")
+            .arg("--list-runtimes")
+            .creation_flags(0x08000000)
+            .output()
+    };
+    #[cfg(not(target_os = "windows"))]
+    let output = Command::new("dotnet")
+        .arg("--list-runtimes")
+        .output();
+
+    match output {
+        Ok(out) => {
+            let output_str = String::from_utf8_lossy(&out.stdout);
+            if output_str.contains("Microsoft.NETCore.App") || output_str.contains("Microsoft.WindowsDesktop.App") {
+                let version = output_str.lines()
+                    .find(|line| line.contains("Microsoft.NETCore.App") || line.contains("Microsoft.WindowsDesktop.App"))
+                    .and_then(|line| line.split_whitespace().nth(1))
+                    .map(|s| s.to_string());
+
+                SystemCheck {
+                    dotnet_version: version,
+                    dotnet_installed: true,
+                }
+            } else {
+                SystemCheck {
+                    dotnet_version: None,
+                    dotnet_installed: false,
+                }
+            }
+        }
+        Err(_) => SystemCheck {
+            dotnet_version: None,
+            dotnet_installed: false,
+        },
+    }
+}
+
+/// 自动修复所有日志错误
+#[tauri::command]
+pub async fn fix_all_log_errors(
+    app: tauri::AppHandle,
+    errors: Vec<ParsedLogError>,
+    api_key: String,
+) -> Result<FixResult, String> {
+    eprintln!("[fix_all_log_errors] 开始自动修复 {} 个错误", errors.len());
+
+    if api_key.is_empty() {
+        return Err("请先在设置中绑定 Nexus API Key 以启用自动修复功能".into());
+    }
+
+    let (game_path, _) = find_game_path().ok_or("无法找到星露谷物语安装路径")?;
+    let mods_path = game_path.join("Mods");
+    
+    if !mods_path.exists() {
+        fs::create_dir_all(&mods_path).map_err(|e| format!("创建 Mods 文件夹失败: {}", e))?;
+    }
+
+    let mut details = Vec::new();
+    let mut fixed = 0;
+
+    for err in &errors {
+        eprintln!("[fix_all_log_errors] 修复: {} ({})", err.mod_name, err.error_type);
+        
+        let _ = app.emit("fix-progress", serde_json::json!({
+            "mod_name": err.mod_name,
+            "error_type": err.error_type,
+            "status": "processing"
+        }));
+
+        let result = fix_single_error(&app, err, mods_path.to_str().unwrap(), &api_key).await;
+        
+        match result {
+            Ok((action, message)) => {
+                fixed += 1;
+                details.push(FixDetail {
+                    mod_name: err.mod_name.clone(),
+                    error_type: err.error_type.clone(),
+                    action,
+                    success: true,
+                    message: message.clone(),
+                });
+                let _ = app.emit("fix-progress", serde_json::json!({
+                    "mod_name": err.mod_name,
+                    "error_type": err.error_type,
+                    "status": "success",
+                    "message": message
+                }));
+            }
+            Err(e) => {
+                details.push(FixDetail {
+                    mod_name: err.mod_name.clone(),
+                    error_type: err.error_type.clone(),
+                    action: "跳过".into(),
+                    success: false,
+                    message: e.clone(),
+                });
+                let _ = app.emit("fix-progress", serde_json::json!({
+                    "mod_name": err.mod_name,
+                    "error_type": err.error_type,
+                    "status": "failed",
+                    "message": e
+                }));
+            }
+        }
+    }
+
+    eprintln!("[fix_all_log_errors] 修复完成: {}/{}", fixed, errors.len());
+    Ok(FixResult {
+        total: errors.len(),
+        fixed,
+        failed: errors.len() - fixed,
+        details,
+    })
+}
+
+/// 单独修复一个错误，返回 FixDetail 供前端展示
+#[tauri::command]
+pub async fn fix_single_log_error(
+    app: tauri::AppHandle,
+    error: ParsedLogError,
+    api_key: String,
+) -> Result<FixDetail, String> {
+    if api_key.is_empty() {
+        return Err("请先在设置中绑定 Nexus API Key".into());
+    }
+
+    let (game_path, _) = find_game_path().ok_or("无法找到星露谷物语安装路径")?;
+    let mods_path = game_path.join("Mods");
+    if !mods_path.exists() {
+        fs::create_dir_all(&mods_path).map_err(|e| format!("创建 Mods 文件夹失败: {}", e))?;
+    }
+
+    match fix_single_error(&app, &error, mods_path.to_str().unwrap(), &api_key).await {
+        Ok((action, message)) => Ok(FixDetail {
+            mod_name: error.mod_name.clone(),
+            error_type: error.error_type.clone(),
+            action,
+            success: true,
+            message,
+        }),
+        Err(e) => Err(e),
+    }
+}
+
+/// 修复单个错误
+async fn fix_single_error(
+    app: &tauri::AppHandle,
+    err: &ParsedLogError,
+    mods_path: &str,
+    api_key: &str,
+) -> Result<(String, String), String> {
+    match err.error_type.as_str() {
+        "MissingDependency" | "MissingDll" => {
+            let search_term = if let Some(ref dep_name) = err.missing_dep_name {
+                dep_name.clone()
+            } else if let Some(ref dep_id) = err.missing_dep_id {
+                dep_id.clone()
+            } else {
+                err.mod_name.clone()
+            };
+            eprintln!("[fix_single_error] 下载缺失依赖: {} -> 搜索: {}", err.mod_name, search_term);
+            download_and_install_mod(app, &search_term, mods_path, api_key).await
+        }
+        "VersionMismatch" | "DllLoadFailed" | "FailedLoading" | "BrokenMod" | "AbandonedMod" | "ObsoleteMod" | "NeedsWorkaround" => {
+            let search_term = &err.mod_name;
+            eprintln!("[fix_single_error] 搜索更新: {}", search_term);
+            download_and_install_mod(app, search_term, mods_path, api_key).await
+        }
+        "AssemblyError" => {
+            Err("此错误需要安装 .NET Desktop Runtime，请手动前往 dotnet.microsoft.com 下载安装".into())
+        }
+        _ => {
+            Err(format!("暂不支持自动修复此类型的错误: {}", err.error_type))
+        }
+    }
+}
+
+async fn download_and_install_mod(
+    app: &tauri::AppHandle,
+    search_term: &str,
+    mods_path: &str,
+    api_key: &str,
+) -> Result<(String, String), String> {
+    eprintln!("[download_and_install_mod] 搜索: {}", search_term);
+
+    let search_results = search_nexus_mods(search_term.to_string(), api_key.to_string(), 1, None).await?;
+    if search_results.0.is_empty() {
+        return Err(format!("在 Nexus 上未找到 '{}'", search_term));
+    }
+
+    let first_result = &search_results.0[0];
+    let mod_id = &first_result.mod_id;
+    
+    eprintln!("[download_and_install_mod] 找到: {} (id={})", first_result.name, mod_id);
+
+    let files = crate::nexus_api::get_nexus_mod_files(api_key.to_string(), mod_id.clone()).await?;
+    if files.is_empty() {
+        return Err(format!("MOD '{}' 没有可用的下载文件", first_result.name));
+    }
+
+    let target_file = files.into_iter()
+        .filter(|f| !f.is_premium_only)
+        .max_by_key(|f| f.upload_time.clone())
+        .ok_or(format!("MOD '{}' 没有可用的免费文件", first_result.name))?;
+
+    eprintln!("[download_and_install_mod] 下载: {} (file_id={})", target_file.name, target_file.file_id);
+
+    let download_result = crate::nexus_api::download_mod_from_nexus(
+        app.clone(),
+        mod_id.clone(),
+        api_key.to_string(),
+        Some(mods_path.to_string()),
+        Some(target_file.file_id),
+        None,
+    ).await?;
+
+    if download_result.success {
+        Ok(("自动下载并安装".into(), format!("已成功下载并安装 '{}' 的最新版本", first_result.name)))
+    } else {
+        Err(format!("下载失败: {}", download_result.message))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_smapi_log() -> String {
+        r#"[16:40:35 INFO  SMAPI] SMAPI 4.5.2 with Stardew Valley 1.6.15 build 24356 on Windows 10
+[16:40:41 TRACE SMAPI]    UI Info Suite 2 (from Mods\UIInfoSuite2\UIInfoSuite2.dll, ID: Annosz.UiInfoSuite2, assembly version: 1.8.4)...
+[16:40:42 INFO  SMAPI] Loaded 11 mods:
+[16:40:42 ERROR SMAPI]    Skipped mods
+[16:40:42 ERROR SMAPI]    --------------------------------------------------
+[16:40:42 ERROR SMAPI]       These mods could not be added to your game.
+
+[16:40:42 ERROR SMAPI]       - UI Info Suite 2 2.0.0 because its DLL couldn't be loaded.
+[16:40:42 TRACE SMAPI]         (Error: System.Exception: Rewriting UIInfoSuite2.dll failed.
+ ---> Mono.Cecil.AssemblyResolutionException: Failed to resolve assembly: 'System.Windows.Extensions, Version=0.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51'
+   at Mono.Cecil.BaseAssemblyResolver.Resolve(AssemblyNameReference name, ReaderParameters parameters)
+   --- End of inner exception stack trace ---
+   at StardewModdingAPI.Framework.ModLoading.AssemblyLoader.RewriteAssembly(IModMetadata mod, AssemblyDefinition assembly, HashSet`1 loggedMessages, String logPrefix)
+   at StardewModdingAPI.Framework.SCore.TryLoadMod(IModMetadata mod, IModMetadata[] mods, AssemblyLoader assemblyLoader, IInterfaceProxyFactory proxyFactory, JsonHelper jsonHelper, ContentCoordinator contentCore, ModDatabase modDatabase, HashSet`1 suppressUpdateChecks, Nullable`1& failReason, String& errorReasonPhrase, String& errorDetails))
+
+[16:40:42 DEBUG SMAPI]    No update keys
+[16:40:42 DEBUG SMAPI]    --------------------------------------------------
+[16:40:42 DEBUG SMAPI]       These mods have no update keys in their manifest. SMAPI may not notify you about updates for these
+[16:40:42 DEBUG SMAPI]       mods. Consider notifying the mod authors about this problem.
+
+[16:40:42 DEBUG SMAPI]       - Blackjack
+[16:40:42 DEBUG SMAPI]       - NoThunderSound
+
+[16:40:42 DEBUG SMAPI] Launching mods...
+[16:40:42 INFO  SMAPI] Type 'help' for help, or 'help <cmd>' for a command's usage
+[16:40:43 ERROR game] Oops! Steam achievements won't work because Steam isn't loaded.
+"#.to_string()
+    }
+
+    #[test]
+    fn test_parse_errors_v2_detects_skipped_mods_dll_failed() {
+        let content = sample_smapi_log();
+        let errors = parse_errors_v2(&content);
+
+        let dll_failed: Vec<&LogError> = errors.iter()
+            .filter(|e| e.translated_message.contains("DllLoadFailed"))
+            .collect();
+        assert!(!dll_failed.is_empty(), "Should detect DllLoadFailed for UI Info Suite 2");
+
+        let has_ui_info = dll_failed.iter().any(|e| e.translated_message.contains("UI Info Suite 2"));
+        assert!(has_ui_info, "Should extract 'UI Info Suite 2' as mod name, got: {:?}", dll_failed);
+    }
+
+    #[test]
+    fn test_parse_errors_v2_detects_rewriting_dll_failed() {
+        let content = sample_smapi_log();
+        let errors = parse_errors_v2(&content);
+
+        let rewriting: Vec<&LogError> = errors.iter()
+            .filter(|e| e.raw_message.contains("Rewriting"))
+            .collect();
+        assert!(!rewriting.is_empty(), "Should detect Rewriting .dll failed");
+    }
+
+    #[test]
+    fn test_parse_errors_v2_detects_assembly_error() {
+        let content = sample_smapi_log();
+        let errors = parse_errors_v2(&content);
+
+        let assembly: Vec<&LogError> = errors.iter()
+            .filter(|e| e.translated_message.contains("AssemblyError"))
+            .collect();
+        assert!(!assembly.is_empty(), "Should detect AssemblyError for System.Windows.Extensions");
+    }
+
+    #[test]
+    fn test_parse_errors_v2_skips_game_errors() {
+        let content = sample_smapi_log();
+        let errors = parse_errors_v2(&content);
+
+        let game_errors: Vec<&LogError> = errors.iter()
+            .filter(|e| e.raw_message.contains("[ERROR game]"))
+            .collect();
+        assert!(game_errors.is_empty(), "Should skip [ERROR game] lines");
+    }
+
+    #[test]
+    fn test_parse_no_update_keys_section() {
+        let content = sample_smapi_log();
+        let results = parse_no_update_keys_section(&content);
+
+        assert!(!results.is_empty(), "Should detect No update keys section");
+
+        let names: Vec<&str> = results.iter().map(|e| e.translated_message.as_str()).collect();
+        assert!(names.iter().any(|n| n.contains("Blackjack")), "Should detect Blackjack, got: {:?}", names);
+        assert!(names.iter().any(|n| n.contains("NoThunderSound")), "Should detect NoThunderSound, got: {:?}", names);
+    }
+
+    #[test]
+    fn test_parse_errors_v2_strips_log_prefix() {
+        let content = sample_smapi_log();
+        let errors = parse_errors_v2(&content);
+
+        for err in &errors {
+            assert!(
+                !err.translated_message.contains("[16:40:42"),
+                "translated_message should not contain log prefix, got: {}",
+                err.translated_message
+            );
+            assert!(
+                !err.translated_message.contains("ERROR SMAPI"),
+                "translated_message should not contain ERROR SMAPI prefix, got: {}",
+                err.translated_message
+            );
+        }
+    }
+
+    #[test]
+    fn test_skipped_mods_rule_extracts_clean_name() {
+        let line = "- UI Info Suite 2 2.0.0 because its DLL couldn't be loaded.";
+        let rule = RULES.iter().find(|r| {
+            r.error_type == "DllLoadFailed" && r.pattern.is_match(line)
+        });
+        assert!(rule.is_some(), "A DllLoadFailed rule should match the Skipped mods line");
+
+        if let Some(r) = rule {
+            let caps = r.pattern.captures(line);
+            assert!(caps.is_some(), "Should match the line");
+            if let Some(c) = caps {
+                let (mod_name, _solution) = (r.extract)(&c);
+                assert_eq!(mod_name, "UI Info Suite 2", "Should extract clean mod name");
+            }
+        }
+    }
 }

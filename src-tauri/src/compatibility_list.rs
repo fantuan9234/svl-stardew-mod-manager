@@ -32,6 +32,8 @@ pub struct SmapiModMetadata {
     pub broke_in: Option<String>,
     pub summary: Option<String>,
     pub content_pack_for: Option<String>,
+    pub main_version: Option<String>,
+    pub main_url: Option<String>,
     pub unofficial_update_url: Option<String>,
     pub unofficial_update_version: Option<String>,
 }
@@ -57,8 +59,16 @@ struct SmapiModEntryRaw {
     summary: Option<String>,
     #[serde(rename = "contentPackFor")]
     content_pack_for: Option<String>,
+    #[serde(rename = "main")]
+    main: Option<MainVersionRaw>,
     #[serde(rename = "unofficialUpdate")]
     unofficial_update: Option<UnofficialUpdateRaw>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct MainVersionRaw {
+    version: Option<String>,
+    url: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -139,6 +149,8 @@ pub async fn fetch_and_cache_compatibility_list() -> Result<CompatUpdateResult, 
                 broke_in: raw.broke_in,
                 summary: raw.summary,
                 content_pack_for: raw.content_pack_for,
+                main_version: raw.main.as_ref().and_then(|m| m.version.clone()),
+                main_url: raw.main.as_ref().and_then(|m| m.url.clone()),
                 unofficial_update_url: raw.unofficial_update.as_ref().and_then(|u| u.url.clone()),
                 unofficial_update_version: raw.unofficial_update.as_ref().and_then(|u| u.version.clone()),
             };

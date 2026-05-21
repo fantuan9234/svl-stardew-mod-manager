@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 lazy_static::lazy_static! {
-    static ref BUILTIN_DICT: HashMap<&'static str, u64> = {
+    pub static ref BUILTIN_DICT: HashMap<&'static str, u64> = {
         let mut m = HashMap::new();
         m.insert("Pathoschild.ContentPatcher", 1915);
         m.insert("Esca.FarmTypeManager", 3231);
@@ -31,6 +31,26 @@ lazy_static::lazy_static! {
         m.insert("furyx639.BetterFarmAnimalVariety", 11229);
         m.insert("ConsoleCommands", 2400);
         m.insert("SaveBackup", 2400);
+        m
+    };
+    
+    // 文件夹名 -> Nexus ID 映射（用于 SVE 等根 manifest 无 UpdateKeys 的情况）
+    pub static ref FOLDER_NAME_DICT: HashMap<&'static str, u64> = {
+        let mut m = HashMap::new();
+        m.insert("Stardew Valley Expanded", 3753);
+        m.insert("StardewValleyExpanded", 3753);
+        m.insert("Farm Type Manager", 3231);
+        m.insert("Ridgeside Village", 3562);
+        m.insert("Custom NPC Exclusions", 7103);
+        m.insert("Automate", 1063);
+        m.insert("LookupAnything", 541);
+        m.insert("Content Patcher", 1915);
+        m.insert("Generic Mod Config Menu", 5098);
+        m.insert("SpaceCore", 1348);
+        m.insert("Json Assets", 1720);
+        m.insert("Fashion Sense", 9960);
+        m.insert("Dynamic Game Assets", 13519);
+        m.insert("Expanded Preconditions Utility", 11229);
         m
     };
 }

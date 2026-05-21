@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, Button, Space } from 'antd';
-import { SettingOutlined } from '@ant-design/icons';
+import { SettingOutlined, ExportOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { openUrl } from '../utils/openUrl';
+
+const NEXUS_API_KEY_URL = 'https://next.nexusmods.com/settings/api-keys';
 
 export default function ApiKeyReminder() {
   const { t } = useTranslation();
@@ -27,6 +30,14 @@ export default function ApiKeyReminder() {
     navigate('/settings');
   };
 
+  const handleOpenApiKeyPage = async () => {
+    try {
+      await openUrl(NEXUS_API_KEY_URL);
+    } catch {
+      // openUrl already shows error message
+    }
+  };
+
   if (!visible) {
     return null;
   }
@@ -45,6 +56,13 @@ export default function ApiKeyReminder() {
           <Space>
             <Button
               type="primary"
+              icon={<ExportOutlined />}
+              onClick={handleOpenApiKeyPage}
+              size="small"
+            >
+              {t('app.apiKeyReminder.getApiKey')}
+            </Button>
+            <Button
               icon={<SettingOutlined />}
               onClick={handleGoToSettings}
               size="small"

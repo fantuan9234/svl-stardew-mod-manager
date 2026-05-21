@@ -2,7 +2,7 @@ import { useMemo, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ModInfo } from '../utils/tauri-api';
 import { Tag, Tooltip, Modal, Dropdown, message } from 'antd';
-import { FolderOpenOutlined, LinkOutlined, DeleteOutlined, SyncOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
+import { FolderOpenOutlined, LinkOutlined, DeleteOutlined, SyncOutlined, CheckOutlined, CloseOutlined, SettingOutlined, HistoryOutlined } from '@ant-design/icons';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '../utils/openUrl';
@@ -17,15 +17,15 @@ type FilterType = 'all' | 'enabled' | 'disabled';
 type SortType = 'name-az' | 'name-za' | 'author' | 'version';
 type StatusFilter = 'all' | 'hasUpdate' | 'hasConflict' | 'uncategorized';
 
-const categoryColors: Record<string, string> = {
-  visual: 'blue',
-  gameplay: 'green',
-  expansion: 'purple',
-  framework: 'orange',
-  ui: 'cyan',
-  seasonal: 'gold',
-  multiplayer: 'magenta',
-  other: 'default',
+const categoryClassNames: Record<string, string> = {
+  visual: 'svl-cat-visual',
+  gameplay: 'svl-cat-gameplay',
+  expansion: 'svl-cat-expansion',
+  framework: 'svl-cat-framework',
+  ui: 'svl-cat-ui',
+  seasonal: 'svl-cat-seasonal',
+  multiplayer: 'svl-cat-multiplayer',
+  other: 'svl-cat-other',
 };
 
 interface ModListProps {
@@ -42,41 +42,25 @@ interface ModListProps {
   onSelectMod?: (mod: ModInfo) => void;
   onOpenModFolder?: (modId: string) => void;
   onCheckUpdate?: (modId: string) => void;
+  onOpenConfigEditor?: (modId: string) => void;
+  onOpenBackupManager?: (modId: string) => void;
   onAddTag?: (uniqueId: string, tag: string) => void;
   onRemoveTag?: (uniqueId: string, tag: string) => void;
   getTags?: (uniqueId: string) => string[];
 }
 
-const ICON_COLORS = [
-  'linear-gradient(135deg, var(--svl-warning) 0%, #d97706 100%)',
-  'linear-gradient(135deg, var(--svl-error) 0%, #dc2626 100%)',
-  'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-  'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)',
-  'linear-gradient(135deg, #84cc16 0%, #65a30d 100%)',
-  'linear-gradient(135deg, var(--svl-success) 0%, #16a34a 100%)',
-  'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
-  'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
-];
 
-function getIconColor(uniqueId: string): string {
-  let hash = 0;
-  for (let i = 0; i < uniqueId.length; i++) {
-    hash = uniqueId.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return ICON_COLORS[Math.abs(hash) % ICON_COLORS.length];
-}
-
-function getModStatus(mod: ModInfo): { icon: string; label: string; color: string } {
+function getModStatus(mod: ModInfo): { icon: string; label: string; className: string } {
   if (mod.has_conflict) {
-    return { icon: '❌', label: 'missingDeps', color: 'error' };
+    return { icon: '❌', label: 'missingDeps', className: 'svl-tag-error' };
   }
   if (mod.has_update) {
-    return { icon: '🔄', label: 'updateAvailable', color: 'warning' };
+    return { icon: '🔄', label: 'updateAvailable', className: 'svl-tag-warning' };
   }
   if (mod.enabled) {
-    return { icon: '✅', label: 'enabled', color: 'success' };
+    return { icon: '✅', label: 'enabled', className: 'svl-tag-success' };
   }
-  return { icon: '⚠️', label: 'disabled', color: 'default' };
+  return { icon: '⚠️', label: 'disabled', className: 'svl-tag-default' };
 }
 
 export default function ModList({
@@ -87,6 +71,8 @@ export default function ModList({
   onSelectMod,
   onOpenModFolder,
   onCheckUpdate,
+  onOpenConfigEditor,
+  onOpenBackupManager,
   onAddTag,
   onRemoveTag,
   getTags,
@@ -226,6 +212,25 @@ export default function ModList({
     },
     { type: 'divider' as const },
     {
+      key: 'configEditor',
+      icon: <SettingOutlined />,
+      label: t('features.configEditor.title'),
+      onClick: () => {
+        onOpenConfigEditor?.(contextMenuMod.unique_id);
+        setContextMenuMod(null);
+      },
+    },
+    {
+      key: 'backupManager',
+      icon: <HistoryOutlined />,
+      label: t('features.backupManager.titleShort'),
+      onClick: () => {
+        onOpenBackupManager?.(contextMenuMod.unique_id);
+        setContextMenuMod(null);
+      },
+    },
+    { type: 'divider' as const },
+    {
       key: 'delete',
       icon: <DeleteOutlined />,
       label: t('app.modCard.uninstall'),
@@ -310,14 +315,19 @@ export default function ModList({
               >
                 <div
                   className="svl-mod-icon"
-                  style={{ background: getIconColor(mod.unique_id) }}
                 >
                   {mod.thumbnail_path ? (
-                    <img src={`file:///${mod.thumbnail_path.replace(/\\/g, '/')}`} alt={mod.name} />
+                    <img src={`file:///${mod.thumbnail_path.replace(/\\/g, '/')}`} alt={mod.name} width={40} height={40} style={{ objectFit: 'cover' }} />
                   ) : mod.screenshot_path ? (
-                    <img src={`file:///${mod.screenshot_path.replace(/\\/g, '/')}`} alt={mod.name} />
+                    <img src={`file:///${mod.screenshot_path.replace(/\\/g, '/')}`} alt={mod.name} width={40} height={40} style={{ objectFit: 'cover' }} />
                   ) : (
-                    '📦'
+                    <img
+                      src="/mod-icon.png"
+                      alt=""
+                      width={40}
+                      height={40}
+                      style={{ objectFit: 'contain' }}
+                    />
                   )}
                 </div>
 
@@ -325,17 +335,17 @@ export default function ModList({
                   <div className="svl-mod-name">
                     {mod.name}
                     {mod.is_group && mod.sub_mods.length > 0 && (
-                      <Tag color="purple" style={{ marginLeft: 6, fontSize: 11 }}>
+                      <Tag className="svl-tag-accent" style={{ marginLeft: 6, fontSize: 11 }}>
                         {mod.sub_mods.length}{t('app.modList.subMods')}
                       </Tag>
                     )}
                     <Tooltip title={t(`app.modStatus.${status.label}`)}>
-                      <Tag color={status.color} className="svl-status-badge">
+                      <Tag className={`${status.className} svl-status-badge`}>
                         {status.icon}
                       </Tag>
                     </Tooltip>
                     {mod.has_update && (
-                      <Tag color="red" className="svl-update-badge">
+                      <Tag className="svl-tag-danger svl-update-badge">
                         {t('app.modDetail.updateAvailable')}
                       </Tag>
                     )}
@@ -345,19 +355,18 @@ export default function ModList({
                     {t('app.modCard.by')} {mod.author}
                   </div>
                   <div className="svl-mod-category">
-                    <Tag color={categoryColors[mod.category] || 'default'}>
+                    <Tag className={categoryClassNames[mod.category] || 'svl-cat-other'}>
                       {t(`app.categories.${mod.category}`)}
                     </Tag>
                     {modTags.map((tag) => (
                       <Tag
                         key={tag}
-                        color="geekblue"
+                        className="svl-tag-info svl-custom-tag"
                         closable
                         onClose={(e) => {
                           e.stopPropagation();
                           onRemoveTag?.(mod.unique_id, tag);
                         }}
-                        className="svl-custom-tag"
                       >
                         {tag}
                       </Tag>

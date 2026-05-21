@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { save } from '@tauri-apps/plugin-dialog';
 import {
   profileList,
   profileCreate,
   profileDelete,
+  profileExport,
   profileImport,
   checkSmapiStatus,
   type ProfileListItem,
@@ -80,20 +82,16 @@ export default function ProfileManager({ isOpen, onClose, currentEnabledMods, on
   };
 
   const handleExportProfile = async (profile: ProfileListItem) => {
+    if (!gamePath) return;
     try {
-      const exportData = {
-        version: '1.0',
-        profile,
-      };
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${profile.name}.svl_profile`;
-      a.click();
-
-      URL.revokeObjectURL(url);
+      const selected = await save({
+        title: t('app.profiles.exportProfile'),
+        defaultPath: `${profile.name}.svl_profile`,
+        filters: [{ name: t('app.profileFile'), extensions: ['svl_profile', 'json'] }],
+      });
+      if (selected) {
+        await profileExport(gamePath, profile.name, selected as string);
+      }
     } catch (error) {
       console.error('Failed to export profile:', error);
     }

@@ -341,7 +341,7 @@ export default function SavesManager() {
                     </div>
                     <div className="svl-save-required-mods-list">
                       {requiredMods.map((mod) => (
-                        <Tag key={mod.unique_id} color="blue" className="svl-required-mod-tag">
+                        <Tag key={mod.unique_id} className="svl-tag-info svl-required-mod-tag">
                           <LockOutlined style={{ marginRight: 4, fontSize: 10 }} />
                           {mod.name}
                         </Tag>
@@ -385,12 +385,12 @@ export default function SavesManager() {
                   </div>
                   {save.linked_profile && (
                     <div className="svl-save-profile-status">
-                      <Tag color="green">{save.linked_profile}</Tag>
-                      <Tag color="blue" style={{ marginLeft: 4 }}>
+                      <Tag className="svl-tag-success">{save.linked_profile}</Tag>
+                      <Tag className="svl-tag-info" style={{ marginLeft: 4 }}>
                         {profiles.find(p => p.name === save.linked_profile)?.total_mods ?? '?'} {t('app.saves.mods')}
                       </Tag>
                       {activeProfileName && save.linked_profile !== activeProfileName && (
-                        <Tag color="warning" style={{ marginLeft: 4 }}>
+                        <Tag className="svl-tag-warning" style={{ marginLeft: 4 }}>
                           {t('app.saves.profileMismatch')}
                         </Tag>
                       )}

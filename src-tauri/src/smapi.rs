@@ -15,6 +15,7 @@ pub struct SmapiInfo {
 pub struct GamePathInfo {
     pub steam_path: Option<String>,
     pub gog_path: Option<String>,
+    pub xbox_path: Option<String>,
     pub detected_path: Option<String>,
     pub detection_method: Option<String>,
 }
@@ -22,17 +23,30 @@ pub struct GamePathInfo {
 const STEAM_DEFAULT_PATHS: &[&str] = &[
     r"C:\Program Files (x86)\Steam\steamapps\common\Stardew Valley",
     r"C:\Program Files\Steam\steamapps\common\Stardew Valley",
+    r"D:\Steam\steamapps\common\Stardew Valley",
     r"D:\steam\steamapps\common\Stardew Valley",
+    r"E:\Steam\steamapps\common\Stardew Valley",
+    r"E:\steam\steamapps\common\Stardew Valley",
+    r"F:\Steam\steamapps\common\Stardew Valley",
+    r"F:\steam\steamapps\common\Stardew Valley",
 ];
 
 const GOG_DEFAULT_PATHS: &[&str] = &[
     r"C:\GOG Games\Stardew Valley",
     r"C:\Program Files (x86)\GOG Galaxy\Games\Stardew Valley",
+    r"D:\GOG Games\Stardew Valley",
+    r"E:\GOG Games\Stardew Valley",
+];
+
+const XBOX_DEFAULT_PATHS: &[&str] = &[
+    r"C:\XboxGames\Stardew Valley\Content",
+    r"C:\Program Files\WindowsApps\Stardew Valley\Content",
+    r"D:\XboxGames\Stardew Valley\Content",
 ];
 
 pub(crate) fn find_game_path() -> Option<(PathBuf, String)> {
     println!("[smapi] Detecting game path...");
-    
+
     if let Some(path) = find_via_steam_registry() {
         println!("[smapi] Found via Steam Registry: {}", path.display());
         return Some((path, "Steam Registry".to_string()));
@@ -58,6 +72,19 @@ pub(crate) fn find_game_path() -> Option<(PathBuf, String)> {
             println!("[smapi] Found via GOG Default: {}", path);
             return Some((p, "GOG Default".to_string()));
         }
+    }
+
+    for path in XBOX_DEFAULT_PATHS {
+        let p = PathBuf::from(path);
+        if p.exists() && is_valid_game_path(&p) {
+            println!("[smapi] Found via Xbox Default: {}", path);
+            return Some((p, "Xbox Game Pass".to_string()));
+        }
+    }
+
+    if let Some(path) = find_via_disk_scan() {
+        println!("[smapi] Found via Disk Scan: {}", path.display());
+        return Some((path, "Disk Scan".to_string()));
     }
 
     println!("[smapi] Game path not found");
@@ -91,8 +118,10 @@ fn find_via_steam_registry() -> Option<PathBuf> {
 
 #[cfg(target_os = "windows")]
 fn query_registry(reg_path: &str, value_name: &str) -> Option<String> {
+    use std::os::windows::process::CommandExt;
     let output = Command::new("reg")
         .args(["query", reg_path, "/v", value_name])
+        .creation_flags(0x08000000)
         .output()
         .ok()?;
 
@@ -122,19 +151,7 @@ fn find_via_steam_registry() -> Option<PathBuf> {
 }
 
 fn find_via_steam_library_folders() -> Option<PathBuf> {
-    // Try to get Steam install dir from registry first
-    let steam_install_dir = find_via_steam_registry()
-        .or_else(|| {
-            // Try all possible Steam install paths (including D: drive)
-            STEAM_DEFAULT_PATHS
-                .iter()
-                .map(PathBuf::from)
-                .find(|p| p.exists())
-                .and_then(|game_path| {
-                    game_path.parent()?.parent()?.parent().map(|p| p.to_path_buf())
-                })
-        })?;
-
+    let steam_install_dir = find_steam_install_dir()?;
     println!("[smapi] Steam install dir: {}", steam_install_dir.display());
 
     let library_folders_path = steam_install_dir
@@ -155,8 +172,72 @@ fn find_via_steam_library_folders() -> Option<PathBuf> {
                 return Some(game_path);
             }
         }
+
+        if let Some(paths) = parse_all_library_folders(&library_folders_path) {
+            for lib_path in paths {
+                let game_path = lib_path
+                    .join("steamapps")
+                    .join("common")
+                    .join("Stardew Valley");
+
+                if game_path.exists() && is_valid_game_path(&game_path) {
+                    return Some(game_path);
+                }
+            }
+        }
     }
 
+    None
+}
+
+fn find_steam_install_dir() -> Option<PathBuf> {
+    if let Some(path) = find_via_steam_registry_raw() {
+        return Some(path);
+    }
+
+    let steam_candidates = [
+        r"C:\Program Files (x86)\Steam",
+        r"C:\Program Files\Steam",
+        r"D:\Steam",
+        r"D:\steam",
+        r"E:\Steam",
+        r"E:\steam",
+        r"F:\Steam",
+        r"F:\steam",
+    ];
+
+    for candidate in &steam_candidates {
+        let p = PathBuf::from(candidate);
+        if p.exists() && p.join("steamapps").exists() {
+            return Some(p);
+        }
+    }
+
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn find_via_steam_registry_raw() -> Option<PathBuf> {
+    let reg_paths = [
+        r"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam",
+        r"HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam",
+        r"HKEY_CURRENT_USER\SOFTWARE\Valve\Steam",
+    ];
+
+    for reg_path in &reg_paths {
+        if let Some(install_path) = query_registry(reg_path, "InstallPath") {
+            let steam_path = PathBuf::from(&install_path);
+            if steam_path.exists() {
+                return Some(steam_path);
+            }
+        }
+    }
+
+    None
+}
+
+#[cfg(not(target_os = "windows"))]
+fn find_via_steam_registry_raw() -> Option<PathBuf> {
     None
 }
 
@@ -178,10 +259,73 @@ fn parse_library_folders(vdf_path: &PathBuf) -> Option<PathBuf> {
     None
 }
 
+fn parse_all_library_folders(vdf_path: &PathBuf) -> Option<Vec<PathBuf>> {
+    let content = std::fs::read_to_string(vdf_path).ok()?;
+    let mut paths = Vec::new();
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.contains("\"path\"") {
+            if let Some(path_str) = trimmed.split('"').nth(3) {
+                let path = PathBuf::from(path_str);
+                if path.exists() {
+                    paths.push(path);
+                }
+            }
+        }
+    }
+
+    if paths.is_empty() {
+        None
+    } else {
+        Some(paths)
+    }
+}
+
+fn find_via_disk_scan() -> Option<PathBuf> {
+    let drives = ['C', 'D', 'E', 'F', 'G', 'H'];
+
+    for drive in &drives {
+        let steam_path = PathBuf::from(format!("{}:\\Steam\\steamapps\\common\\Stardew Valley", drive));
+        if steam_path.exists() && is_valid_game_path(&steam_path) {
+            return Some(steam_path);
+        }
+
+        let steam_path_lower = PathBuf::from(format!("{}:\\steam\\steamapps\\common\\Stardew Valley", drive));
+        if steam_path_lower.exists() && is_valid_game_path(&steam_path_lower) {
+            return Some(steam_path_lower);
+        }
+
+        let gog_path = PathBuf::from(format!("{}:\\GOG Games\\Stardew Valley", drive));
+        if gog_path.exists() && is_valid_game_path(&gog_path) {
+            return Some(gog_path);
+        }
+
+        let xbox_path = PathBuf::from(format!("{}:\\XboxGames\\Stardew Valley\\Content", drive));
+        if xbox_path.exists() && is_valid_game_path(&xbox_path) {
+            return Some(xbox_path);
+        }
+
+        let game_path = PathBuf::from(format!("{}:\\Stardew Valley", drive));
+        if game_path.exists() && is_valid_game_path(&game_path) {
+            return Some(game_path);
+        }
+
+        let games_path = PathBuf::from(format!("{}:\\Games\\Stardew Valley", drive));
+        if games_path.exists() && is_valid_game_path(&games_path) {
+            return Some(games_path);
+        }
+    }
+
+    None
+}
+
 fn is_valid_game_path(path: &PathBuf) -> bool {
     path.join("Stardew Valley.exe").exists()
         || path.join("StardewModdingAPI.exe").exists()
         || path.join("StardewModdingAPI.dll").exists()
+        || path.join("Content").join("Stardew Valley.exe").exists()
+        || (path.join("Content").is_dir() && path.join("Content").join("XNA").is_dir())
 }
 
 fn detect_smapi_version(game_path: &PathBuf) -> Option<String> {
@@ -228,9 +372,16 @@ pub fn detect_game_path() -> Result<GamePathInfo, String> {
         .find(|p| p.exists() && is_valid_game_path(p))
         .map(|p| p.to_string_lossy().to_string());
 
+    let xbox_path = XBOX_DEFAULT_PATHS
+        .iter()
+        .map(PathBuf::from)
+        .find(|p| p.exists() && is_valid_game_path(p))
+        .map(|p| p.to_string_lossy().to_string());
+
     Ok(GamePathInfo {
         steam_path,
         gog_path,
+        xbox_path,
         detected_path,
         detection_method: method,
     })
@@ -283,6 +434,7 @@ pub fn set_custom_game_path(path: &str) -> Result<GamePathInfo, String> {
     Ok(GamePathInfo {
         steam_path: None,
         gog_path: None,
+        xbox_path: None,
         detected_path: Some(game_path.to_string_lossy().to_string()),
         detection_method: Some("Manual".to_string()),
     })

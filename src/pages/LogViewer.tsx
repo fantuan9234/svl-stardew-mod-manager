@@ -16,6 +16,7 @@ interface SmapiLogError {
   error_type: string;
   original_line: string;
   solution: string;
+  missing_dep_id?: string;
 }
 
 interface CheckSmapiLogResult {
@@ -46,12 +47,13 @@ export default function LogViewer() {
     checkLog();
   }, []);
 
-  const handleDownload = async (modName: string) => {
-    setDownloading(modName);
+  const handleDownload = async (err: SmapiLogError) => {
+    setDownloading(err.mod_name);
     try {
+      const uniqueId = err.missing_dep_id || err.mod_name;
       const result = await invoke<NexusLinkResult>('get_nexus_link', { 
-        uniqueId: modName,
-        modName: modName
+        uniqueId: uniqueId,
+        modName: err.mod_name
       });
       await openUrl(result.url);
     } catch (err: any) {
@@ -77,8 +79,12 @@ export default function LogViewer() {
       case 'MissingDependency':
       case 'MissingDll':
       case 'FailedLoading':
+      case 'VersionMismatch':
+      case 'DllLoadFailed':
+      case 'ModuleError':
         return 'error';
       case 'UpdateAvailable':
+      case 'NoUpdateKeys':
         return 'warning';
       default:
         return 'default';
@@ -154,7 +160,7 @@ export default function LogViewer() {
                     size="small"
                     icon={downloading === err.mod_name ? <Spin size="small" /> : <DownloadOutlined />}
                     loading={downloading === err.mod_name}
-                    onClick={() => handleDownload(err.mod_name)}
+                    onClick={() => handleDownload(err)}
                   >
                     {t('app.log.downloadNexus')}
                   </Button>

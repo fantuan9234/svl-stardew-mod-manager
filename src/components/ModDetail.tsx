@@ -7,6 +7,7 @@ import { openUrl } from '../utils/openUrl';
 import { useModUrl } from '../hooks/useModUrl';
 import { invoke } from '@tauri-apps/api/core';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { useImageUrl } from '../hooks/useImageUrl';
 
 interface ModDetailProps {
   mod: ModInfo;
@@ -22,15 +23,15 @@ interface ModDetailProps {
   allTags?: string[];
 }
 
-const categoryColors: Record<string, string> = {
-  visual: 'blue',
-  gameplay: 'green',
-  expansion: 'purple',
-  framework: 'orange',
-  ui: 'cyan',
-  seasonal: 'gold',
-  multiplayer: 'magenta',
-  other: 'default',
+const categoryClassNames: Record<string, string> = {
+  visual: 'svl-cat-visual',
+  gameplay: 'svl-cat-gameplay',
+  expansion: 'svl-cat-expansion',
+  framework: 'svl-cat-framework',
+  ui: 'svl-cat-ui',
+  seasonal: 'svl-cat-seasonal',
+  multiplayer: 'svl-cat-multiplayer',
+  other: 'svl-cat-other',
 };
 
 const categoryLabels: Record<string, string> = {
@@ -50,13 +51,19 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
   const [endorseLoading, setEndorseLoading] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
   const [tagInputValue, setTagInputValue] = useState('');
-
+  const detailImageUrl = useImageUrl(mod.thumbnail_path || mod.screenshot_path);
   useEffect(() => {
+    const validModUrl = mod.url && !mod.url.includes('/search?');
+    console.log('[ModDetail] mod:', mod.name, 'url:', mod.url, 'nexus_mod_id:', mod.nexus_mod_id, 'valid:', validModUrl);
+    if (validModUrl) {
+      return;
+    }
     resolve(mod.unique_id || mod.name, mod.name, mod.nexus_mod_id);
   }, [mod.unique_id, mod.name, mod.nexus_mod_id]);
 
   const handleOpenLink = async () => {
-    const targetUrl = resolvedUrl || mod.url;
+    const validModUrl = mod.url && !mod.url.includes('/search?');
+    const targetUrl = validModUrl ? mod.url : (resolvedUrl || mod.url);
     if (targetUrl) {
       await openUrl(targetUrl, t('app.modCard.openLinkFailed'));
     }
@@ -111,7 +118,7 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
     onDeleteMod?.(mod.unique_id);
   };
 
-  const getCategoryColor = () => categoryColors[mod.category] || 'default';
+  const getCategoryClassName = () => categoryClassNames[mod.category] || 'svl-cat-other';
   const getCategoryLabel = () => categoryLabels[mod.category] || 'app.categories.other';
 
   const installedIds = new Set(installedMods.map(m => m.unique_id.toLowerCase()));
@@ -152,7 +159,7 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
           <div className="svl-mod-meta-row">
             <span className="svl-meta-label">{t('app.modDetail.category')}</span>
             <span className="svl-meta-value">
-              <Tag color={getCategoryColor()}>{t(getCategoryLabel())}</Tag>
+              <Tag className={getCategoryClassName()}>{t(getCategoryLabel())}</Tag>
             </span>
           </div>
           {mod.nexus_id && (
@@ -173,10 +180,9 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
               {(getTags?.(mod.unique_id) || []).map((tag) => (
                 <Tag
                   key={tag}
-                  color="geekblue"
+                  className="svl-tag-info svl-custom-tag"
                   closable
                   onClose={() => onRemoveTag?.(mod.unique_id, tag)}
-                  className="svl-custom-tag"
                 >
                   {tag}
                 </Tag>
@@ -235,7 +241,7 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
               <h4 className="svl-deps-section-title">
                 {t('app.modDetail.requiredDeps')}
                 {missingRequiredCount > 0 && (
-                  <Tag color="error">{t('app.modDetail.missingCount', { count: missingRequiredCount })}</Tag>
+                  <Tag className="svl-tag-error">{t('app.modDetail.missingCount', { count: missingRequiredCount })}</Tag>
                 )}
               </h4>
               <div className="svl-deps-list">
@@ -262,7 +268,7 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
               <h4 className="svl-deps-section-title svl-deps-optional-title">
                 {t('app.modDetail.optionalDeps')}
                 {missingOptionalCount > 0 && (
-                  <Tag color="default">{t('app.modDetail.missingCount', { count: missingOptionalCount })}</Tag>
+                  <Tag className="svl-tag-default">{t('app.modDetail.missingCount', { count: missingOptionalCount })}</Tag>
                 )}
               </h4>
               <div className="svl-deps-list">
@@ -312,12 +318,12 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
       <div className="svl-mod-detail-header">
         <div className="svl-mod-detail-title">
           <h2>{mod.name}</h2>
-          <Tag color={getCategoryColor()}>{t(getCategoryLabel())}</Tag>
+          <Tag className={getCategoryClassName()}>{t(getCategoryLabel())}</Tag>
           {mod.has_update && (
-            <Tag color="red">{t('app.modDetail.updateAvailable')}</Tag>
+            <Tag className="svl-tag-danger">{t('app.modDetail.updateAvailable')}</Tag>
           )}
           {mod.has_conflict && (
-            <Tag color="error">{t('app.modCard.conflictDetected')}</Tag>
+            <Tag className="svl-tag-error">{t('app.modCard.conflictDetected')}</Tag>
           )}
         </div>
         <Button
@@ -328,10 +334,10 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
         />
       </div>
 
-      {(mod.thumbnail_path || mod.screenshot_path) && (
+      {(mod.thumbnail_path || mod.screenshot_path) && detailImageUrl && (
         <div className="svl-mod-detail-screenshot">
           <img
-            src={`file:///${(mod.thumbnail_path || mod.screenshot_path)!.replace(/\\/g, '/')}`}
+            src={detailImageUrl}
             alt={mod.name}
           />
         </div>

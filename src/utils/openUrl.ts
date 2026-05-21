@@ -1,9 +1,10 @@
 import { openUrl as tauriOpenUrl } from '@tauri-apps/plugin-opener';
 import { message } from 'antd';
+import i18n from '../i18n';
 
 export async function openUrl(url: string, fallbackMessage?: string): Promise<void> {
   if (!url) {
-    message.error(fallbackMessage || '链接地址为空');
+    message.error(fallbackMessage || i18n.t('app.urlEmpty'));
     return;
   }
 
@@ -17,6 +18,6 @@ export async function openUrl(url: string, fallbackMessage?: string): Promise<vo
     await tauriOpenUrl(normalizedUrl);
   } catch (error) {
     console.error('Failed to open URL:', normalizedUrl, error);
-    message.error(fallbackMessage || '打开链接失败，请手动复制链接访问');
+    message.error(fallbackMessage || i18n.t('app.openUrlFailed'));
   }
 }

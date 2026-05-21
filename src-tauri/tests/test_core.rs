@@ -1,7 +1,6 @@
 // Core functionality tests for SVL backend
 // Tests MOD parsing, conflict detection, and profile management
 
-use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -181,20 +180,18 @@ fn test_check_conflicts_missing_required_dependency() {
 }
 
 #[test]
-fn test_check_conflicts_optional_dependency_ignored() {
-    // Create mod A that depends on mod B (IsRequired: false), B is not installed
+fn test_check_conflicts_optional_dependency_info_level() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let game_path = temp_dir.path();
     let mods_path = game_path.join("Mods");
     fs::create_dir_all(&mods_path).expect("Failed to create Mods folder");
 
-    // Mod A with optional dependency on B
     let manifest_a = make_manifest(
         Some("Mod A"),
         Some("1.0.0"),
         Some("AuthorA"),
         Some("AuthorA.ModA"),
-        Some(vec![("AuthorB.ModB", None, Some(false))]), // IsRequired: false
+        Some(vec![("AuthorB.ModB", None, Some(false))]),
     );
     create_valid_mod(&mods_path, "ModA", &manifest_a);
 
@@ -202,73 +199,61 @@ fn test_check_conflicts_optional_dependency_ignored() {
     assert!(result.is_ok());
     let mods = result.unwrap();
 
-    // Check conflicts
     let conflict_result = svl_lib::conflict_checker::check_conflicts(mods);
     assert!(conflict_result.is_ok());
     let conflicts = conflict_result.unwrap();
 
-    // Should NOT report optional dependency as conflict
-    let optional_conflicts: Vec<_> = conflicts
+    let optional_conflict = conflicts
         .iter()
-        .filter(|c| {
-            c.description.contains("AuthorB.ModB")
-                || c.description.contains("AuthorB.ModB")
-        })
-        .collect();
+        .find(|c| matches!(c.conflict_type, svl_lib::conflict_checker::ConflictType::OptionalDependencyMissing));
 
     assert!(
-        optional_conflicts.is_empty(),
-        "Optional dependency should not be reported as conflict"
+        optional_conflict.is_some(),
+        "Optional dependency should be reported as OptionalDependencyMissing"
+    );
+
+    let conflict = optional_conflict.unwrap();
+    assert!(
+        matches!(conflict.severity, svl_lib::conflict_checker::Severity::Info),
+        "Optional dependency missing should be Info severity, not Error"
+    );
+    assert!(
+        conflict.description.contains("AuthorB.ModB"),
+        "Description should mention the missing dependency"
     );
 }
 
 #[test]
 fn test_create_and_delete_profile() {
-    // Test profile creation and deletion file I/O
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let game_path = temp_dir.path().to_string_lossy().to_string();
 
-    // Create svl-profiles directory
-    let profiles_dir = PathBuf::from(&game_path).join("svl-profiles");
-    fs::create_dir_all(&profiles_dir).expect("Failed to create profiles dir");
+    let profiles_dir = svl_lib::profiles::get_profiles_dir(&game_path)
+        .expect("Failed to get profiles dir");
 
-    // Create a test profile config
-    let mut mod_states = HashMap::new();
-    mod_states.insert("TestMod.UniqueID".to_string(), true);
-    mod_states.insert("AnotherMod.UniqueID".to_string(), false);
+    let all_mods = svl_lib::profiles::scan_mods_for_profiles(&game_path);
+    let enabled_ids: Vec<String> = all_mods.iter().map(|m| m.unique_id.clone()).collect();
 
-    let config = svl_lib::profiles::NewProfileConfig {
+    let now = chrono::Utc::now().to_rfc3339();
+    let profile = svl_lib::profiles::Profile {
         name: "TestProfile".to_string(),
-        game_path: game_path.clone(),
-        location: profiles_dir.to_string_lossy().to_string(),
-        created_at: "2024-01-01T00:00:00Z".to_string(),
-        last_used: "2024-01-01T00:00:00Z".to_string(),
-        mod_states,
+        is_protected: false,
+        enabled_mod_ids: enabled_ids,
+        created_at: now.clone(),
+        last_used: now,
     };
 
-    // Save profile
-    let save_result = svl_lib::profiles::save_profile_config(&config, &game_path);
-    assert!(save_result.is_ok(), "Should save profile successfully");
+    let profile_path = profiles_dir.join("TestProfile.json");
+    let json = serde_json::to_string_pretty(&profile).expect("Failed to serialize profile");
+    fs::write(&profile_path, &json).expect("Failed to write profile file");
 
-    // Verify file exists
-    let profile_file = profiles_dir.join("TestProfile.svl.profile");
-    assert!(profile_file.exists(), "Profile file should exist after creation");
+    assert!(profile_path.exists(), "Profile file should exist after creation");
 
-    // Load profile and verify content
-    let load_result = svl_lib::profiles::load_profile_config(&game_path, "TestProfile");
-    assert!(load_result.is_ok(), "Should load profile successfully");
-    let loaded_config = load_result.unwrap();
+    let loaded = svl_lib::profiles::load_profile(&game_path, "TestProfile");
+    assert!(loaded.is_ok(), "Should load profile successfully");
+    let loaded_config = loaded.unwrap();
     assert_eq!(loaded_config.name, "TestProfile");
-    assert_eq!(loaded_config.mod_states.len(), 2);
 
-    // Delete profile
-    let default_dir = svl_lib::profiles::get_default_profiles_dir(&game_path).unwrap();
-    let default_path = default_dir.join(format!("{}.svl.profile", "TestProfile"));
-    if default_path.exists() {
-        let delete_result = fs::remove_file(&default_path);
-        assert!(delete_result.is_ok(), "Should delete profile file successfully");
-    }
-
-    // Verify file is deleted
-    assert!(!default_path.exists(), "Profile file should not exist after deletion");
+    fs::remove_file(&profile_path).expect("Should delete profile file successfully");
+    assert!(!profile_path.exists(), "Profile file should not exist after deletion");
 }

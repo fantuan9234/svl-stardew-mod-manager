@@ -1,13 +1,116 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 use tauri::Emitter;
 
 use crate::mod_name_resolver::resolve_mod_name;
 use crate::dependency_patches::apply_final_patches;
+
+fn is_safe_to_delete(target: &Path, mods_dir: &Path) -> bool {
+    let target_canon = target.canonicalize().unwrap_or_else(|_| target.to_path_buf());
+    let mods_canon = mods_dir.canonicalize().unwrap_or_else(|_| mods_dir.to_path_buf());
+
+    // Must NOT be the Mods directory itself
+    if target_canon == mods_canon {
+        eprintln!("[SAFETY] BLOCKED: attempted to delete mods directory itself: {}", target.display());
+        return false;
+    }
+
+    // Must be a subdirectory of Mods
+    if !target_canon.starts_with(&mods_canon) {
+        eprintln!("[SAFETY] BLOCKED: target is outside mods directory: {}", target.display());
+        return false;
+    }
+
+    // Must have a parent that exists (not root)
+    if target.parent().is_none() || target.parent() == Some(mods_dir) {
+        // This is a direct child of mods_dir - safe
+        return true;
+    }
+
+    true
+}
+
+pub fn find_existing_mod_folder(mods_dir: &PathBuf, unique_id: &str) -> Option<PathBuf> {
+    if let Ok(entries) = fs::read_dir(mods_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let manifest_path = path.join("manifest.json");
+            if let Ok(content) = fs::read_to_string(&manifest_path) {
+                if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if manifest["UniqueID"].as_str() == Some(unique_id) {
+                        return Some(path);
+                    }
+                }
+            }
+            let dot_manifest = path.join(".manifest.json");
+            if let Ok(content) = fs::read_to_string(&dot_manifest) {
+                if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if manifest["UniqueID"].as_str() == Some(unique_id) {
+                        return Some(path);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn remove_old_mod_versions(mods_dir: &PathBuf, unique_id: &str) -> Vec<String> {
+    let mut removed = Vec::new();
+    if let Ok(entries) = fs::read_dir(mods_dir) {
+        let all_entries: Vec<_> = entries.flatten().collect();
+        for entry in &all_entries {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let folder_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+            if folder_name.starts_with('.') && folder_name.len() <= 1 {
+                continue;
+            }
+            let mut matched = false;
+            let manifest_path = path.join("manifest.json");
+            if let Ok(content) = fs::read_to_string(&manifest_path) {
+                if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if manifest["UniqueID"].as_str() == Some(unique_id) {
+                        matched = true;
+                    }
+                }
+            }
+            if !matched {
+                let folder_name_stripped = folder_name.strip_prefix('.').unwrap_or(&folder_name);
+                let dot_manifest = path.join(format!("{}.manifest.json", folder_name_stripped));
+                if let Ok(content) = fs::read_to_string(&dot_manifest) {
+                    if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&content) {
+                        if manifest["UniqueID"].as_str() == Some(unique_id) {
+                            matched = true;
+                        }
+                    }
+                }
+            }
+            if matched {
+                if !is_safe_to_delete(&path, mods_dir) {
+                    eprintln!("[remove_old_mod_versions] SAFETY BLOCKED: {}", path.display());
+                    continue;
+                }
+                eprintln!("[remove_old_mod_versions] Removing old version: {}", path.display());
+                if fs::remove_dir_all(&path).is_ok() {
+                    removed.push(folder_name);
+                } else {
+                    eprintln!("[remove_old_mod_versions] Failed to remove: {}", path.display());
+                }
+            }
+        }
+    }
+    removed
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstallProgressEvent {
@@ -56,10 +159,26 @@ fn cleanup_temp_dir_with_retry(path: &PathBuf) {
 }
 
 #[tauri::command]
-pub fn install_mod_from_archive(
+pub async fn install_mod_from_archive(
     app: tauri::AppHandle,
     archive_path: String,
     mods_path: String,
+    old_unique_id: Option<String>,
+) -> Result<InstallResult, String> {
+    let archive_path = archive_path.clone();
+    let mods_path = mods_path.clone();
+    tokio::task::spawn_blocking(move || {
+        install_mod_from_archive_blocking(app, archive_path, mods_path, old_unique_id)
+    })
+    .await
+    .map_err(|e| format!("安装任务执行失败: {}", e))?
+}
+
+pub(crate) fn install_mod_from_archive_blocking(
+    app: tauri::AppHandle,
+    archive_path: String,
+    mods_path: String,
+    old_unique_id: Option<String>,
 ) -> Result<InstallResult, String> {
     let archive = PathBuf::from(&archive_path);
     let mods_dir = PathBuf::from(&mods_path);
@@ -122,8 +241,20 @@ pub fn install_mod_from_archive(
     let dest_path = mods_dir.join(&mod_name);
 
     if dest_path.exists() {
+        if !is_safe_to_delete(&dest_path, &mods_dir) {
+            return Err(format!("安全拦截: 不允许删除路径 {}", dest_path.display()));
+        }
         fs::remove_dir_all(&dest_path)
             .map_err(|e| format!("无法删除已存在的 MOD: {}", e))?;
+    }
+
+    if let Some(ref uid) = old_unique_id {
+        if !uid.is_empty() {
+            let removed = remove_old_mod_versions(&mods_dir, uid);
+            if !removed.is_empty() {
+                eprintln!("[install_mod_from_archive] Removed old versions of {}: {:?}", uid, removed);
+            }
+        }
     }
 
     fs_extra::dir::copy(&mod_folder, &mods_dir, &fs_extra::dir::CopyOptions::new())
@@ -134,8 +265,10 @@ pub fn install_mod_from_archive(
     // Force filesystem flush on Windows
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         let _ = std::process::Command::new("cmd")
             .args(["/C", "dir", mods_dir.to_str().unwrap_or("")])
+            .creation_flags(0x08000000)
             .output();
     }
 
@@ -158,7 +291,19 @@ pub fn install_mod_from_archive(
 }
 
 #[tauri::command]
-pub fn install_mod_from_folder(
+pub async fn install_mod_from_folder(
+    app: tauri::AppHandle,
+    source_path: String,
+    mods_path: String,
+) -> Result<InstallResult, String> {
+    tokio::task::spawn_blocking(move || {
+        install_mod_from_folder_blocking(app, source_path, mods_path)
+    })
+    .await
+    .map_err(|e| format!("安装任务执行失败: {}", e))?
+}
+
+fn install_mod_from_folder_blocking(
     app: tauri::AppHandle,
     source_path: String,
     mods_path: String,
@@ -193,6 +338,9 @@ pub fn install_mod_from_folder(
     let dest_path = mods_dir.join(&folder_name);
 
     if dest_path.exists() {
+        if !is_safe_to_delete(&dest_path, &mods_dir) {
+            return Err(format!("安全拦截: 不允许删除路径 {}", dest_path.display()));
+        }
         fs::remove_dir_all(&dest_path)
             .map_err(|e| format!("无法删除已存在的 MOD: {}", e))?;
     }
@@ -203,13 +351,14 @@ pub fn install_mod_from_folder(
     // Force filesystem flush on Windows
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         let _ = std::process::Command::new("cmd")
             .args(["/C", "dir", mods_dir.to_str().unwrap_or("")])
+            .creation_flags(0x08000000)
             .output();
     }
 
-    let _ = app.emit(
-        "mod-install-progress",
+    let _ = app.emit("mod-install-progress",
         InstallProgressEvent {
             step: "done".to_string(),
             mod_name: Some(folder_name.clone()),
@@ -227,7 +376,16 @@ pub fn install_mod_from_folder(
 }
 
 #[tauri::command]
-pub fn uninstall_mod(mod_path: String) -> Result<InstallResult, String> {
+pub async fn uninstall_mod(mod_path: String) -> Result<InstallResult, String> {
+    let mod_path_clone = mod_path.clone();
+    tokio::task::spawn_blocking(move || {
+        uninstall_mod_blocking(mod_path_clone)
+    })
+    .await
+    .map_err(|e| format!("卸载任务执行失败: {}", e))?
+}
+
+fn uninstall_mod_blocking(mod_path: String) -> Result<InstallResult, String> {
     let path = PathBuf::from(&mod_path);
 
     if !path.exists() {
@@ -240,6 +398,15 @@ pub fn uninstall_mod(mod_path: String) -> Result<InstallResult, String> {
         .to_string_lossy()
         .to_string();
 
+    let mods_dir = path
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("."));
+
+    if !is_safe_to_delete(&path, &mods_dir) {
+        return Err(format!("安全拦截: 不允许删除路径 {}", path.display()));
+    }
+
     // First clean residual files in parent directory
     clean_residual_files(&path);
 
@@ -247,7 +414,7 @@ pub fn uninstall_mod(mod_path: String) -> Result<InstallResult, String> {
     fs::remove_dir_all(&path).map_err(|e| format!("删除 MOD 失败: {}", e))?;
 
     // Verify the folder is actually deleted, retry if needed (Windows file locking)
-    for attempt in 0..3 {
+    for _attempt in 0..3 {
         if !path.exists() {
             break;
         }
@@ -271,11 +438,27 @@ fn extract_zip(archive: &PathBuf, dest: &PathBuf) -> Result<(), String> {
     let mut archive =
         zip::ZipArchive::new(file).map_err(|e| format!("读取 ZIP 失败: {}", e))?;
 
+    let dest_canonical = dest.canonicalize().unwrap_or_else(|_| dest.clone());
+
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).map_err(|e| format!("读取文件索引失败: {}", e))?;
-        let outpath = dest.join(file.name());
+        let file_name = file.name();
 
-        if file.name().ends_with('/') {
+        if file_name.contains("..") {
+            continue;
+        }
+
+        let outpath = dest.join(file_name);
+
+        if let Ok(canonical) = outpath.canonicalize() {
+            if !canonical.starts_with(&dest_canonical) {
+                continue;
+            }
+        } else if !outpath.starts_with(dest) {
+            continue;
+        }
+
+        if file_name.ends_with('/') {
             fs::create_dir_all(&outpath).map_err(|e| format!("创建文件夹失败: {}", e))?;
         } else {
             if let Some(p) = outpath.parent() {
@@ -343,10 +526,26 @@ fn clean_residual_files(mod_path: &PathBuf) {
 }
 
 #[tauri::command]
-pub fn install_mod(
+pub async fn install_mod(
     app: tauri::AppHandle,
     archive_path: String,
     mods_path: String,
+    old_unique_id: Option<String>,
+) -> Result<InstallResult, String> {
+    let archive_path = archive_path.clone();
+    let mods_path = mods_path.clone();
+    tokio::task::spawn_blocking(move || {
+        install_mod_blocking(app, archive_path, mods_path, old_unique_id)
+    })
+    .await
+    .map_err(|e| format!("安装任务执行失败: {}", e))?
+}
+
+fn install_mod_blocking(
+    app: tauri::AppHandle,
+    archive_path: String,
+    mods_path: String,
+    old_unique_id: Option<String>,
 ) -> Result<InstallResult, String> {
     let archive = PathBuf::from(&archive_path);
     let mods_dir = PathBuf::from(&mods_path);
@@ -409,8 +608,20 @@ pub fn install_mod(
     let dest_path = mods_dir.join(&mod_name);
 
     if dest_path.exists() {
+        if !is_safe_to_delete(&dest_path, &mods_dir) {
+            return Err(format!("安全拦截: 不允许删除路径 {}", dest_path.display()));
+        }
         fs::remove_dir_all(&dest_path)
             .map_err(|e| format!("无法删除已存在的 MOD: {}", e))?;
+    }
+
+    if let Some(ref uid) = old_unique_id {
+        if !uid.is_empty() {
+            let removed = remove_old_mod_versions(&mods_dir, uid);
+            if !removed.is_empty() {
+                eprintln!("[install_mod_blocking] Removed old versions of {}: {:?}", uid, removed);
+            }
+        }
     }
 
     fs_extra::dir::copy(&mod_folder, &mods_dir, &fs_extra::dir::CopyOptions::new())
@@ -435,7 +646,7 @@ pub fn install_mod(
         },
     );
 
-    println!("[install_mod] done, mod_name={}, mods_path={}", mod_name, mods_path);
+    println!("[install_mod_blocking] done, mod_name={}, mods_path={}", mod_name, mods_path);
 
     Ok(InstallResult {
         success: true,
@@ -445,7 +656,18 @@ pub fn install_mod(
 }
 
 #[tauri::command]
-pub fn check_mod_dependencies(
+pub async fn check_mod_dependencies(
+    archive_path: String,
+    mods_path: String,
+) -> Result<ModDependencyCheck, String> {
+    tokio::task::spawn_blocking(move || {
+        check_mod_dependencies_blocking(archive_path, mods_path)
+    })
+    .await
+    .map_err(|e| format!("依赖检查执行失败: {}", e))?
+}
+
+fn check_mod_dependencies_blocking(
     archive_path: String,
     mods_path: String,
 ) -> Result<ModDependencyCheck, String> {
@@ -498,11 +720,21 @@ pub fn check_mod_dependencies(
     if let Some(deps) = manifest["Dependencies"].as_array() {
         for dep in deps {
             let dep_id = dep["UniqueID"].as_str().unwrap_or("").to_string();
-            let is_required = dep["IsRequired"].as_bool().unwrap_or(true);
+            if dep_id.is_empty() {
+                continue;
+            }
+
+            if dep_id == "Pathoschild.SMAPI" {
+                continue;
+            }
+
+            let is_required = dep["IsRequired"].as_bool().unwrap_or(false);
 
             let dep_folder = mods_dir.join(&dep_id);
-            if !dep_folder.exists() {
-                let mut found = false;
+            let mut found = false;
+            if dep_folder.exists() {
+                found = true;
+            } else {
                 if let Ok(entries) = fs::read_dir(&mods_dir) {
                     for entry in entries.flatten() {
                         let p = entry.path();
@@ -521,16 +753,16 @@ pub fn check_mod_dependencies(
                         }
                     }
                 }
+            }
 
-                if !found {
-                    let display_name = resolve_mod_name(&dep_id);
-                    missing_deps.push(MissingDepInfo {
-                        unique_id: dep_id,
-                        display_name,
-                        minimum_version: dep["MinimumVersion"].as_str().map(|s| s.to_string()),
-                        is_required,
-                    });
-                }
+            if !found {
+                let display_name = resolve_mod_name(&dep_id);
+                missing_deps.push(MissingDepInfo {
+                    unique_id: dep_id,
+                    display_name,
+                    minimum_version: dep["MinimumVersion"].as_str().map(|s| s.to_string()),
+                    is_required,
+                });
             }
         }
     }
@@ -556,7 +788,7 @@ pub fn check_mod_dependencies(
         }
     }
 
-    apply_final_patches(&installed_mod_ids, &mut missing_deps);
+    apply_final_patches(&unique_id, &installed_mod_ids, &mut missing_deps);
 
     let has_required_missing = missing_deps.iter().any(|d| d.is_required);
 

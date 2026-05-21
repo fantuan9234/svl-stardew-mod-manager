@@ -12,13 +12,62 @@ dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Rust / Tauri build
+target/
+src-tauri/target/
+
+# IDE
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
+.trae/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / temp files
+midscene_run/
+TEST_CASES.md
+*.mp4
+test_*.png
+test_*.py
+
+# Website / PHP (not part of the app)
+website/
+website-dist/
+website-php/
+cloudflare-worker/
+*.php
+header.php
+footer.php
+index.php
+ads.php
+announcements.php
+contact.php
+
+# Build archives
+release-archive/
+old-builds/
+
+# Temp game mod files
+Automate/
+
+# Temp docs
+FTM*.md
+
+# Unused game icons
+public/game-icons/
+
+# Loose temp files in root
+1/
+
+# Scripts not needed in repo
+scripts/remove-bg*.cjs
+scripts/remove-bg*.js
+scripts/svl-demo.ps1

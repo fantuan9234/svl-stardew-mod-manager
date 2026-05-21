@@ -167,10 +167,13 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
     const hasError = progressRef.current.some(p => p.status === 'error');
     if (!hasError && filePaths.length > 0) {
       message.success(t('app.modInstall.installSuccess'));
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setShowProgress(false);
+      setProgressList([]);
+      progressRef.current = [];
     }
 
     console.log('[DropZone] install complete, calling onInstallSuccess, modsPath:', modsPath);
-    await new Promise(resolve => setTimeout(resolve, 800));
     onInstallSuccess();
   };
 
@@ -184,7 +187,7 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
     const selected = await open({
       multiple: true,
       filters: [{
-        name: 'MOD Archives',
+        name: t('app.modArchives'),
         extensions: ['zip', '7z'],
       }],
     });
@@ -333,7 +336,7 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
                     color={dep.is_required ? 'red' : 'blue'}
                     style={{ marginLeft: 8 }}
                   >
-                    {dep.is_required ? t('app.modInstall.missingRequired') : 'Optional'}
+                    {dep.is_required ? t('app.modInstall.missingRequired') : t('app.optional')}
                   </Tag>
                 </li>
               ))}

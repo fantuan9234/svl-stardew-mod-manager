@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { message } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 export type NexusConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'checking';
 
@@ -33,11 +34,30 @@ export function setNexusStatus(state: Partial<NexusStatusState>) {
   notifyListeners();
 }
 
+const VERIFY_TIMEOUT_MS = 15000;
+
+let verifyTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
 export async function verifyNexusConnection(apiKey: string): Promise<void> {
   setNexusStatus({ status: 'checking', hasApiKey: true });
 
+  if (verifyTimeoutId) {
+    clearTimeout(verifyTimeoutId);
+    verifyTimeoutId = null;
+  }
+
   try {
-    const result = await invoke<any>('verify_nexus_api_key', { apiKey });
+    const result = await Promise.race([
+      invoke<any>('verify_nexus_api_key', { apiKey }),
+      new Promise<never>((_, reject) => {
+        verifyTimeoutId = setTimeout(() => reject(new Error('timeout')), VERIFY_TIMEOUT_MS);
+      }),
+    ]);
+
+    if (verifyTimeoutId) {
+      clearTimeout(verifyTimeoutId);
+      verifyTimeoutId = null;
+    }
 
     if (result.success) {
       setNexusStatus({
@@ -52,16 +72,31 @@ export async function verifyNexusConnection(apiKey: string): Promise<void> {
         lastChecked: Date.now(),
       });
     }
-  } catch {
+  } catch (error: any) {
+    if (verifyTimeoutId) {
+      clearTimeout(verifyTimeoutId);
+      verifyTimeoutId = null;
+    }
+
+    const isTimeout = error?.message === 'timeout';
+    const isNetworkError = String(error || '').includes('请求失败');
+
     setNexusStatus({
       status: 'disconnected',
       isPremium: false,
       lastChecked: Date.now(),
     });
+
+    if (isTimeout) {
+      message.warning('连接超时，请稍后重试');
+    } else if (isNetworkError) {
+      message.warning('网络连接失败，请检查网络设置');
+    }
   }
 }
 
 export function useNexusStatus() {
+  const { t } = useTranslation();
   const [state, setState] = useState<NexusStatusState>(globalState);
   const stateRef = useRef(globalState);
 
@@ -82,7 +117,7 @@ export function useNexusStatus() {
   const reconnect = useCallback(async () => {
     const apiKey = localStorage.getItem('svl-nexus-api-key');
     if (!apiKey) {
-      message.warning('请先配置 API Key');
+      message.warning(t('app.configureApiKeyFirst'));
       return;
     }
     await verifyNexusConnection(apiKey);

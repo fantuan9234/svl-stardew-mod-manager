@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Input, Button, Tag, message, Typography, Divider, Tooltip } from 'antd';
-import { LockOutlined, LinkOutlined, CheckCircleOutlined, LoadingOutlined, DisconnectOutlined, ThunderboltOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { LockOutlined, LinkOutlined, CheckCircleOutlined, LoadingOutlined, DisconnectOutlined, QuestionCircleOutlined, ExportOutlined } from '@ant-design/icons';
 import { openUrl } from '../utils/openUrl';
 import { registerNxmProtocol } from '../utils/tauri-api';
 import { useNexusStatus, verifyNexusConnection } from '../hooks/useNexusStatus';
@@ -76,11 +76,16 @@ export default function NexusApiConfig() {
   const getStatusTag = () => {
     switch (status) {
       case 'checking':
-        return <Tag icon={<LoadingOutlined spin />} color="processing">{t('app.nexusApi.connecting')}</Tag>;
+        return (
+          <>
+            <Tag icon={<LoadingOutlined spin />} color="processing">{t('app.nexusApi.verifying')}</Tag>
+            <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>{t('app.nexusApi.verifyingHint')}</Text>
+          </>
+        );
       case 'connected':
-        return <Tag icon={<CheckCircleOutlined />} color="success">
+        return <Tag icon={<CheckCircleOutlined />} className="svl-tag-success">
           {t('app.nexusApi.connected')}
-          {isPremium && <Tag color="gold" style={{ marginLeft: 8 }}>{t('app.nexusApi.premium')}</Tag>}
+          {isPremium && <Tag className="svl-tag-warning" style={{ marginLeft: 8 }}>{t('app.nexusApi.premium')}</Tag>}
         </Tag>;
       default:
         return <Tag color="default">{t('app.nexusApi.disconnected')}</Tag>;
@@ -159,7 +164,7 @@ export default function NexusApiConfig() {
           <div className="svl-nexus-protocol-header">
             <Text strong style={{ fontSize: 14 }}>{t('app.nexusApi.nxmProtocol')}</Text>
             {nxmRegistered && (
-              <Tag icon={<CheckCircleOutlined />} color="success" style={{ marginLeft: 8 }}>
+              <Tag icon={<CheckCircleOutlined />} className="svl-tag-success" style={{ marginLeft: 8 }}>
                 {t('app.nexusApi.nxmRegistered')}
               </Tag>
             )}
@@ -169,7 +174,6 @@ export default function NexusApiConfig() {
           </Text>
           <Button
             type="default"
-            icon={<ThunderboltOutlined />}
             onClick={handleRegisterNxm}
             loading={registering}
             disabled={nxmRegistered}
@@ -190,9 +194,15 @@ export default function NexusApiConfig() {
             <li>{t('app.nexusApi.step3')}</li>
             <li>{t('app.nexusApi.step4')}</li>
           </ol>
-          <a onClick={handleOpenDocs} className="svl-nexus-docs-link">
-            {t('app.nexusApi.openApiKeyPage')} →
-          </a>
+          <Button
+            type="primary"
+            icon={<ExportOutlined />}
+            onClick={handleOpenDocs}
+            className="svl-nexus-btn svl-nexus-btn-link"
+            style={{ marginTop: 8 }}
+          >
+            {t('app.nexusApi.openApiKeyPage')}
+          </Button>
         </div>
       </div>
     </div>

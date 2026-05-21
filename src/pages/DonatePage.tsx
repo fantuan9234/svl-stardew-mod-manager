@@ -64,7 +64,7 @@ export default function DonatePage() {
           </Text>
           <img
             src={wechatQr}
-            alt="WeChat QR"
+            alt={t('app.altWechatQr')}
             onClick={() => handleImageClick(wechatQr)}
             style={{
               width: 200,
@@ -112,7 +112,7 @@ export default function DonatePage() {
           </Text>
           <img
             src={alipayQr}
-            alt="Alipay QR"
+            alt={t('app.altAlipayQr')}
             onClick={() => handleImageClick(alipayQr)}
             style={{
               width: 200,
@@ -176,7 +176,7 @@ export default function DonatePage() {
       >
         <img
           src={modalImage}
-          alt="Enlarged QR"
+          alt={t('app.altEnlargedQr')}
           style={{
             width: 350,
             height: 'auto',

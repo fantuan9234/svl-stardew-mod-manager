@@ -5,6 +5,7 @@ import { I18nextProvider } from 'react-i18next';
 import i18n from './i18n';
 import App from './App';
 import ModManager from './pages/ModManager';
+import NexusModBrowser from './pages/NexusModBrowser';
 import SyncPage from './pages/SyncPage';
 import ProfilesPage from './pages/ProfilesPage';
 import Settings from './pages/Settings';
@@ -25,6 +26,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
           <Route path="/" element={<App />}>
             <Route index element={<Navigate to="/mod-manager" replace />} />
             <Route path="mod-manager" element={<ModManager />} />
+            <Route path="nexus-browser" element={<NexusModBrowser />} />
             <Route path="sync" element={<SyncPage />} />
             <Route path="profiles" element={<ProfilesPage />} />
             <Route path="saves" element={<SavesManager />} />

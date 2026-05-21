@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import i18n from '../i18n';
 
 export function translateBackendString(text: string): string {
@@ -41,6 +42,10 @@ export function translateBackendString(text: string): string {
   return result !== key ? result : text;
 }
 
+export function toAssetUrl(filePath: string): Promise<string> {
+  return Promise.resolve(convertFileSrc(filePath));
+}
+
 export interface SmapiInfo {
   installed: boolean;
   version: string | null;
@@ -51,6 +56,7 @@ export interface SmapiInfo {
 export interface GamePathInfo {
   steam_path: string | null;
   gog_path: string | null;
+  xbox_path: string | null;
   detected_path: string | null;
   detection_method: string | null;
 }
@@ -108,8 +114,8 @@ export async function checkSmapiStatus(customPath?: string): Promise<SmapiInfo> 
   });
 }
 
-export async function setCustomGamePath(path: string): Promise<boolean> {
-  return invoke<boolean>('set_custom_game_path', { path });
+export async function setCustomGamePath(path: string): Promise<GamePathInfo> {
+  return invoke<GamePathInfo>('set_custom_game_path', { path });
 }
 
 export async function scanMods(gamePath?: string): Promise<ModInfo[]> {
@@ -404,7 +410,11 @@ export interface NetworkDiagnosticResult {
 }
 
 export async function diagnoseNetwork(): Promise<NetworkDiagnosticResult[]> {
-  return Promise.resolve([]);
+  return invoke<NetworkDiagnosticResult[]>('diagnose_network');
+}
+
+export async function testNexusConnection(): Promise<NetworkDiagnosticResult> {
+  return invoke<NetworkDiagnosticResult>('test_nexus_connection');
 }
 
 export interface SaveInfo {
@@ -582,6 +592,28 @@ export async function registerNxmProtocol(): Promise<NxmProtocolResult> {
   return invoke<NxmProtocolResult>('register_nxm_protocol');
 }
 
+export interface ModDownloadResult {
+  success: boolean;
+  mod_name: string;
+  mod_version: string;
+  message: string;
+  file_size: number;
+}
+
+export async function downloadModFromNexus(
+  modId: string,
+  apiKey: string,
+  modsPath?: string | null,
+  fileId?: string
+): Promise<ModDownloadResult> {
+  return invoke<ModDownloadResult>('download_mod_from_nexus', {
+    modId,
+    apiKey,
+    modsPath: modsPath || null,
+    fileId: fileId || null,
+  });
+}
+
 export interface ModDictUpdateResult {
   success: boolean;
   new_entries: number;
@@ -705,6 +737,7 @@ export interface ModUpdateStatus {
   has_update: boolean;
   update_source: 'SmapiList' | 'NexusApi' | 'UnofficialUpdate' | 'None';
   download_url: string | null;
+  nexus_mod_id: string | null;
   changelog: string | null;
   is_nexus_premium: boolean;
 }
@@ -745,11 +778,27 @@ export async function checkAllModsUpdates(
 
 export async function batchUpdateMods(
   modsToUpdate: any[],
-  apiKey: string
+  apiKey: string,
+  modsPath: string,
 ): Promise<BatchUpdateResult> {
   return invoke<BatchUpdateResult>('batch_update_mods', {
     modsToUpdate,
     apiKey,
+    modsPath,
+  });
+}
+
+export async function downloadModUpdate(
+  nexusModId: string,
+  apiKey: string,
+  modsPath: string,
+  oldUniqueId?: string,
+): Promise<string> {
+  return invoke<string>('download_mod_update', {
+    nexusModId,
+    apiKey,
+    modsPath,
+    oldUniqueId: oldUniqueId || null,
   });
 }
 
@@ -788,6 +837,63 @@ export async function importModpackFromFolder(
   gamePath: string
 ): Promise<ModpackImportResult> {
   return invoke<ModpackImportResult>('import_modpack_from_folder', { folderPath, targetProfileName, gamePath });
+}
+
+export interface AppUpdateInfo {
+  has_update: boolean;
+  current_version: string;
+  latest_version: string;
+  download_url: string;
+  release_notes: string | null;
+  release_date: string | null;
+  file_size: number | null;
+  sha256: string | null;
+  force_update: boolean;
+}
+
+export interface AppUpdateProgress {
+  downloaded: number;
+  total: number;
+  percent: number;
+}
+
+export interface ModBackupResult {
+  success: boolean;
+  backup_path: string;
+  message: string;
+}
+
+export async function backupModBeforeUpdate(
+  modPath: string,
+  customBackupDir?: string
+): Promise<ModBackupResult> {
+  return invoke<ModBackupResult>('backup_mod_before_update', {
+    modPath,
+    customBackupDir,
+  });
+}
+
+export interface AppUpdateResult {
+  success: boolean;
+  message: string;
+  needs_restart: boolean;
+  file_path?: string;
+}
+
+export async function checkAppUpdateFromServer(): Promise<AppUpdateInfo> {
+  return invoke<AppUpdateInfo>('check_app_update_from_server');
+}
+
+export async function downloadAppUpdateFromServer(downloadUrl: string): Promise<AppUpdateResult> {
+  return invoke<AppUpdateResult>('download_app_update_from_server', { downloadUrl });
+}
+
+export async function getUpdateServerUrl(): Promise<string> {
+  return invoke<string>('get_update_server_url');
+}
+
+export async function getCurrentAppVersion(): Promise<string> {
+  return invoke<string>('get_current_app_version');
 }
 
 export interface ThumbnailCacheInfo {

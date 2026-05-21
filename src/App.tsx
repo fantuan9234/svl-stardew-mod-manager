@@ -1,107 +1,172 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { ConfigProvider, theme } from 'antd';
 import { useTheme } from './hooks/useTheme';
-import { getNexusStatus, verifyNexusConnection } from './hooks/useNexusStatus';
+import { getNexusStatus, setNexusStatus, verifyNexusConnection } from './hooks/useNexusStatus';
 import AppLayout from './components/AppLayout';
+import appIcon from './assets/donate/app-icon.png';
+
+type SplashPhase = 'showing' | 'hiding' | 'done';
 
 function App() {
   const { theme: currentTheme } = useTheme();
+  const [splashPhase, setSplashPhase] = useState<SplashPhase>('showing');
+  const [mainAnimated, setMainAnimated] = useState(false);
+  const splashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    splashTimerRef.current = setTimeout(() => {
+      setSplashPhase('hiding');
+      setTimeout(() => {
+        setSplashPhase('done');
+        setMainAnimated(true);
+      }, 400);
+    }, 1500);
+
+    return () => {
+      if (splashTimerRef.current) clearTimeout(splashTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const status = getNexusStatus();
     if (!status.hasApiKey) {
       const apiKey = localStorage.getItem('svl-nexus-api-key');
       if (apiKey) {
-        verifyNexusConnection(apiKey);
+        const lastChecked = status.lastChecked;
+        const fiveMinutes = 5 * 60 * 1000;
+        if (lastChecked && Date.now() - lastChecked < fiveMinutes) {
+          setNexusStatus({ hasApiKey: true });
+          return;
+        }
+        setTimeout(() => verifyNexusConnection(apiKey), 2000);
       }
     }
   }, []);
 
   const isEyeCare = currentTheme === 'eyeCare';
   const algorithm = theme.darkAlgorithm;
+  const primaryColor = isEyeCare ? '#5b8a72' : '#8b6914';
+  const primaryHover = isEyeCare ? '#6b9b82' : '#a67c1a';
+  const bgCard = isEyeCare ? '#232a28' : '#3d3225';
+  const bgCardHover = isEyeCare ? '#2a3330' : '#4a3d2e';
+  const borderColor = isEyeCare ? '#2f3a35' : '#4a3d2e';
+  const textColor = isEyeCare ? '#d4ddd8' : '#f0e6d3';
+  const textPlaceholder = isEyeCare ? '#7a8f82' : '#8a7d6b';
 
   return (
     <ConfigProvider
       theme={{
         algorithm,
         token: {
-          colorPrimary: isEyeCare ? '#5b8a72' : '#7c3aed',
+          colorPrimary: primaryColor,
+          colorPrimaryHover: primaryHover,
           borderRadius: 8,
+          colorBgContainer: bgCard,
+          colorBorder: borderColor,
+          colorText: textColor,
         },
         components: {
           Table: {
-            colorBgContainer: isEyeCare ? '#232a28' : '#161b22',
-            headerBg: isEyeCare ? '#2a3330' : '#1c2333',
-            rowHoverBg: isEyeCare ? '#2a3330' : '#1c2333',
+            colorBgContainer: bgCard,
+            headerBg: isEyeCare ? '#2a3330' : '#2d2418',
+            rowHoverBg: bgCardHover,
           },
           Modal: {
-            contentBg: isEyeCare ? '#232a28' : '#161b22',
-            headerBg: isEyeCare ? '#232a28' : '#161b22',
+            contentBg: bgCard,
+            headerBg: bgCard,
           },
           Card: {
-            colorBgContainer: isEyeCare ? '#232a28' : '#161b22',
+            colorBgContainer: bgCard,
           },
           Tabs: {
-            inkBarColor: isEyeCare ? '#5b8a72' : '#7c3aed',
-            itemActiveColor: isEyeCare ? '#7db89a' : '#a78bfa',
-            itemSelectedColor: isEyeCare ? '#7db89a' : '#a78bfa',
-            itemHoverColor: isEyeCare ? '#6b9b82' : '#8b5cf6',
+            inkBarColor: primaryColor,
+            itemActiveColor: primaryHover,
+            itemSelectedColor: primaryHover,
+            itemHoverColor: primaryColor,
           },
           Select: {
-            colorBgContainer: isEyeCare ? '#232a28' : '#161b22',
-            colorBgElevated: isEyeCare ? '#232a28' : '#161b22',
-            colorBorder: isEyeCare ? '#2f3a35' : '#21262d',
-            colorText: isEyeCare ? '#d4ddd8' : '#e2e8f0',
-            colorTextPlaceholder: isEyeCare ? '#7a8f82' : '#64748b',
-            optionSelectedBg: isEyeCare ? '#2a3330' : '#1c2333',
-            optionActiveBg: isEyeCare ? '#2a3330' : '#1c2333',
+            colorBgContainer: bgCard,
+            colorBgElevated: bgCard,
+            colorBorder: borderColor,
+            colorText: textColor,
+            colorTextPlaceholder: textPlaceholder,
+            optionSelectedBg: bgCardHover,
+            optionActiveBg: bgCardHover,
           },
           Dropdown: {
-            colorBgElevated: isEyeCare ? '#232a28' : '#161b22',
-            colorBorder: isEyeCare ? '#2f3a35' : '#21262d',
-            colorText: isEyeCare ? '#d4ddd8' : '#e2e8f0',
+            colorBgElevated: bgCard,
+            colorBorder: borderColor,
+            colorText: textColor,
           },
           Input: {
-            colorBgContainer: isEyeCare ? '#232a28' : '#161b22',
-            colorBorder: isEyeCare ? '#2f3a35' : '#21262d',
-            colorText: isEyeCare ? '#d4ddd8' : '#e2e8f0',
-            colorTextPlaceholder: isEyeCare ? '#7a8f82' : '#64748b',
+            colorBgContainer: bgCard,
+            colorBorder: borderColor,
+            colorText: textColor,
+            colorTextPlaceholder: textPlaceholder,
           },
           Button: {
-            colorBgContainer: isEyeCare ? '#232a28' : '#161b22',
-            colorBorder: isEyeCare ? '#2f3a35' : '#21262d',
-            colorText: isEyeCare ? '#d4ddd8' : '#e2e8f0',
+            colorBgContainer: bgCard,
+            colorBorder: borderColor,
+            colorText: textColor,
           },
           Radio: {
-            colorBgContainer: isEyeCare ? '#232a28' : '#161b22',
-            colorText: isEyeCare ? '#d4ddd8' : '#e2e8f0',
+            colorBgContainer: bgCard,
+            colorText: textColor,
           },
           Checkbox: {
-            colorBgContainer: isEyeCare ? '#232a28' : '#161b22',
-            colorText: isEyeCare ? '#d4ddd8' : '#e2e8f0',
+            colorBgContainer: bgCard,
+            colorText: textColor,
           },
           Popover: {
-            colorBgElevated: isEyeCare ? '#232a28' : '#161b22',
-            colorBorder: isEyeCare ? '#2f3a35' : '#21262d',
-            colorText: isEyeCare ? '#d4ddd8' : '#e2e8f0',
+            colorBgElevated: bgCard,
+            colorBorder: borderColor,
+            colorText: textColor,
           },
           Tooltip: {
-            colorBgElevated: isEyeCare ? '#232a28' : '#161b22',
-            colorText: isEyeCare ? '#d4ddd8' : '#e2e8f0',
+            colorBgElevated: bgCard,
+            colorText: textColor,
           },
           List: {
-            colorBgContainer: isEyeCare ? '#232a28' : '#161b22',
-            colorBorder: isEyeCare ? '#2f3a35' : '#21262d',
-            colorText: isEyeCare ? '#d4ddd8' : '#e2e8f0',
+            colorBgContainer: bgCard,
+            colorBorder: borderColor,
+            colorText: textColor,
           },
           Empty: {
-            colorText: isEyeCare ? '#d4ddd8' : '#e2e8f0',
-            colorTextDescription: isEyeCare ? '#7a8f82' : '#64748b',
+            colorText: textColor,
+            colorTextDescription: textPlaceholder,
+          },
+          Menu: {
+            itemBg: 'transparent',
+            itemColor: textColor,
+            itemSelectedBg: 'transparent',
+            itemSelectedColor: primaryColor,
+            itemHoverBg: 'transparent',
+            itemHoverColor: primaryHover,
           },
         },
       }}
     >
-      <AppLayout />
+      {splashPhase !== 'done' && (
+        <div className={`svl-splash-overlay${splashPhase === 'hiding' ? ' svl-splash-hiding' : ''}`}>
+          <div className="svl-splash-logo-container">
+            <img
+              src={appIcon}
+              alt="SVL"
+              className="svl-splash-logo-img"
+            />
+          </div>
+          <div className="svl-splash-title">SVL</div>
+          <div className="svl-splash-subtitle">Mod Manager</div>
+          <div className="svl-splash-loading">
+            <div className="svl-splash-dot" />
+            <div className="svl-splash-dot" />
+            <div className="svl-splash-dot" />
+          </div>
+        </div>
+      )}
+      <div className={mainAnimated ? 'svl-main-shake-enter' : ''} style={{ opacity: splashPhase === 'done' ? undefined : 0 }}>
+        <AppLayout />
+      </div>
     </ConfigProvider>
   );
 }

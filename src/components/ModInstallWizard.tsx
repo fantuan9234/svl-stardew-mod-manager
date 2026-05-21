@@ -3,6 +3,7 @@ import { Modal, Button, Steps, Tag, message } from 'antd';
 import { UploadOutlined, FolderOpenOutlined, CheckCircleOutlined, WarningOutlined, CloseOutlined, LoadingOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { open } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
 import {
   installMod,
   installModFromFolder,
@@ -10,12 +11,15 @@ import {
   type InstallResult,
   type ModDependencyCheck,
 } from '../utils/tauri-api';
+import ModBackupConfirmModal from './ModBackupConfirmModal';
 
 interface ModInstallWizardProps {
   visible: boolean;
   onClose: () => void;
   modsPath: string;
   onInstallComplete: () => void;
+  existingMods: Array<{ unique_id: string; name: string; version: string; folder_path: string }>;
+  gamePath?: string;
 }
 
 interface InstallStep {
@@ -23,9 +27,11 @@ interface InstallStep {
   name: string;
   status: 'pending' | 'installing' | 'success' | 'error';
   message: string;
+  uniqueId?: string;
+  existingModIndex?: number;
 }
 
-export default function ModInstallWizard({ visible, onClose, modsPath, onInstallComplete }: ModInstallWizardProps) {
+export default function ModInstallWizard({ visible, onClose, modsPath, onInstallComplete, existingMods }: ModInstallWizardProps) {
   const { t } = useTranslation();
   const [currentStep, setCurrentStep] = useState(0);
   const [, setSelectedFiles] = useState<string[]>([]);
@@ -34,11 +40,16 @@ export default function ModInstallWizard({ visible, onClose, modsPath, onInstall
   const [dependencyCheck, setDependencyCheck] = useState<ModDependencyCheck | null>(null);
   const [checkingDeps, setCheckingDeps] = useState(false);
 
+  // Backup confirmation state
+  const [showBackupConfirm, setShowBackupConfirm] = useState(false);
+  const [backupModInfo, setBackupModInfo] = useState<{ modPath: string; name: string; uniqueId: string; version: string } | null>(null);
+  const [backupQueue, setBackupQueue] = useState<Array<{ stepIndex: number; modPath: string; name: string; uniqueId: string; version: string }>>([]);
+
   const handleSelectFiles = async () => {
     const selected = await open({
       multiple: true,
       filters: [{
-        name: 'MOD Archives',
+        name: t('app.modArchives'),
         extensions: ['zip', '7z'],
       }],
     });
@@ -84,11 +95,16 @@ export default function ModInstallWizard({ visible, onClose, modsPath, onInstall
       if (isArchive) {
         try {
           const result = await checkModDependencies(file, modsPath);
+          const uniqueId = (result as any).unique_id || '';
+          const existingIdx = uniqueId ? existingMods.findIndex(m => m.unique_id === uniqueId) : -1;
+
           steps.push({
             file,
             name: result.mod_name || fileName,
             status: 'pending',
             message: '',
+            uniqueId: uniqueId || undefined,
+            existingModIndex: existingIdx >= 0 ? existingIdx : undefined,
           });
           lastDepResult = result;
         } catch {
@@ -117,12 +133,79 @@ export default function ModInstallWizard({ visible, onClose, modsPath, onInstall
     if (hasRequiredMissing) {
       // stay at step 1, show dependency warning
     } else {
-      // auto-advance to step 2 (install)
       setCurrentStep(2);
     }
   };
 
-  const handleInstall = async () => {
+  // Process backup queue: backup current mod, then move to next
+  const processBackupQueue = async (customDir: string | null) => {
+    const queue = [...backupQueue];
+    if (queue.length === 0) {
+      setShowBackupConfirm(false);
+      setBackupModInfo(null);
+      setBackupQueue([]);
+      await doInstall();
+      return;
+    }
+
+    for (let i = 0; i < queue.length; i++) {
+      const current = queue[i];
+      try {
+        await invoke('backup_mod_before_update', {
+          modPath: current.modPath,
+          customBackupDir: customDir || null,
+        });
+      } catch (err) {
+        console.error('Backup failed:', err);
+        message.warning(t('app.modBackup.backupFailedContinue'));
+      }
+    }
+
+    setShowBackupConfirm(false);
+    setBackupModInfo(null);
+    setBackupQueue([]);
+    await doInstall();
+  };
+
+  // Check for existing mods and build backup queue
+  const checkAndBuildBackupQueue = async () => {
+    const backups: Array<{ stepIndex: number; modPath: string; name: string; uniqueId: string; version: string }> = [];
+
+    for (let i = 0; i < installSteps.length; i++) {
+      const step = installSteps[i];
+      if (step.existingModIndex !== undefined) {
+        const existing = existingMods[step.existingModIndex];
+        backups.push({
+          stepIndex: i,
+          modPath: existing.folder_path,
+          name: existing.name,
+          uniqueId: existing.unique_id,
+          version: existing.version,
+        });
+      }
+    }
+
+    if (backups.length > 0) {
+      setBackupQueue(backups);
+      setBackupModInfo({
+        modPath: backups[0].modPath,
+        name: backups[0].name,
+        uniqueId: backups[0].uniqueId,
+        version: backups[0].version,
+      });
+      setShowBackupConfirm(true);
+      return true;
+    }
+    return false;
+  };
+
+  const handleStartInstall = async () => {
+    const hasBackup = await checkAndBuildBackupQueue();
+    if (hasBackup) return;
+    await doInstall();
+  };
+
+  const doInstall = async () => {
     setInstalling(true);
     setCurrentStep(2);
     const updatedSteps = [...installSteps];
@@ -164,10 +247,9 @@ export default function ModInstallWizard({ visible, onClose, modsPath, onInstall
     if (!hasError) {
       message.success(t('app.modInstall.installSuccess'));
     }
-
-    console.log('[ModInstallWizard] install complete, calling onInstallComplete, modsPath:', modsPath);
-    await new Promise(resolve => setTimeout(resolve, 800));
     onInstallComplete();
+    await new Promise(resolve => setTimeout(resolve, hasError ? 800 : 1500));
+    handleClose();
   };
 
   const handleClose = () => {
@@ -176,189 +258,208 @@ export default function ModInstallWizard({ visible, onClose, modsPath, onInstall
     setDependencyCheck(null);
     setCheckingDeps(false);
     setCurrentStep(0);
+    setShowBackupConfirm(false);
+    setBackupQueue([]);
+    setBackupModInfo(null);
     onClose();
   };
 
   const hasRequiredMissing = dependencyCheck?.missing_dependencies?.some(d => d.is_required);
 
   return (
-    <Modal
-      open={visible}
-      onCancel={handleClose}
-      footer={null}
-      width={600}
-      centered
-      className="svl-mod-install-wizard"
-    >
-      <div className="svl-wizard-header">
-        <h2>{t('app.modInstall.title')}</h2>
-        <Button type="text" icon={<CloseOutlined />} onClick={handleClose} />
-      </div>
+    <>
+      <Modal
+        open={visible}
+        onCancel={handleClose}
+        footer={null}
+        width={600}
+        centered
+        className="svl-mod-install-wizard"
+      >
+        <div className="svl-wizard-header">
+          <h2>{t('app.modInstall.title')}</h2>
+          <Button type="text" icon={<CloseOutlined />} onClick={handleClose} />
+        </div>
 
-      <Steps
-        current={currentStep}
-        className="svl-wizard-steps"
-        items={[
-          { title: t('app.modInstall.selectFiles') },
-          { title: t('app.modInstall.checkDeps') },
-          { title: t('app.modInstall.installing') },
-          { title: t('app.modInstall.complete') },
-        ]}
-      />
+        <Steps
+          current={currentStep}
+          className="svl-wizard-steps"
+          items={[
+            { title: t('app.modInstall.selectFiles') },
+            { title: t('app.modInstall.checkDeps') },
+            { title: t('app.modInstall.installing') },
+            { title: t('app.modInstall.complete') },
+          ]}
+        />
 
-      <div className="svl-wizard-content">
-        {currentStep === 0 && (
-          <div className="svl-wizard-select">
-            <p>{t('app.modInstall.selectDesc')}</p>
-            <div className="svl-wizard-actions">
-              <Button
-                type="primary"
-                icon={<UploadOutlined />}
-                onClick={handleSelectFiles}
-                block
-                size="large"
-              >
-                {t('app.modInstall.selectArchive')}
-              </Button>
-              <Button
-                icon={<FolderOpenOutlined />}
-                onClick={handleSelectFolder}
-                block
-                size="large"
-              >
-                {t('app.modInstall.selectFolder')}
-              </Button>
+        <div className="svl-wizard-content">
+          {currentStep === 0 && (
+            <div className="svl-wizard-select">
+              <p>{t('app.modInstall.selectDesc')}</p>
+              <div className="svl-wizard-actions">
+                <Button
+                  type="primary"
+                  icon={<UploadOutlined />}
+                  onClick={handleSelectFiles}
+                  block
+                  size="large"
+                >
+                  {t('app.modInstall.selectArchive')}
+                </Button>
+                <Button
+                  icon={<FolderOpenOutlined />}
+                  onClick={handleSelectFolder}
+                  block
+                  size="large"
+                >
+                  {t('app.modInstall.selectFolder')}
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {currentStep === 1 && checkingDeps && (
-          <div className="svl-wizard-checking">
-            <div style={{ textAlign: 'center', padding: '24px 0' }}>
-              <LoadingOutlined spin style={{ fontSize: 32, color: 'var(--svl-primary)' }} />
-              <p style={{ marginTop: 12, color: 'var(--svl-text-muted)' }}>
-                {t('app.modInstall.checkingDeps')}
-              </p>
+          {currentStep === 1 && checkingDeps && (
+            <div className="svl-wizard-checking">
+              <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                <LoadingOutlined spin style={{ fontSize: 32, color: 'var(--svl-primary)' }} />
+                <p style={{ marginTop: 12, color: 'var(--svl-text-muted)' }}>
+                  {t('app.modInstall.checkingDeps')}
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {currentStep === 1 && !checkingDeps && dependencyCheck && (
-          <div className="svl-wizard-deps">
-            <h3>{t('app.modInstall.dependencyCheck')}</h3>
-            <div className="svl-dep-result">
-              <div className="svl-dep-mod-name">
-                {dependencyCheck.mod_name}
-                <Tag>v{dependencyCheck.version}</Tag>
+          {currentStep === 1 && !checkingDeps && dependencyCheck && (
+            <div className="svl-wizard-deps">
+              <h3>{t('app.modInstall.dependencyCheck')}</h3>
+              <div className="svl-dep-result">
+                <div className="svl-dep-mod-name">
+                  {dependencyCheck.mod_name}
+                  <Tag>v{dependencyCheck.version}</Tag>
+                </div>
+
+                {dependencyCheck.missing_dependencies?.length > 0 ? (
+                  <div className="svl-missing-deps">
+                    <p>
+                      <WarningOutlined style={{ color: 'var(--svl-warning)', marginRight: 8 }} />
+                      {t('app.modInstall.missingDeps', { count: dependencyCheck.missing_dependencies.length })}
+                    </p>
+                    <ul>
+                      {dependencyCheck.missing_dependencies.map((dep, i) => (
+                        <li key={i}>
+                          <code>{dep.unique_id}</code>
+                          {dep.minimum_version && <Tag>{dep.minimum_version}+</Tag>}
+                          <Tag color={dep.is_required ? 'red' : 'blue'}>
+                            {dep.is_required ? t('app.modInstall.missingRequired') : t('app.optional')}
+                          </Tag>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p style={{ color: 'var(--svl-success)' }}>
+                    <CheckCircleOutlined style={{ marginRight: 8 }} />
+                    {t('app.modInstall.noMissingDeps')}
+                  </p>
+                )}
               </div>
 
-              {dependencyCheck.missing_dependencies?.length > 0 ? (
-                <div className="svl-missing-deps">
-                  <p>
-                    <WarningOutlined style={{ color: 'var(--svl-warning)', marginRight: 8 }} />
-                    {t('app.modInstall.missingDeps', { count: dependencyCheck.missing_dependencies.length })}
-                  </p>
-                  <ul>
-                    {dependencyCheck.missing_dependencies.map((dep, i) => (
-                      <li key={i}>
-                        <code>{dep.unique_id}</code>
-                        {dep.minimum_version && <Tag>{dep.minimum_version}+</Tag>}
-                        <Tag color={dep.is_required ? 'red' : 'blue'}>
-                          {dep.is_required ? t('app.modInstall.missingRequired') : 'Optional'}
-                        </Tag>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <p style={{ color: 'var(--svl-success)' }}>
-                  <CheckCircleOutlined style={{ marginRight: 8 }} />
-                  {t('app.modInstall.noMissingDeps')}
-                </p>
-              )}
-            </div>
-
-            <div className="svl-wizard-actions">
-              <Button onClick={handleClose}>
-                {t('app.common.cancel')}
-              </Button>
-              <Button
-                type="primary"
-                onClick={handleInstall}
-                disabled={!!hasRequiredMissing}
-              >
-                {hasRequiredMissing ? t('app.modInstall.missingRequired') : t('app.modInstall.startInstall')}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 2 && (
-          <div className="svl-wizard-install">
-            <div className="svl-install-steps">
-              {installSteps.map((step, i) => (
-                <div key={i} className={`svl-install-step ${step.status}`}>
-                  <span className="svl-install-step-name">{step.name}</span>
-                  {step.status === 'pending' && (
-                    <span className="svl-install-step-status">—</span>
-                  )}
-                  {step.status === 'installing' && (
-                    <span className="svl-install-step-status">
-                      <LoadingOutlined spin />
-                    </span>
-                  )}
-                  {step.status === 'success' && (
-                    <span className="svl-install-step-status success">
-                      <CheckCircleOutlined />
-                    </span>
-                  )}
-                  {step.status === 'error' && (
-                    <span className="svl-install-step-status error" title={step.message}>
-                      <WarningOutlined />
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {!installing && installSteps.every(s => s.status !== 'installing') && (
               <div className="svl-wizard-actions">
                 <Button onClick={handleClose}>
                   {t('app.common.cancel')}
                 </Button>
                 <Button
                   type="primary"
-                  onClick={handleInstall}
-                  loading={installing}
+                  onClick={handleStartInstall}
+                  disabled={!!hasRequiredMissing}
                 >
-                  {t('app.modInstall.startInstall')}
+                  {hasRequiredMissing ? t('app.modInstall.missingRequired') : t('app.modInstall.startInstall')}
                 </Button>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {currentStep === 3 && (
-          <div className="svl-wizard-complete">
-            <CheckCircleOutlined className="svl-complete-icon" />
-            <h3>{t('app.modInstall.installComplete')}</h3>
-            <div className="svl-install-summary">
-              {installSteps.map((step, i) => (
-                <div key={i} className={`svl-summary-item ${step.status}`}>
-                  <span>{step.name}</span>
-                  {step.status === 'success' && <Tag color="success">{t('app.modInstall.success')}</Tag>}
-                  {step.status === 'error' && <Tag color="error">{t('app.modInstall.failed')}</Tag>}
+          {currentStep === 2 && (
+            <div className="svl-wizard-install">
+              <div className="svl-install-steps">
+                {installSteps.map((step, i) => (
+                  <div key={i} className={`svl-install-step ${step.status}`}>
+                    <span className="svl-install-step-name">{step.name}</span>
+                    {step.status === 'pending' && (
+                      <span className="svl-install-step-status">—</span>
+                    )}
+                    {step.status === 'installing' && (
+                      <span className="svl-install-step-status">
+                        <LoadingOutlined spin />
+                      </span>
+                    )}
+                    {step.status === 'success' && (
+                      <span className="svl-install-step-status success">
+                        <CheckCircleOutlined />
+                      </span>
+                    )}
+                    {step.status === 'error' && (
+                      <span className="svl-install-step-status error" title={step.message}>
+                        <WarningOutlined />
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {!installing && installSteps.every(s => s.status !== 'installing') && (
+                <div className="svl-wizard-actions">
+                  <Button onClick={handleClose}>
+                    {t('app.common.cancel')}
+                  </Button>
+                  <Button
+                    type="primary"
+                    onClick={handleStartInstall}
+                    loading={installing}
+                  >
+                    {t('app.modInstall.startInstall')}
+                  </Button>
                 </div>
-              ))}
+              )}
             </div>
-            <div className="svl-wizard-actions">
-              <Button type="primary" onClick={handleClose}>
-                {t('app.modInstall.close')}
-              </Button>
+          )}
+
+          {currentStep === 3 && (
+            <div className="svl-wizard-complete">
+              <CheckCircleOutlined className="svl-complete-icon" />
+              <h3>{t('app.modInstall.installComplete')}</h3>
+              <div className="svl-install-summary">
+                {installSteps.map((step, i) => (
+                  <div key={i} className={`svl-summary-item ${step.status}`}>
+                    <span>{step.name}</span>
+                    {step.status === 'success' && <Tag className="svl-tag-success">{t('app.modInstall.success')}</Tag>}
+                    {step.status === 'error' && <Tag className="svl-tag-error">{t('app.modInstall.failed')}</Tag>}
+                  </div>
+                ))}
+              </div>
+              <div className="svl-wizard-actions">
+                <Button type="primary" onClick={handleClose}>
+                  {t('app.modInstall.close')}
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-    </Modal>
+          )}
+        </div>
+      </Modal>
+
+      {/* Backup confirmation modal */}
+      {backupModInfo && (
+        <ModBackupConfirmModal
+          visible={showBackupConfirm}
+          modName={backupModInfo.name}
+          modUniqueId={backupModInfo.uniqueId}
+          modVersion={backupModInfo.version}
+          _defaultBackupDir={modsPath || ''}
+          onCancel={() => { setShowBackupConfirm(false); setBackupQueue([]); setBackupModInfo(null); doInstall(); }}
+          onConfirm={async (dir) => { await processBackupQueue(dir); }}
+          onSkipBackup={async () => { setShowBackupConfirm(false); setBackupQueue([]); setBackupModInfo(null); await doInstall(); }}
+        />
+      )}
+    </>
   );
 }

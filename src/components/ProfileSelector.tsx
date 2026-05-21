@@ -4,16 +4,18 @@ import {
   profileList,
   profileGetActive,
   profileSwitch,
+  profileClearActive,
   checkSmapiStatus,
   type ProfileListItem,
 } from '../utils/tauri-api';
 
 interface ProfileSelectorProps {
   onProfileChange: (profile: ProfileListItem) => void;
+  onProfileExit: () => void;
   onManageProfiles: () => void;
 }
 
-export default function ProfileSelector({ onProfileChange, onManageProfiles }: ProfileSelectorProps) {
+export default function ProfileSelector({ onProfileChange, onProfileExit, onManageProfiles }: ProfileSelectorProps) {
   const { t } = useTranslation();
   const [profiles, setProfiles] = useState<ProfileListItem[]>([]);
   const [activeProfileName, setActiveProfileName] = useState<string>('');
@@ -67,6 +69,18 @@ export default function ProfileSelector({ onProfileChange, onManageProfiles }: P
     }
   };
 
+  const handleExitProfile = async () => {
+    if (!gamePath || !activeProfileName) return;
+    try {
+      await profileClearActive(gamePath);
+      setActiveProfileName('');
+      onProfileExit();
+      setIsOpen(false);
+    } catch (error) {
+      console.error('Failed to exit profile:', error);
+    }
+  };
+
   const activeProfile = profiles.find(p => p.name === activeProfileName);
 
   return (
@@ -98,6 +112,20 @@ export default function ProfileSelector({ onProfileChange, onManageProfiles }: P
           ))}
 
           <div className="svl-profile-divider" />
+
+          {activeProfileName && (
+            <div
+              className="svl-profile-item svl-profile-item--exit"
+              onClick={() => {
+                handleExitProfile();
+              }}
+            >
+              <span className="svl-profile-item-name">
+                {t('app.profiles.exitProfile')}
+              </span>
+              <span className="svl-profile-item-icon">🚪</span>
+            </div>
+          )}
 
           <div
             className="svl-profile-item svl-profile-item--manage"

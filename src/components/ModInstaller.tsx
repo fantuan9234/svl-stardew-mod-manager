@@ -42,7 +42,7 @@ export default function ModInstaller({ modsPath, onInstallSuccess }: ModInstalle
               <p>{t('app.modInstaller.depCheckDesc', { name: depCheck.mod_name })}</p>
               {requiredDeps.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
-                  <Tag color="error">{t('app.modInstaller.requiredDeps')}</Tag>
+                  <Tag className="svl-tag-error">{t('app.modInstaller.requiredDeps')}</Tag>
                   <List
                     size="small"
                     dataSource={requiredDeps}
@@ -59,7 +59,7 @@ export default function ModInstaller({ modsPath, onInstallSuccess }: ModInstalle
               )}
               {optionalDeps.length > 0 && (
                 <div>
-                  <Tag color="warning">{t('app.modInstaller.optionalDeps')}</Tag>
+                  <Tag className="svl-tag-warning">{t('app.modInstaller.optionalDeps')}</Tag>
                   <List
                     size="small"
                     dataSource={optionalDeps}
