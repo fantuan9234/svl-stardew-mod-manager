@@ -16,11 +16,43 @@ dist-ssr
 target/
 src-tauri/target/
 
-# IDE
+# IDE / AI tool configs
 .vscode/*
 !.vscode/extensions.json
 .idea
 .trae/
+.claude/
+.codeartsdoer/
+.codebuddy/
+.codemaker/
+.codestudio/
+.commandcode/
+.continue/
+.cortex/
+.crush/
+.devin/
+.factory/
+.forge/
+.goose/
+.iflow/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.rovodev/
+.tabnine/
+.vibe/
+.windsurf/
+.zencoder/
 *.suo
 *.ntvs*
 *.njsproj
@@ -37,6 +69,11 @@ TEST_CASES.md
 *.mp4
 test_*.png
 test_*.py
+test-screenshots/
+tests/
+skills/
+skills-lock.json
+vitest.config.ts
 
 # Website / PHP (not part of the app)
 website/
@@ -44,12 +81,6 @@ website-dist/
 website-php/
 cloudflare-worker/
 *.php
-header.php
-footer.php
-index.php
-ads.php
-announcements.php
-contact.php
 
 # Build archives
 release-archive/
@@ -64,10 +95,18 @@ FTM*.md
 # Unused game icons
 public/game-icons/
 
+# Root-level temp images (not part of app build)
+49600a26b29c89e64d5c17fe8e48fd36.png
+app-icon.png
+cover-bg.png
+assets/
+
 # Loose temp files in root
 1/
 
-# Scripts not needed in repo
-scripts/remove-bg*.cjs
-scripts/remove-bg*.js
-scripts/svl-demo.ps1
+# Icon manipulation scripts (not needed for build)
+scripts/
+
+# User profile data (runtime generated)
+src-tauri/svl-profiles/
+src-tauri/.svl-profiles/
