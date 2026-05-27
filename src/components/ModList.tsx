@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ModInfo } from '../utils/tauri-api';
-import { Tag, Tooltip, Modal, Dropdown, message } from 'antd';
+import { Tooltip, Modal, Dropdown, message } from 'antd';
 import { FolderOpenOutlined, LinkOutlined, DeleteOutlined, SyncOutlined, CheckOutlined, CloseOutlined, SettingOutlined, HistoryOutlined } from '@ant-design/icons';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { invoke } from '@tauri-apps/api/core';
@@ -335,19 +335,19 @@ export default function ModList({
                   <div className="svl-mod-name">
                     {mod.name}
                     {mod.is_group && mod.sub_mods.length > 0 && (
-                      <Tag className="svl-tag-accent" style={{ marginLeft: 6, fontSize: 11 }}>
+                      <span className="svl-tag-accent" style={{ marginLeft: 6, fontSize: 11 }}>
                         {mod.sub_mods.length}{t('app.modList.subMods')}
-                      </Tag>
+                      </span>
                     )}
                     <Tooltip title={t(`app.modStatus.${status.label}`)}>
-                      <Tag className={`${status.className} svl-status-badge`}>
+                      <span className={`${status.className} svl-status-badge`}>
                         {status.icon}
-                      </Tag>
+                      </span>
                     </Tooltip>
                     {mod.has_update && (
-                      <Tag className="svl-tag-danger svl-update-badge">
+                      <span className="svl-tag-danger svl-update-badge">
                         {t('app.modDetail.updateAvailable')}
-                      </Tag>
+                      </span>
                     )}
                   </div>
                   <div className="svl-mod-version">v{mod.version}</div>
@@ -355,21 +355,25 @@ export default function ModList({
                     {t('app.modCard.by')} {mod.author}
                   </div>
                   <div className="svl-mod-category">
-                    <Tag className={categoryClassNames[mod.category] || 'svl-cat-other'}>
+                    <span className={categoryClassNames[mod.category] || 'svl-cat-other'}>
                       {t(`app.categories.${mod.category}`)}
-                    </Tag>
+                    </span>
                     {modTags.map((tag) => (
-                      <Tag
+                      <span
                         key={tag}
                         className="svl-tag-info svl-custom-tag"
-                        closable
-                        onClose={(e) => {
-                          e.stopPropagation();
-                          onRemoveTag?.(mod.unique_id, tag);
-                        }}
                       >
                         {tag}
-                      </Tag>
+                        <span
+                          className="svl-tag-close"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveTag?.(mod.unique_id, tag);
+                          }}
+                        >
+                          ×
+                        </span>
+                      </span>
                     ))}
                     {tagInputId === mod.unique_id ? (
                       <input
@@ -398,7 +402,7 @@ export default function ModList({
                         placeholder={t('app.tags.inputPlaceholder')}
                       />
                     ) : (
-                      <Tag
+                      <span
                         className="svl-add-tag-btn"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -407,7 +411,7 @@ export default function ModList({
                         }}
                       >
                         +
-                      </Tag>
+                      </span>
                     )}
                   </div>
                 </div>

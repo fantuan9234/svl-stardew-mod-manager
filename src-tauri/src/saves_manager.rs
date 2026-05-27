@@ -64,9 +64,17 @@ fn get_bindings_path() -> Option<PathBuf> {
 fn load_bindings() -> HashMap<String, String> {
     if let Some(bindings_path) = get_bindings_path() {
         if bindings_path.exists() {
-            if let Ok(content) = fs::read_to_string(&bindings_path) {
-                if let Ok(map) = serde_json::from_str::<HashMap<String, String>>(&content) {
-                    return map;
+            match fs::read_to_string(&bindings_path) {
+                Ok(content) => {
+                    match serde_json::from_str::<HashMap<String, String>>(&content) {
+                        Ok(map) => return map,
+                        Err(e) => {
+                            eprintln!("[SVL] 解析存档绑定文件失败 ({}): {}", bindings_path.display(), e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[SVL] 读取存档绑定文件失败 ({}): {}", bindings_path.display(), e);
                 }
             }
         }
@@ -113,7 +121,7 @@ fn parse_savegame_info(folder_path: &PathBuf) -> (String, String, u64) {
                             // Fallback to XML parsing using regex-like approach
                             // Extract <name> tag (first occurrence in Farmer section)
                             // Note: <Farmer> tag may have attributes like xmlns:xsi, so search for "<Farmer" not "<Farmer>"
-                            if let Some(pos) = content.find("<Farmer") {
+                            if let Some(pos) = content.find("<Farmer>").or_else(|| content.find("<Farmer ")) {
                                 // Find the closing '>' of the Farmer tag
                                 if let Some(tag_end) = content[pos..].find('>') {
                                     let farmer_section = &content[pos + tag_end + 1..];

@@ -9,7 +9,7 @@ import { CloudDownloadOutlined, CheckCircleOutlined, SyncOutlined, FolderOutline
 import chickenImg from '../assets/chicken.png';
 import HomeModal from './HomeModal';
 import { openUrl } from '../utils/openUrl';
-import { downloadAppUpdateFromServer, AppUpdateInfo, AppUpdateProgress } from '../utils/tauri-api';
+import { downloadAppUpdateFromServer, AppUpdateInfo, AppUpdateProgress, getCurrentAppVersion } from '../utils/tauri-api';
 
 const ModManager = lazy(() => import('../pages/ModManager'));
 const NexusModBrowser = lazy(() => import('../pages/NexusModBrowser'));
@@ -63,6 +63,7 @@ export default function AppLayout() {
   const location = useLocation();
   const [isMaximized, setIsMaximized] = useState(false);
   const [errorCount, setErrorCount] = useState(0);
+  const [appVersion, setAppVersion] = useState('');
   const logCheckUnlistenRef = useRef<(() => void) | null>(null);
 
   const [forceUpdateInfo, setForceUpdateInfo] = useState<AppUpdateInfo | null>(null);
@@ -102,6 +103,10 @@ export default function AppLayout() {
       startTransition(() => navigate('/mod-manager', { replace: true }));
     }
   }, [location.pathname, navigate]);
+
+  useEffect(() => {
+    getCurrentAppVersion().then(v => setAppVersion(v)).catch(() => {});
+  }, []);
 
   const checkLog = async () => {
     try {
@@ -254,6 +259,19 @@ export default function AppLayout() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
+  const [loadedPages, setLoadedPages] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (location.pathname !== '/') {
+      setLoadedPages(prev => {
+        if (prev.has(location.pathname)) return prev;
+        const next = new Set(prev);
+        next.add(location.pathname);
+        return next;
+      });
+    }
+  }, [location.pathname]);
+
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden', flexDirection: 'column' }}>
       <div className="svl-custom-titlebar" data-tauri-drag-region>
@@ -302,7 +320,7 @@ export default function AppLayout() {
               padding: '7px 12px',
               borderRadius: '8px',
               cursor: 'pointer',
-              color: '#c49a3b',
+              color: 'var(--svl-primary-light)',
               fontWeight: 600,
               fontSize: 13,
               background: 'rgba(196, 154, 59, 0.08)',
@@ -358,6 +376,11 @@ export default function AppLayout() {
               alt={t('app.altChicken')}
               className="svl-chicken"
             />
+            {appVersion && (
+              <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--svl-text-muted)', marginTop: 4 }}>
+                v{appVersion}
+              </div>
+            )}
           </div>
         </aside>
 
@@ -367,7 +390,18 @@ export default function AppLayout() {
               <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} spin />} />
             </div>
           }>
+            {Array.from(loadedPages).map((path) => {
+              const PageComponent = pageMap[path];
+              if (!PageComponent) return null;
+              const isActive = path === location.pathname;
+              return (
+                <div key={path} style={{ display: isActive ? 'contents' : 'none' }}>
+                  <PageComponent />
+                </div>
+              );
+            })}
             {(() => {
+              if (loadedPages.has(location.pathname)) return null;
               const PageComponent = pageMap[location.pathname];
               return PageComponent ? <PageComponent /> : null;
             })()}
@@ -386,14 +420,14 @@ export default function AppLayout() {
         centered
         width={520}
         style={{
-          background: '#1a1510',
-          border: '1px solid #4a3d2e',
+          background: 'var(--svl-bg-primary)',
+          border: '1px solid var(--svl-border)',
           borderRadius: 12,
         }}
         styles={{
           body: {
-            background: '#1a1510',
-            color: '#f0e6d3',
+            background: 'var(--svl-bg-primary)',
+            color: 'var(--svl-text-primary)',
           },
           mask: {
             backgroundColor: 'rgba(0, 0, 0, 0.7)',
@@ -402,16 +436,16 @@ export default function AppLayout() {
       >
         <div style={{ textAlign: 'center', padding: '16px 0' }}>
           <CloudDownloadOutlined style={{ fontSize: 48, color: '#1890ff', marginBottom: 16 }} />
-          <Title level={3} style={{ marginBottom: 8, color: '#f0e6d3' }}>
+          <Title level={3} style={{ marginBottom: 8, color: 'var(--svl-text-primary)' }}>
             {t('features.serverUpdater.forceUpdateTitle')}
           </Title>
-          <Text style={{ color: '#8a7d6b' }}>
+          <Text style={{ color: 'var(--svl-text-muted)' }}>
             {t('features.serverUpdater.forceUpdateDesc')}
           </Text>
         </div>
 
         {forceUpdateInfo && (
-          <div style={{ marginTop: 20, padding: 16, background: '#2d2418', borderRadius: 8 }}>
+          <div style={{ marginTop: 20, padding: 16, background: 'var(--svl-bg-secondary)', borderRadius: 8 }}>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
               <Tag color="blue">{t('features.updater.currentVersion')}: {forceUpdateInfo.current_version}</Tag>
               <Tag color="green">{t('features.updater.latestVersion')}: {forceUpdateInfo.latest_version}</Tag>
@@ -420,7 +454,7 @@ export default function AppLayout() {
 
             {forceUpdateInfo.release_notes && (
               <div>
-                <Text strong style={{ color: '#c4b89a' }}>{t('features.updater.releaseNotes')}:</Text>
+                <Text strong style={{ color: 'var(--svl-text-secondary)' }}>{t('features.updater.releaseNotes')}:</Text>
                 <Paragraph style={{ marginTop: 8, whiteSpace: 'pre-wrap', fontSize: 13, color: '#a09880' }}>
                   {forceUpdateInfo.release_notes}
                 </Paragraph>
@@ -429,9 +463,9 @@ export default function AppLayout() {
 
             {forceDownloading && (
               <div style={{ marginTop: 16 }}>
-                <Progress percent={forceProgress} status="active" strokeColor={{ '0%': '#8b6914', '100%': '#c49a3b' }} />
+                <Progress percent={forceProgress} status="active" strokeColor={{ '0%': 'var(--svl-primary)', '100%': 'var(--svl-primary-light)' }} />
                 {forceTotalBytes > 0 && (
-                  <Text style={{ fontSize: 12, color: '#8a7d6b' }}>
+                  <Text style={{ fontSize: 12, color: 'var(--svl-text-muted)' }}>
                     {formatBytes(forceDownloadedBytes)} / {formatBytes(forceTotalBytes)}
                   </Text>
                 )}
@@ -447,7 +481,7 @@ export default function AppLayout() {
 
             <div style={{ marginTop: 20, textAlign: 'center' }}>
               {!forceDownloading && !forceInstalled && (
-                <Button type="primary" size="large" onClick={handleForceDownload} style={{ background: '#8b6914', borderColor: '#8b6914' }}>
+                <Button type="primary" size="large" onClick={handleForceDownload} style={{ background: 'var(--svl-primary)', borderColor: 'var(--svl-primary)' }}>
                   <CloudDownloadOutlined />
                   {t('features.updater.downloadButton')}
                 </Button>

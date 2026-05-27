@@ -547,6 +547,7 @@ export interface NexusFileDownloadInfo {
   upload_time: string;
   download_url: string | null;
   is_premium_only: boolean;
+  category_id: number;
 }
 
 export async function verifyNexusApiKey(apiKey: string): Promise<NexusApiVerification> {
@@ -849,6 +850,7 @@ export interface AppUpdateInfo {
   file_size: number | null;
   sha256: string | null;
   force_update: boolean;
+  source: string | null;
 }
 
 export interface AppUpdateProgress {
@@ -884,8 +886,16 @@ export async function checkAppUpdateFromServer(): Promise<AppUpdateInfo> {
   return invoke<AppUpdateInfo>('check_app_update_from_server');
 }
 
+export async function checkAppUpdateGithub(): Promise<AppUpdateInfo> {
+  return invoke<AppUpdateInfo>('check_app_update_github');
+}
+
 export async function downloadAppUpdateFromServer(downloadUrl: string): Promise<AppUpdateResult> {
   return invoke<AppUpdateResult>('download_app_update_from_server', { downloadUrl });
+}
+
+export async function runInstaller(path: string): Promise<void> {
+  return invoke<void>('run_installer', { path });
 }
 
 export async function getUpdateServerUrl(): Promise<string> {
@@ -1000,4 +1010,97 @@ export interface StorageAnalysisResult {
 
 export async function analyzeModStorage(mods: ModInfo[]): Promise<StorageAnalysisResult> {
   return invoke<StorageAnalysisResult>('analyze_mod_storage', { mods });
+}
+
+export interface ModConfigListItem {
+  mod_name: string;
+  unique_id: string;
+  folder_path: string;
+  config_path: string;
+  field_count: number;
+  has_config: boolean;
+}
+
+export interface ModConfigListResult {
+  configs: ModConfigListItem[];
+  total_mods_with_config: number;
+  total_mods_scanned: number;
+}
+
+export async function listModConfigs(modsPath: string): Promise<ModConfigListResult> {
+  return invoke<ModConfigListResult>('list_mod_configs', { modsPath });
+}
+
+export async function readModConfig(modPath: string): Promise<any> {
+  return invoke<any>('read_mod_config', { modPath });
+}
+
+export async function updateModConfig(modPath: string, updates: Array<{ key: string; value: any }>): Promise<{ success: boolean; message: string }> {
+  return invoke<{ success: boolean; message: string }>('update_mod_config', { modPath, updates });
+}
+
+export interface ModSnapshotInfo {
+  snapshot_name: string;
+  created_at: string;
+  mod_count: number;
+  size_mb: number;
+  label: string;
+  snapshot_path: string;
+}
+
+export interface ModSnapshotList {
+  snapshots: ModSnapshotInfo[];
+  total_snapshots: number;
+  total_size_mb: number;
+}
+
+export interface SnapshotResult {
+  success: boolean;
+  message: string;
+}
+
+export async function createSnapshot(modsPath: string, label: string): Promise<SnapshotResult> {
+  return invoke<SnapshotResult>('create_snapshot', { modsPath, label });
+}
+
+export async function listSnapshots(): Promise<ModSnapshotList> {
+  return invoke<ModSnapshotList>('list_snapshots');
+}
+
+export async function restoreSnapshot(snapshotName: string, modsPath: string): Promise<SnapshotResult> {
+  return invoke<SnapshotResult>('restore_snapshot', { snapshotName, modsPath });
+}
+
+export async function deleteSnapshot(snapshotName: string): Promise<SnapshotResult> {
+  return invoke<SnapshotResult>('delete_snapshot', { snapshotName });
+}
+
+export interface LogFileInfo {
+  name: string;
+  path: string;
+  size_bytes: number;
+  modified: string;
+}
+
+export interface AppLogResult {
+  lines: string[];
+  total_lines: number;
+  log_dir: string;
+  files: LogFileInfo[];
+}
+
+export async function getAppLogs(maxLines?: number): Promise<AppLogResult> {
+  return invoke<AppLogResult>('get_app_logs', { maxLines: maxLines || null });
+}
+
+export async function exportAppLogs(): Promise<string> {
+  return invoke<string>('export_app_logs');
+}
+
+export async function clearOldAppLogs(keepDays?: number): Promise<string> {
+  return invoke<string>('clear_old_app_logs', { keepDays: keepDays || null });
+}
+
+export async function getLogDirPath(): Promise<string> {
+  return invoke<string>('get_log_dir_path');
 }

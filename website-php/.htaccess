@@ -1,0 +1,59 @@
+# Apache .htaccess SEO 优化配置
+# 如果服务器使用 Apache 而非 Nginx，将此文件放在网站根目录
+
+# 1. 默认首页
+DirectoryIndex index.php
+
+# 2. 强制 HTTPS（如果已配置 SSL）
+# RewriteEngine On
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+# 3. www 跳转到非 www（统一域名）
+# RewriteEngine On
+# RewriteCond %{HTTP_HOST} ^www\.svlmod\.cn [NC]
+# RewriteRule ^(.*)$ https://svlmod.cn/$1 [R=301,L]
+
+# 4. 自定义 404 页面
+ErrorDocument 404 /404.php
+
+# 5. sitemap.xml 伪静态
+RewriteEngine On
+RewriteRule ^sitemap\.xml$ sitemap.php [L]
+
+# 6. 阻止访问敏感文件
+<FilesMatch "\.(sql|db|sqlite|ini|log)$">
+    Require all denied
+</FilesMatch>
+
+# 7. 阻止访问隐藏文件
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# 8. 缓存控制
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType image/x-icon "access plus 1 year"
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType text/html "access plus 60 seconds"
+</IfModule>
+
+# 9. Gzip 压缩
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript text/xml
+    AddOutputFilterByType DEFLATE application/json application/javascript application/xml
+</IfModule>
+
+# 10. 安全头
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always append Vary "Accept-Encoding"
+</IfModule>

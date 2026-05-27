@@ -114,12 +114,12 @@ pub async fn init_smapi_cache() {
     for mod_entry in mods_json.mods {
         if let Some(nexus_id) = mod_entry.nexus {
             if let Some(id) = mod_entry.id {
-                mods_map.insert(id, nexus_id);
+                mods_map.insert(id.to_lowercase(), nexus_id);
             }
             if let Some(name) = mod_entry.name {
                 for alias in name.split(',').map(|s| s.trim()) {
                     if !alias.is_empty() {
-                        name_map.insert(alias.to_string(), nexus_id);
+                        name_map.insert(alias.to_lowercase(), nexus_id);
                     }
                 }
             }
@@ -138,7 +138,7 @@ pub async fn init_smapi_cache() {
 pub fn get_mod_nexus_id(mod_unique_id: &str) -> Option<u64> {
     let cache = CACHE.lock().unwrap();
     if let Some(cached) = cache.as_ref() {
-        if let Some(nexus_id) = cached.get(mod_unique_id) {
+        if let Some(nexus_id) = cached.get(&mod_unique_id.to_lowercase()) {
             return Some(*nexus_id);
         }
     }
@@ -148,7 +148,7 @@ pub fn get_mod_nexus_id(mod_unique_id: &str) -> Option<u64> {
 pub fn get_nexus_id_by_name(mod_name: &str) -> Option<u64> {
     let cache = NAME_CACHE.lock().unwrap();
     if let Some(cached) = cache.as_ref() {
-        if let Some(nexus_id) = cached.get(mod_name) {
+        if let Some(nexus_id) = cached.get(&mod_name.to_lowercase()) {
             return Some(*nexus_id);
         }
     }

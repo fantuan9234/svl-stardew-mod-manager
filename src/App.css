@@ -1,11 +1,16 @@
-/* Google Fonts removed for offline support */
+﻿/* Google Fonts removed for offline support */
+
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
 
 :root {
-  /* Stardew Valley Theme - Warm Farm Colors */
-  --svl-bg-primary: #1a1510;
-  --svl-bg-secondary: #2d2418;
-  --svl-bg-card: #3d3225;
-  --svl-bg-card-hover: #4a3d2e;
+  --svl-bg-primary: #1f140d;
+  --svl-bg-secondary: #2a1d14;
+  --svl-bg-card: #2a1d14;
+  --svl-bg-card-hover: #342618;
+  --svl-bg-footer: #24170f;
   --svl-bg-hover: rgba(139, 115, 85, 0.15);
   --svl-primary: #8b6914;
   --svl-primary-hover: #a67c1a;
@@ -46,8 +51,8 @@
   --svl-text-secondary: #c4b89a;
   --svl-text-muted: #8a7d6b;
   --svl-text-accent: #c49a3b;
-  --svl-border: #4a3d2e;
-  --svl-border-light: #5a4d3e;
+  --svl-border: rgba(255, 190, 90, 0.12);
+  --svl-border-light: rgba(255, 210, 120, 0.25);
   --svl-success: #5a9e3a;
   --svl-success-bg: rgba(82, 196, 26, 0.1);
   --svl-success-border: rgba(82, 196, 26, 0.3);
@@ -71,14 +76,15 @@
   --svl-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
   --svl-shadow-lg: 0 6px 20px rgba(0, 0, 0, 0.45);
   --svl-shadow-glow: 0 0 12px var(--svl-primary-glow);
-  --svl-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --svl-transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 html.eye-care {
-  --svl-bg-primary: #1a1f1e;
-  --svl-bg-secondary: #232a28;
-  --svl-bg-card: #232a28;
-  --svl-bg-card-hover: #2a3330;
+  --svl-bg-primary: #111816;
+  --svl-bg-secondary: #182220;
+  --svl-bg-card: #1c2825;
+  --svl-bg-card-hover: #243230;
+  --svl-bg-footer: #141e1c;
   --svl-bg-hover: rgba(91, 138, 114, 0.15);
   --svl-primary: #5b8a72;
   --svl-primary-hover: #6b9b82;
@@ -120,8 +126,8 @@ html.eye-care {
   --svl-text-muted: #7a8f82;
   --svl-text-accent: #7db89a;
   --svl-text-purple: #7db89a;
-  --svl-border: #2f3a35;
-  --svl-border-light: #3a4740;
+  --svl-border: rgba(140, 210, 170, 0.12);
+  --svl-border-light: rgba(160, 220, 185, 0.25);
   --svl-success: #5cb87a;
   --svl-success-bg: rgba(91, 138, 114, 0.1);
   --svl-success-border: rgba(91, 138, 114, 0.3);
@@ -142,6 +148,58 @@ html.eye-care {
   --svl-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   --svl-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.3);
   --svl-shadow-glow: 0 0 12px var(--svl-primary-glow);
+}
+
+.ant-switch {
+  background: var(--svl-bg-card-hover);
+  border: 1px solid var(--svl-border);
+  min-width: 40px;
+  height: 22px;
+  line-height: 20px;
+  transition: all 0.25s ease;
+}
+
+.ant-switch .ant-switch-handle {
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+}
+
+.ant-switch .ant-switch-handle::before {
+  background: #e8dcc8;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.ant-switch-checked {
+  background: var(--svl-primary) !important;
+  border-color: var(--svl-primary-glow) !important;
+  box-shadow: 0 0 8px var(--svl-primary-glow), 0 0 2px var(--svl-border-light);
+}
+
+.ant-switch-checked .ant-switch-handle {
+  left: calc(100% - 18px);
+}
+
+.ant-switch-checked .ant-switch-handle::before {
+  background: var(--svl-text-primary);
+  box-shadow: 0 0 6px var(--svl-primary-glow), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.ant-switch-sm {
+  min-width: 32px;
+  height: 18px;
+  line-height: 16px;
+}
+
+.ant-switch-sm .ant-switch-handle {
+  width: 12px;
+  height: 12px;
+}
+
+.ant-switch-sm.ant-switch-checked .ant-switch-handle {
+  left: calc(100% - 14px);
 }
 
 html.eye-care .svl-logo-icon {
@@ -267,7 +325,7 @@ html.eye-care .svl-install-smapi-btn:hover {
 }
 
 html.eye-care .svl-launch-btn:hover {
-  box-shadow: 0 4px 12px var(--svl-accent-glow);
+  box-shadow: 0 4px 16px rgba(91, 138, 114, 0.5), 0 0 24px rgba(91, 138, 114, 0.2);
 }
 
 html.eye-care .svl-health-scan-btn:hover {
@@ -1160,7 +1218,7 @@ textarea,
 .svl-sidebar {
   width: var(--svl-sidebar-width);
   height: 100%;
-  background: linear-gradient(180deg, var(--svl-bg-primary) 0%, var(--svl-bg-secondary) 100%);
+  background: var(--svl-bg-primary);
   border-right: 1px solid var(--svl-border);
   display: flex;
   flex-direction: column;
@@ -1168,22 +1226,6 @@ textarea,
   flex-shrink: 0;
   overflow: visible;
   position: relative;
-}
-
-.svl-sidebar::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: url('/images/stardew-banner2.jpg');
-  background-size: cover;
-  background-position: center top;
-  opacity: 0.06;
-  pointer-events: none;
-  mask-image: linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0) 100%);
-  -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0) 100%);
 }
 
 .svl-sidebar::after {
@@ -1333,6 +1375,33 @@ textarea,
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
+  cursor: pointer;
+  animation: svl-chicken-breathe 3s ease-in-out infinite, svl-chicken-blink 5s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+.svl-chicken:hover {
+  animation: svl-chicken-breathe 3s ease-in-out infinite, svl-chicken-wiggle 0.5s ease-in-out;
+}
+
+@keyframes svl-chicken-breathe {
+  0%, 100% { filter: brightness(1); transform: translateY(0); }
+  50% { filter: brightness(1.08); transform: translateY(-1px); }
+}
+
+@keyframes svl-chicken-blink {
+  0%, 90%, 96%, 100% { transform: translateY(0) scaleY(1); }
+  93% { transform: translateY(0) scaleY(0.15); }
+}
+
+@keyframes svl-chicken-wiggle {
+  0% { transform: rotate(0deg); }
+  15% { transform: rotate(-10deg); }
+  30% { transform: rotate(10deg); }
+  45% { transform: rotate(-6deg); }
+  60% { transform: rotate(6deg); }
+  75% { transform: rotate(-2deg); }
+  100% { transform: rotate(0deg); }
 }
 
 .svl-main {
@@ -1374,7 +1443,8 @@ textarea,
 
 .svl-search-wrapper input {
   width: 100%;
-  padding: 8px 12px 8px 36px;
+  height: 36px;
+  padding: 0 12px 0 36px;
   background-color: var(--svl-bg-secondary);
   border: 1px solid var(--svl-border);
   border-radius: var(--svl-radius-sm);
@@ -1382,6 +1452,7 @@ textarea,
   font-size: 13px;
   outline: none;
   transition: border-color 0.2s;
+  box-sizing: border-box;
 }
 
 .svl-search-wrapper input::placeholder {
@@ -1418,7 +1489,7 @@ textarea,
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
   white-space: nowrap;
 }
 
@@ -1436,12 +1507,12 @@ textarea,
 }
 
 .svl-dep-resolver-btn {
-  background-color: #722ed1;
-  border-color: #722ed1;
+  background-color: #b8792a;
+  border-color: #b8792a;
 }
 
 .svl-dep-resolver-btn:hover:not(:disabled) {
-  background-color: #531dab;
+  background-color: #9a6522;
 }
 
 .svl-batch-update-btn {
@@ -1485,7 +1556,7 @@ textarea,
   cursor: pointer;
   padding: 4px 8px;
   border-radius: 4px;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 
 .svl-close-update-panel-btn:hover {
@@ -1514,7 +1585,7 @@ textarea,
   cursor: pointer;
   padding: 3px 10px;
   border-radius: 4px;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 
 .svl-select-all-btn:hover,
@@ -1552,7 +1623,7 @@ textarea,
   background: var(--svl-surface-hover);
   margin-bottom: 6px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
   border: 1px solid transparent;
 }
 
@@ -1602,7 +1673,7 @@ textarea,
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -1627,7 +1698,8 @@ textarea,
 }
 
 .svl-filter-btn {
-  padding: 6px 14px;
+  height: 36px;
+  padding: 0 14px;
   border-radius: var(--svl-radius-sm);
   border: 1px solid var(--svl-border);
   background-color: var(--svl-bg-secondary);
@@ -1635,7 +1707,10 @@ textarea,
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
 }
 
 .svl-filter-btn:hover {
@@ -1650,7 +1725,8 @@ textarea,
 }
 
 .svl-sort select {
-  padding: 6px 28px 6px 10px;
+  height: 36px;
+  padding: 0 28px 0 10px;
   background-color: var(--svl-bg-secondary);
   border: 1px solid var(--svl-border);
   border-radius: var(--svl-radius-sm);
@@ -1672,7 +1748,7 @@ textarea,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 30px;
+  height: 36px;
   border: 1px solid var(--svl-border);
   border-radius: var(--svl-radius-sm);
   background-color: var(--svl-bg-secondary);
@@ -1680,7 +1756,7 @@ textarea,
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
   margin-left: 4px;
   padding: 0 10px;
   line-height: 1;
@@ -1724,7 +1800,7 @@ textarea,
   background-color: var(--svl-bg-secondary);
   color: var(--svl-text-muted);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
   font-size: 14px;
   display: flex;
   align-items: center;
@@ -1762,34 +1838,17 @@ textarea,
   align-items: center;
   gap: 14px;
   padding: 12px 16px;
-  background: linear-gradient(135deg, var(--svl-bg-card) 0%, var(--svl-bg-card) 100%);
+  background: var(--svl-bg-card);
   border: 1px solid var(--svl-border);
   border-radius: var(--svl-radius);
-  transition: var(--svl-transition);
+  transition: background-color 0.12s ease, border-color 0.12s ease;
   position: relative;
   overflow: hidden;
 }
 
-.svl-mod-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, var(--svl-accent-bg-subtle) 0%, transparent 50%);
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
 .svl-mod-card:hover {
-  background: linear-gradient(135deg, var(--svl-bg-card-hover) 0%, var(--svl-bg-card-hover) 100%);
+  background: var(--svl-bg-card-hover);
   border-color: var(--svl-border-light);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.svl-mod-card:hover::before {
-  opacity: 1;
 }
 
 .svl-mod-icon {
@@ -1805,11 +1864,6 @@ textarea,
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   background: transparent;
-  transition: var(--svl-transition);
-}
-
-.svl-mod-card:hover .svl-mod-icon {
-  transform: scale(1.05);
 }
 
 .svl-mod-icon img {
@@ -1820,7 +1874,6 @@ textarea,
   font-weight: 600;
   font-size: 14px;
   color: var(--svl-text-primary);
-  margin-bottom: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1842,13 +1895,16 @@ textarea,
 .svl-mod-info {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 2px;
 }
 
 .svl-mod-name {
   font-weight: 600;
   font-size: 14px;
   color: var(--svl-text-primary);
-  margin-bottom: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1873,7 +1929,7 @@ textarea,
 
 .svl-mod-author {
   font-size: 12px;
-  color: var(--svl-text-muted);
+  color: rgba(138, 125, 107, 0.6);
   white-space: nowrap;
 }
 
@@ -1891,7 +1947,7 @@ textarea,
   font-size: 16px;
   padding: 6px;
   border-radius: 8px;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2107,7 +2163,7 @@ textarea,
   align-items: center;
   justify-content: space-between;
   border-top: 1px solid var(--svl-border);
-  background-color: var(--svl-bg-secondary);
+  background-color: var(--svl-bg-footer);
   font-size: 12px;
   flex-shrink: 0;
 }
@@ -2169,7 +2225,7 @@ textarea,
   color: var(--svl-text-secondary);
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-log-btn:hover {
@@ -2270,7 +2326,7 @@ textarea,
   color: var(--svl-text-secondary);
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-change-btn:hover {
@@ -2286,7 +2342,7 @@ textarea,
   color: var(--svl-text-secondary);
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
   display: flex;
   align-items: center;
 }
@@ -2309,20 +2365,21 @@ textarea,
 }
 
 .svl-launch-btn {
-  padding: 8px 20px;
+  padding: 8px 28px;
   border-radius: var(--svl-radius-sm);
   border: none;
-  background: linear-gradient(135deg, var(--svl-primary) 0%, var(--svl-primary-hover) 100%);
+  background: linear-gradient(135deg, #c49a3b 0%, #d4aa4b 50%, #c49a3b 100%);
   color: white;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
   transition: var(--svl-transition);
-  box-shadow: 0 2px 8px var(--svl-accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 8px rgba(196, 154, 59, 0.35), 0 0 16px rgba(196, 154, 59, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   font-family: 'Outfit', sans-serif;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
   position: relative;
   overflow: hidden;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .svl-launch-btn::before {
@@ -2341,8 +2398,9 @@ textarea,
 }
 
 .svl-launch-btn:hover {
-  box-shadow: 0 4px 12px var(--svl-accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 16px rgba(196, 154, 59, 0.5), 0 0 24px rgba(196, 154, 59, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   transform: translateY(-1px);
+  background: linear-gradient(135deg, #d4aa4b 0%, #e0b855 50%, #d4aa4b 100%);
 }
 
 .svl-launch-btn:disabled {
@@ -2364,7 +2422,7 @@ textarea,
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 
 .svl-install-smapi-btn:hover {
@@ -2386,7 +2444,7 @@ textarea,
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
   box-shadow: 0 2px 8px var(--svl-primary-glow);
 }
 
@@ -2489,7 +2547,7 @@ textarea,
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
   margin-top: 16px;
 }
 
@@ -2533,7 +2591,7 @@ textarea,
   border-radius: var(--svl-radius) !important;
   background-color: var(--svl-bg-card) !important;
   border-color: var(--svl-border) !important;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 
 .svl-dropzone:hover {
@@ -2544,7 +2602,7 @@ textarea,
   background-color: var(--svl-bg-card) !important;
   border-color: var(--svl-border) !important;
   border-radius: var(--svl-radius) !important;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 
 .svl-dropzone .ant-upload-drag:hover {
@@ -2607,7 +2665,7 @@ textarea,
   color: var(--svl-text-muted);
   font-size: 16px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2639,7 +2697,7 @@ textarea,
   color: var(--svl-text-primary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-profile-btn:hover {
@@ -2688,7 +2746,7 @@ textarea,
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
   border-left: 3px solid transparent;
 }
 
@@ -2804,7 +2862,7 @@ textarea,
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-profile-btn-primary:hover {
@@ -2820,7 +2878,7 @@ textarea,
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-profile-btn-secondary:hover {
@@ -2871,7 +2929,7 @@ textarea,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-profile-list-item:hover {
@@ -2907,7 +2965,7 @@ textarea,
   color: var(--svl-text-secondary);
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-profile-list-btn:hover {
@@ -2947,7 +3005,7 @@ textarea,
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
   box-shadow: 0 2px 8px var(--svl-nexus-glow);
 }
 
@@ -3080,7 +3138,7 @@ textarea,
   color: var(--svl-primary-light);
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
   margin-top: 8px;
 }
 
@@ -3121,7 +3179,7 @@ textarea,
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-log-parser-btn:hover {
@@ -3205,7 +3263,7 @@ textarea,
   color: var(--svl-primary-light);
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-log-parser-solution-btn:hover {
@@ -3232,7 +3290,7 @@ textarea,
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-sync-tab:hover {
@@ -3314,7 +3372,7 @@ textarea,
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
   box-shadow: 0 2px 8px var(--svl-nexus-glow);
 }
 
@@ -3406,7 +3464,7 @@ textarea,
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
   box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
   margin-top: 16px;
 }
@@ -3477,7 +3535,7 @@ textarea,
   border-radius: var(--svl-radius-sm);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-profile-form-actions button:first-child {
@@ -3559,7 +3617,7 @@ textarea,
   border-radius: var(--svl-radius-sm);
   font-size: 16px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-profile-action-btn:hover {
@@ -3590,7 +3648,7 @@ textarea,
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 
 .svl-tool-btn:hover {
@@ -3634,7 +3692,7 @@ textarea,
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 
 .svl-health-scan-btn:hover:not(:disabled) {
@@ -3794,7 +3852,7 @@ textarea,
   border-radius: var(--svl-radius-sm);
   font-size: 12px;
   text-decoration: none;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-health-update-link:hover {
@@ -3892,7 +3950,7 @@ textarea,
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 
 .svl-log-parser-analyze-btn:hover:not(:disabled) {
@@ -3913,7 +3971,7 @@ textarea,
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-log-parser-open-btn:hover {
@@ -4065,7 +4123,7 @@ textarea,
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-log-solution-btn:hover {
@@ -4383,7 +4441,7 @@ textarea,
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 
 .svl-empty-state--drop-active .svl-smapi-drop-zone {
@@ -4413,7 +4471,7 @@ textarea,
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 
 .svl-select-smapi-file-btn:hover {
@@ -4459,7 +4517,7 @@ textarea,
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-sync-tab:hover {
@@ -4601,7 +4659,7 @@ textarea,
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
   align-self: flex-start;
 }
 
@@ -4781,7 +4839,7 @@ textarea,
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
   align-self: flex-start;
 }
 
@@ -4870,7 +4928,7 @@ textarea,
 /* Custom Titlebar Styles */
 .svl-custom-titlebar {
   height: 48px;
-  background: linear-gradient(135deg, var(--svl-bg-primary) 0%, var(--svl-bg-secondary) 100%);
+  background: var(--svl-bg-primary);
   border-bottom: 1px solid var(--svl-border);
   display: flex;
   align-items: center;
@@ -4881,20 +4939,6 @@ textarea,
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
-}
-
-.svl-custom-titlebar::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: url('/images/stardew-screenshot1.jpg');
-  background-size: cover;
-  background-position: center;
-  opacity: 0.05;
-  pointer-events: none;
 }
 
 .svl-titlebar-logo {
@@ -4921,7 +4965,7 @@ textarea,
   width: 46px;
   height: 48px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4994,7 +5038,7 @@ textarea,
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
   box-shadow: 0 2px 8px var(--svl-primary-glow);
 }
 
@@ -5020,7 +5064,7 @@ textarea,
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
   box-shadow: 0 2px 8px var(--svl-primary-glow);
 }
 
@@ -5099,7 +5143,7 @@ textarea,
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 
 .svl-open-game-path-btn:hover {
@@ -5134,7 +5178,7 @@ textarea,
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-tool-btn:hover {
@@ -5145,6 +5189,204 @@ textarea,
 
 .svl-tool-icon {
   font-size: 16px;
+}
+
+.svl-toolbox-home {
+  padding: 28px 32px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.svl-toolbox-header {
+  margin-bottom: 28px;
+}
+
+.svl-toolbox-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  letter-spacing: -0.3px;
+}
+
+.svl-toolbox-subtitle {
+  font-size: 13px;
+  color: var(--svl-text-secondary);
+  margin: 0;
+}
+
+.svl-toolbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.svl-toolbox-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 16px;
+  border-radius: 10px;
+  background: var(--svl-bg-card);
+  border: 1px solid var(--svl-border);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  overflow: hidden;
+}
+
+.svl-toolbox-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--tool-color);
+  border-radius: 3px 0 0 3px;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.svl-toolbox-card:hover {
+  border-color: var(--svl-border-light);
+  background: var(--svl-bg-card-hover);
+}
+
+.svl-toolbox-card:hover::before {
+  opacity: 1;
+}
+
+.svl-toolbox-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--tool-color) 12%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 20px;
+  color: var(--tool-color);
+  transition: background-color 0.15s ease;
+}
+
+.svl-toolbox-card:hover .svl-toolbox-card-icon {
+  background: color-mix(in srgb, var(--tool-color) 18%, transparent);
+}
+
+.svl-toolbox-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.svl-toolbox-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--svl-text-primary);
+  line-height: 1.4;
+}
+
+.svl-toolbox-card-desc {
+  font-size: 12px;
+  color: var(--svl-text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .svl-toolbox-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.svl-theme-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.svl-theme-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--svl-border);
+  background: var(--svl-bg-card);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.svl-theme-card:hover {
+  border-color: var(--svl-primary);
+  background: var(--svl-bg-card-hover);
+}
+
+.svl-theme-card--active {
+  border-color: var(--svl-primary);
+  background: var(--svl-bg-card-hover);
+}
+
+.svl-theme-card-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.svl-theme-card-label {
+  font-size: 13px;
+  color: var(--svl-text-primary);
+  white-space: nowrap;
+}
+
+.svl-theme-custom-panel {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid var(--svl-border);
+  background: var(--svl-bg-card);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.svl-theme-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.svl-theme-color-label {
+  font-size: 12px;
+  color: var(--svl-text-secondary);
+  flex: 1;
+  min-width: 0;
+}
+
+.svl-theme-color-picker {
+  width: 32px;
+  height: 24px;
+  border: 1px solid var(--svl-border);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  background: transparent;
+}
+
+.svl-theme-color-picker::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.svl-theme-color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
 }
 
 .svl-main {
@@ -5454,75 +5696,101 @@ textarea,
 }
 
 .svl-tag-danger {
-  background: var(--svl-error-bg) !important;
-  border-color: var(--svl-error-border) !important;
-  color: var(--svl-error) !important;
+  background: var(--svl-error-bg);
+  border-color: var(--svl-error-border);
+  color: var(--svl-error);
 }
 
 .svl-tag-success {
-  background: var(--svl-success-bg) !important;
-  border-color: var(--svl-success-border) !important;
-  color: var(--svl-success) !important;
+  background: var(--svl-success-bg);
+  border-color: var(--svl-success-border);
+  color: var(--svl-success);
 }
 
 .svl-tag-accent {
-  background: var(--svl-nexus-bg) !important;
-  border-color: var(--svl-nexus-border) !important;
-  color: var(--svl-nexus-text) !important;
+  background: var(--svl-nexus-bg);
+  border-color: var(--svl-nexus-border);
+  color: var(--svl-nexus-text);
 }
 
 .svl-tag-default {
-  background: var(--svl-surface-faint) !important;
-  border-color: var(--svl-border-light) !important;
-  color: var(--svl-text-secondary) !important;
+  background: var(--svl-surface-faint);
+  border-color: var(--svl-border-light);
+  color: var(--svl-text-secondary);
+}
+
+.svl-tag-info,
+.svl-tag-danger,
+.svl-tag-success,
+.svl-tag-accent,
+.svl-tag-default,
+.svl-cat-visual,
+.svl-cat-gameplay,
+.svl-cat-expansion,
+.svl-cat-framework,
+.svl-cat-ui,
+.svl-cat-seasonal,
+.svl-cat-multiplayer,
+.svl-cat-other,
+.svl-status-badge,
+.svl-update-badge,
+.svl-custom-tag,
+.svl-add-tag-btn {
+  display: inline-block;
+  padding: 0 7px;
+  font-size: 12px;
+  line-height: 20px;
+  border-radius: 4px;
+  border: 1px solid;
+  white-space: nowrap;
 }
 
 .svl-cat-visual {
-  background: var(--svl-info-bg) !important;
-  border-color: var(--svl-info-border) !important;
-  color: var(--svl-info) !important;
+  background: var(--svl-info-bg);
+  border-color: var(--svl-info-border);
+  color: var(--svl-info);
 }
 
 .svl-cat-gameplay {
-  background: var(--svl-success-bg) !important;
-  border-color: var(--svl-success-border) !important;
-  color: var(--svl-success) !important;
+  background: var(--svl-success-bg);
+  border-color: var(--svl-success-border);
+  color: var(--svl-success);
 }
 
 .svl-cat-expansion {
-  background: var(--svl-nexus-bg) !important;
-  border-color: var(--svl-nexus-border) !important;
-  color: var(--svl-nexus-text) !important;
+  background: var(--svl-nexus-bg);
+  border-color: var(--svl-nexus-border);
+  color: var(--svl-nexus-text);
 }
 
 .svl-cat-framework {
-  background: var(--svl-warning-bg) !important;
-  border-color: var(--svl-warning-border) !important;
-  color: var(--svl-warning) !important;
+  background: var(--svl-warning-bg);
+  border-color: var(--svl-warning-border);
+  color: var(--svl-warning);
 }
 
 .svl-cat-ui {
-  background: var(--svl-info-bg) !important;
-  border-color: var(--svl-info-border) !important;
-  color: var(--svl-info) !important;
+  background: var(--svl-info-bg);
+  border-color: var(--svl-info-border);
+  color: var(--svl-info);
 }
 
 .svl-cat-seasonal {
-  background: var(--svl-accent-bg) !important;
-  border-color: var(--svl-accent-border) !important;
-  color: var(--svl-accent) !important;
+  background: var(--svl-accent-bg);
+  border-color: var(--svl-accent-border);
+  color: var(--svl-accent);
 }
 
 .svl-cat-multiplayer {
-  background: var(--svl-error-bg) !important;
-  border-color: var(--svl-error-border) !important;
-  color: var(--svl-error) !important;
+  background: var(--svl-error-bg);
+  border-color: var(--svl-error-border);
+  color: var(--svl-error);
 }
 
 .svl-cat-other {
-  background: var(--svl-surface-faint) !important;
-  border-color: var(--svl-border-light) !important;
-  color: var(--svl-text-secondary) !important;
+  background: var(--svl-surface-faint);
+  border-color: var(--svl-border-light);
+  color: var(--svl-text-secondary);
 }
 
 .svl-empty {
@@ -5661,7 +5929,7 @@ textarea,
   color: var(--svl-text-secondary);
   font-size: 16px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6006,7 +6274,7 @@ textarea,
 .svl-nexus-btn {
   border-radius: 8px !important;
   font-weight: 500 !important;
-  height: 40px !important;
+  height: 36px !important;
   padding: 0 20px !important;
 }
 
@@ -6186,7 +6454,7 @@ textarea,
   border-radius: var(--svl-radius-md);
   background: var(--svl-bg-secondary);
   border: 1px solid var(--svl-border);
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
 
 .svl-dep-item:hover {
@@ -6451,7 +6719,7 @@ textarea,
   border-radius: 8px;
   color: #fff;
   font-weight: 500;
-  height: 40px;
+  height: 36px;
   padding: 0 24px;
 }
 
@@ -6524,7 +6792,7 @@ textarea,
   border-radius: 8px;
   color: #fff;
   font-weight: 500;
-  height: 44px;
+  height: 36px;
   padding: 0 28px;
 }
 
@@ -6601,7 +6869,7 @@ textarea,
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-batch-btn:hover {
@@ -6715,7 +6983,7 @@ textarea,
   background-color: var(--svl-bg-card);
   border: 1px solid var(--svl-border);
   border-radius: var(--svl-radius);
-  transition: all 0.15s ease;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-dep-item.installed { border-color: var(--svl-success); background-color: var(--svl-success-bg); }
@@ -6957,7 +7225,7 @@ textarea,
   color: var(--svl-text-secondary);
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-batch-btn:hover {
@@ -6980,7 +7248,8 @@ textarea,
 
 .svl-category-select,
 .svl-status-select {
-  padding: 6px 28px 6px 10px;
+  height: 36px;
+  padding: 0 28px 0 10px;
   background-color: var(--svl-bg-secondary);
   border: 1px solid var(--svl-border);
   border-radius: var(--svl-radius-sm);
@@ -7026,7 +7295,6 @@ textarea,
 }
 
 .svl-mod-category {
-  margin-top: 4px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -7034,32 +7302,34 @@ textarea,
 }
 
 .svl-custom-tag {
-  font-size: 11px !important;
-  padding: 0 6px !important;
-  height: 20px !important;
-  line-height: 18px !important;
-  border-radius: 4px !important;
+  font-size: 11px;
+  padding: 0 6px;
+  line-height: 18px;
 }
 
-.svl-custom-tag .ant-tag-close-icon {
+.svl-tag-close {
   margin-left: 2px;
   font-size: 10px;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.svl-tag-close:hover {
+  opacity: 1;
 }
 
 .svl-add-tag-btn {
   cursor: pointer;
-  font-size: 12px !important;
-  padding: 0 6px !important;
-  height: 20px !important;
-  line-height: 18px !important;
-  border-style: dashed !important;
-  background: transparent !important;
-  transition: all 0.2s;
+  font-size: 12px;
+  padding: 0 6px;
+  line-height: 18px;
+  border-style: dashed;
+  background: transparent;
 }
 
 .svl-add-tag-btn:hover {
-  color: var(--svl-primary) !important;
-  border-color: var(--svl-primary) !important;
+  color: var(--svl-primary);
+  border-color: var(--svl-primary);
 }
 
 .svl-tag-input {
@@ -7127,10 +7397,10 @@ textarea,
 }
 
 .svl-update-badge {
-  font-size: 10px !important;
-  padding: 0 6px !important;
-  height: 18px !important;
-  line-height: 16px !important;
+  font-size: 10px;
+  padding: 0 6px;
+  height: 18px;
+  line-height: 16px;
 }
 
 .svl-game-duration {
@@ -7155,7 +7425,7 @@ textarea,
   align-items: center;
   gap: 8px;
   opacity: 0.4;
-  transition: all 0.3s;
+  transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
 
 .svl-onboarding-step.active {
@@ -7352,7 +7622,7 @@ textarea,
   color: var(--svl-text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.1s ease, border-color 0.1s ease, opacity 0.1s ease;
 }
 
 .svl-tool-btn:hover {

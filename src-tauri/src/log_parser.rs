@@ -399,7 +399,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
 });
 
 static ERROR_INDICATORS: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(\[FATAL|missing\s+dependen|failed\s+to\s+load|doesn't\s+exist|incompatible|no\s+longer\s+compatible|couldn't\s+be\s+loaded|could\s+not\s+be\s+loaded|these\s+mods\s+could\s+not\s+be\s+added|无法|缺少|不兼容|rewriting\s+.+?\.dll\s+failed|重写.+?\.dll\s+failed|failed\s+to\s+resolve\s+assembly|because\s+its\s+DLL|skipped\s+mods|dll\s+couldn't|patches\s+which\s+aren't\s+expected|may\s+not\s+notify)").expect("Invalid regex: error_indicators")
+    Regex::new(r"(?i)(\[FATAL|missing\s+dependen|failed\s+to\s+load|doesn't\s+exist|incompatible|no\s+longer\s+compatible|couldn't\s+be\s+loaded|could\s+not\s+be\s+loaded|these\s+mods\s+could\s+not\s+be\s+added|无法|缺少|不兼容|rewriting\s+.+?\.dll\s+failed|重写.+?\.dll\s+failed|failed\s+to\s+resolve\s+assembly|because\s+its\s+DLL|skipped\s+mods|dll\s+couldn't|patches\s+which\s+aren't\s+expected|because\s+(it\s+)?(needs|requires)|manifest.*?(failed|无法|错误|invalid)|json.*?(parse\s*error|格式错误|invalid|解析失败)|file.*?(not\s+found|不存在|找不到)|content\s+patcher.*?error|\[ERROR\].*?mod|\.dll\s+failed|no\s+longer\s+compatible|version.*?mismatch|系统异常|System\.Exception)").expect("Invalid regex: error_indicators")
 });
 
 static WARN_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -716,7 +716,9 @@ fn scan_mods_basic(mods_path: &PathBuf) -> Vec<ModInfoBasic> {
             Ok(c) => c,
             Err(_) => continue,
         };
-        let cleaned = crate::mod_parser::remove_trailing_commas(&content);
+        let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+        let no_comments = crate::mod_parser::strip_json_comments(&normalized);
+        let cleaned = crate::mod_parser::remove_trailing_commas(&no_comments);
         let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
         let manifest: SimpleManifest = match serde_json::from_str(cleaned) {
             Ok(m) => m,
@@ -776,7 +778,9 @@ pub fn check_smapi_log() -> Result<CheckSmapiLogResult, String> {
             Ok(c) => c,
             Err(_) => continue,
         };
-        let cleaned = crate::mod_parser::remove_trailing_commas(&content);
+        let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+        let no_comments = crate::mod_parser::strip_json_comments(&normalized);
+        let cleaned = crate::mod_parser::remove_trailing_commas(&no_comments);
         let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
         let manifest: SimpleManifest = match serde_json::from_str(cleaned) {
             Ok(m) => m,
@@ -910,7 +914,37 @@ fn resolve_dep_name(unique_id: &str, installed_mods: &[ModInfoBasic]) -> String 
             return meta.name;
         }
     }
-    unique_id.to_string()
+    let resolved = crate::mod_name_resolver::resolve_mod_name(unique_id);
+    if resolved != unique_id {
+        return resolved;
+    }
+    if let Some(pos) = unique_id.find('.') {
+        let suffix = &unique_id[pos + 1..];
+        if !suffix.is_empty() {
+            let suffix_resolved = crate::mod_name_resolver::resolve_mod_name(suffix);
+            if suffix_resolved != suffix {
+                return suffix_resolved;
+            }
+            return add_spaces_to_camel_case(suffix);
+        }
+    }
+    add_spaces_to_camel_case(unique_id)
+}
+
+fn add_spaces_to_camel_case(s: &str) -> String {
+    let mut result = String::with_capacity(s.len() + 8);
+    let chars: Vec<char> = s.chars().collect();
+    for (i, c) in chars.iter().enumerate() {
+        if i > 0 && c.is_uppercase() {
+            let prev = chars[i - 1];
+            let next_is_lower = chars.get(i + 1).map_or(true, |n| n.is_lowercase());
+            if prev.is_lowercase() || (prev.is_uppercase() && next_is_lower) {
+                result.push(' ');
+            }
+        }
+        result.push(*c);
+    }
+    result
 }
 
 #[tauri::command]
@@ -993,6 +1027,13 @@ pub fn parse_smapi_log(log_path: Option<String>) -> Result<ParseSmapiLogResult, 
         }
     }
 
+    all_errors.retain(|e| {
+        let combined = format!("{}|{}|{}", e.raw_line, e.error_type, e.solution);
+        !combined.to_lowercase().contains("no update keys")
+            && !combined.contains("这些mod没有更新键")
+            && !combined.contains("这些 MOD 没有更新键")
+    });
+
     let has_errors = !all_errors.is_empty();
 
     Ok(ParseSmapiLogResult {
@@ -1051,7 +1092,9 @@ fn run_mod_health_check(mods_path: &PathBuf) -> (Vec<ParsedLogError>, usize) {
             Ok(c) => c,
             Err(_) => continue,
         };
-        let cleaned = crate::mod_parser::remove_trailing_commas(&content);
+        let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+        let no_comments = crate::mod_parser::strip_json_comments(&normalized);
+        let cleaned = crate::mod_parser::remove_trailing_commas(&no_comments);
         let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
         let manifest: SimpleManifest = match serde_json::from_str(cleaned) {
             Ok(m) => m,
@@ -1263,7 +1306,19 @@ fn parse_errors_v2(content: &str) -> Vec<LogError> {
 
     for line in content.lines() {
         let trimmed = line.trim();
-        if trimmed.is_empty() || !ERROR_INDICATORS.is_match(trimmed) {
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if trimmed.contains("DEBUG SMAPI") {
+            continue;
+        }
+
+        if trimmed.contains("[ERROR game]") || trimmed.contains("[error game]") {
+            continue;
+        }
+
+        if !ERROR_INDICATORS.is_match(trimmed) {
             continue;
         }
 
@@ -1691,7 +1746,8 @@ pub async fn fix_all_log_errors(
             "status": "processing"
         }));
 
-        let result = fix_single_error(&app, err, mods_path.to_str().unwrap(), &api_key).await;
+        let mods_path_str = mods_path.to_string_lossy().into_owned();
+        let result = fix_single_error(&app, err, &mods_path_str, &api_key).await;
         
         match result {
             Ok((action, message)) => {
@@ -1754,7 +1810,8 @@ pub async fn fix_single_log_error(
         fs::create_dir_all(&mods_path).map_err(|e| format!("创建 Mods 文件夹失败: {}", e))?;
     }
 
-    match fix_single_error(&app, &error, mods_path.to_str().unwrap(), &api_key).await {
+    let mods_path_str = mods_path.to_string_lossy().into_owned();
+    match fix_single_error(&app, &error, &mods_path_str, &api_key).await {
         Ok((action, message)) => Ok(FixDetail {
             mod_name: error.mod_name.clone(),
             error_type: error.error_type.clone(),
@@ -1958,6 +2015,19 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_errors_v2_skips_debug_no_update_keys() {
+        let content = r#"[16:40:42 DEBUG SMAPI]    No update keys
+[16:40:42 DEBUG SMAPI]    --------------------------------------------------
+[16:40:42 DEBUG SMAPI]       These mods have no update keys in their manifest. SMAPI may not notify you about updates for these
+[16:40:42 DEBUG SMAPI]       mods. Consider notifying the mod authors about this problem.
+[16:40:42 DEBUG SMAPI]       - Blackjack
+[16:40:42 DEBUG SMAPI]       - NoThunderSound
+"#;
+        let errors = parse_errors_v2(content);
+        assert!(errors.is_empty(), "DEBUG SMAPI 'no update keys' logs should not be treated as errors, got: {:?}", errors);
+    }
+
+    #[test]
     fn test_skipped_mods_rule_extracts_clean_name() {
         let line = "- UI Info Suite 2 2.0.0 because its DLL couldn't be loaded.";
         let rule = RULES.iter().find(|r| {
@@ -1973,5 +2043,156 @@ mod tests {
                 assert_eq!(mod_name, "UI Info Suite 2", "Should extract clean mod name");
             }
         }
+    }
+
+    #[test]
+    fn test_add_spaces_to_camel_case_basic() {
+        assert_eq!(add_spaces_to_camel_case("QuestFramework"), "Quest Framework");
+        assert_eq!(add_spaces_to_camel_case("SpaceCore"), "Space Core");
+        assert_eq!(add_spaces_to_camel_case("ContentPatcher"), "Content Patcher");
+    }
+
+    #[test]
+    fn test_add_spaces_to_camel_case_consecutive_uppercase() {
+        assert_eq!(add_spaces_to_camel_case("NPCAdventures"), "NPC Adventures");
+        assert_eq!(add_spaces_to_camel_case("SVECode"), "SVE Code");
+        assert_eq!(add_spaces_to_camel_case("NPCMapLocations"), "NPC Map Locations");
+    }
+
+    #[test]
+    fn test_add_spaces_to_camel_case_single_word() {
+        assert_eq!(add_spaces_to_camel_case("Climbing"), "Climbing");
+        assert_eq!(add_spaces_to_camel_case("Automate"), "Automate");
+    }
+
+    #[test]
+    fn test_resolve_dep_name_strips_author_prefix() {
+        let installed: Vec<ModInfoBasic> = vec![];
+        assert_eq!(resolve_dep_name("PurplingCat.QuestFramework", &installed), "Quest Framework");
+        assert_eq!(resolve_dep_name("spacechase0.SpaceCore", &installed), "Space Core");
+        assert_eq!(resolve_dep_name("Pathoschild.ContentPatcher", &installed), "Content Patcher");
+    }
+
+    #[test]
+    fn test_resolve_dep_name_consecutive_uppercase() {
+        let installed: Vec<ModInfoBasic> = vec![];
+        assert_eq!(resolve_dep_name("PurplingCat.NPCAdventures", &installed), "NPC Adventures");
+    }
+
+    #[test]
+    fn test_resolve_dep_name_no_prefix() {
+        let installed: Vec<ModInfoBasic> = vec![];
+        assert_eq!(resolve_dep_name("SomeMod", &installed), "Some Mod");
+    }
+
+    #[test]
+    fn test_scan_mods_basic_with_smart_quotes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("TestMod");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+
+        let smart_quote_manifest = format!("{{
+            \u{201C}Name\u{201D}: \u{201C}Test Mod\u{201D},
+            \u{201C}UniqueID\u{201D}: \u{201C}Test.SmartQuotes\u{201D},
+            \u{201C}Version\u{201D}: \u{201C}1.0.0\u{201D}
+        }}");
+        let manifest_path = mod_dir.join("manifest.json");
+        std::fs::write(&manifest_path, &smart_quote_manifest).unwrap();
+
+        let mods = scan_mods_basic(&PathBuf::from(tmp.path()));
+        assert_eq!(mods.len(), 1, "Should parse manifest with smart quotes");
+        assert_eq!(mods[0].unique_id, "Test.SmartQuotes");
+        assert_eq!(mods[0].name, "Test Mod");
+    }
+
+    #[test]
+    fn test_scan_mods_basic_with_bom() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("BomMod");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+
+        let bom = "\u{FEFF}";
+        let manifest_with_bom = format!("{}{{
+            \"Name\": \"BOM Mod\",
+            \"UniqueID\": \"Test.BOMMod\",
+            \"Version\": \"1.0.0\"
+        }}", bom);
+        let manifest_path = mod_dir.join("manifest.json");
+        std::fs::write(&manifest_path, &manifest_with_bom).unwrap();
+
+        let mods = scan_mods_basic(&PathBuf::from(tmp.path()));
+        assert_eq!(mods.len(), 1, "Should parse manifest with BOM prefix");
+        assert_eq!(mods[0].unique_id, "Test.BOMMod");
+    }
+
+    #[test]
+    fn test_parse_errors_v2_filters_game_errors() {
+        let log = r#"[16:40:43 ERROR game] Oops! Steam achievements won't work because Steam isn't loaded.
+[16:40:42 ERROR SMAPI] UI Info Suite 2 2.0.0 because its DLL couldn't be loaded.
+"#;
+        let errors = parse_errors_v2(log);
+        let game_errors: Vec<&LogError> = errors.iter()
+            .filter(|e| e.raw_message.contains("[ERROR game]"))
+            .collect();
+        assert!(game_errors.is_empty(), "Should filter out [ERROR game] lines, but found: {:?}", game_errors);
+    }
+
+    #[test]
+    fn test_parse_errors_v2_detects_missing_dependency_mod_format() {
+        let log = r#"[16:40:42 ERROR SMAPI] - CJB Show Item Code And Category Menu 1.0.0 because it needs the 'CJBCheatsMenu' mod
+"#;
+        let errors = parse_errors_v2(log);
+        assert!(!errors.is_empty(), "Should detect missing dependency");
+        let found = errors.iter().any(|e| e.translated_message.contains("MissingDependency"));
+        assert!(found, "Should classify as MissingDependency, got: {:?}", errors);
+    }
+
+    #[test]
+    fn test_parse_errors_v2_detects_no_longer_compatible() {
+        let log = r#"[16:40:42 ERROR SMAPI] - CJB Item Spawner 2.0.0 because it's no longer compatible
+"#;
+        let errors = parse_errors_v2(log);
+        assert!(!errors.is_empty(), "Should detect no longer compatible");
+        let found = errors.iter().any(|e| e.translated_message.contains("VersionMismatch"));
+        assert!(found, "Should classify as VersionMismatch, got: {:?}", errors);
+    }
+
+    #[test]
+    fn test_parse_errors_v2_detects_skipped_mods_dll_format() {
+        let log = r#"[16:40:42 ERROR SMAPI] - UI Info Suite 2 2.0.0 because its DLL couldn't be loaded.
+"#;
+        let errors = parse_errors_v2(log);
+        assert!(!errors.is_empty(), "Should detect DLL load failure");
+        let found = errors.iter().any(|e| e.translated_message.contains("DllLoadFailed"));
+        assert!(found, "Should classify as DllLoadFailed, got: {:?}", errors);
+    }
+
+    #[test]
+    fn test_parse_errors_v2_skips_debug_lines() {
+        let log = r#"[16:40:42 DEBUG SMAPI]    No update keys
+[16:40:42 DEBUG SMAPI]    - Blackjack
+"#;
+        let errors = parse_errors_v2(log);
+        assert!(errors.is_empty(), "Should skip DEBUG SMAPI lines, got: {:?}", errors);
+    }
+
+    #[test]
+    fn test_parse_errors_v2_detects_assembly_resolve_error() {
+        let log = r#"[16:40:42 ERROR SMAPI] Failed to resolve assembly: 'System.Windows.Extensions, Version=0.0.0.0'
+"#;
+        let errors = parse_errors_v2(log);
+        assert!(!errors.is_empty(), "Should detect assembly resolve error");
+        let found = errors.iter().any(|e| e.translated_message.contains("AssemblyError"));
+        assert!(found, "Should classify as AssemblyError, got: {:?}", errors);
+    }
+
+    #[test]
+    fn test_parse_errors_v2_rewriting_dll_failed_rule() {
+        let log = r#"[16:40:42 ERROR SMAPI] Rewriting UIInfoSuite2.dll failed
+"#;
+        let errors = parse_errors_v2(log);
+        assert!(!errors.is_empty(), "Should detect rewriting dll failed");
+        let found = errors.iter().any(|e| e.translated_message.contains("DllLoadFailed"));
+        assert!(found, "Should classify as DllLoadFailed, got: {:?}", errors);
     }
 }

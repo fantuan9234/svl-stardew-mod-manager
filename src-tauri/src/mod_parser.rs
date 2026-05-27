@@ -59,9 +59,9 @@ pub struct ModManifest {
     pub unique_id: Option<String>,
     #[serde(rename = "Dependencies", default)]
     pub dependencies: Vec<ManifestDependency>,
-    #[serde(rename = "ContentPackFor")]
+    #[serde(rename = "ContentPackFor", default, deserialize_with = "deserialize_content_pack_for")]
     pub content_pack_for: Option<ContentPackFor>,
-    #[serde(rename = "UpdateKeys")]
+    #[serde(rename = "UpdateKeys", default, deserialize_with = "deserialize_update_keys")]
     pub update_keys: Option<Vec<String>>,
 }
 
@@ -105,6 +105,64 @@ where
         serde_json::Value::Null => Ok(None),
         _ => Ok(None),
     }
+}
+
+fn deserialize_update_keys<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let values: Vec<serde_json::Value> = serde::Deserialize::deserialize(deserializer)?;
+    let keys: Vec<String> = values
+        .into_iter()
+        .filter_map(|v| match v {
+            serde_json::Value::String(s) => Some(s),
+            serde_json::Value::Number(n) => Some(format!("Nexus:{}", n)),
+            _ => None,
+        })
+        .collect();
+    if keys.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(keys))
+    }
+}
+
+fn deserialize_content_pack_for<'de, D>(deserializer: D) -> Result<Option<ContentPackFor>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value: serde_json::Value = serde::Deserialize::deserialize(deserializer)?;
+    match value {
+        serde_json::Value::String(s) => Ok(Some(ContentPackFor { unique_id: s })),
+        serde_json::Value::Object(obj) => {
+            let uid = obj.get("UniqueID")
+                .or_else(|| obj.get("UniqueId"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            Ok(Some(ContentPackFor { unique_id: uid }))
+        }
+        serde_json::Value::Null => Ok(None),
+        _ => Ok(None),
+    }
+}
+
+pub fn normalize_smart_quotes(json: &str) -> String {
+    let mut result = String::with_capacity(json.len());
+    for c in json.chars() {
+        match c {
+            '\u{201C}' | '\u{201D}' => result.push('"'),
+            '\u{2018}' | '\u{2019}' => result.push('"'),
+            '\u{FF02}' => result.push('"'),
+            '\u{300C}' | '\u{300D}' => result.push('"'),
+            '\u{FF08}' => result.push('('),
+            '\u{FF09}' => result.push(')'),
+            '\u{FF0C}' => result.push(','),
+            '\u{FF1A}' => result.push(':'),
+            _ => result.push(c),
+        }
+    }
+    result
 }
 
 pub fn remove_trailing_commas(json: &str) -> String {
@@ -255,12 +313,75 @@ pub fn recursive_find_manifests(dir: &PathBuf) -> Vec<PathBuf> {
     manifests
 }
 
+pub fn strip_json_comments(json: &str) -> String {
+    let mut result = String::with_capacity(json.len());
+    let chars: Vec<char> = json.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+    let mut in_string = false;
+    let mut escape_next = false;
+
+    while i < len {
+        let c = chars[i];
+
+        if escape_next {
+            result.push(c);
+            escape_next = false;
+            i += 1;
+            continue;
+        }
+
+        if c == '\\' && in_string {
+            result.push(c);
+            escape_next = true;
+            i += 1;
+            continue;
+        }
+
+        if c == '"' {
+            in_string = !in_string;
+            result.push(c);
+            i += 1;
+            continue;
+        }
+
+        if !in_string && c == '/' {
+            if i + 1 < len && chars[i + 1] == '/' {
+                while i < len && chars[i] != '\n' {
+                    i += 1;
+                }
+                continue;
+            }
+            if i + 1 < len && chars[i + 1] == '*' {
+                i += 2;
+                while i + 1 < len {
+                    if chars[i] == '*' && chars[i + 1] == '/' {
+                        i += 2;
+                        break;
+                    }
+                    i += 1;
+                }
+                if i >= len && !(i >= 2 && chars.get(i - 2) == Some(&'*') && chars.get(i - 1) == Some(&'/')) {
+                    i = len;
+                }
+                continue;
+            }
+        }
+
+        result.push(c);
+        i += 1;
+    }
+
+    result
+}
+
 fn parse_manifest(path: &PathBuf, content: &str, enabled: bool) -> Option<ModInfo> {
     println!("[mod_parser] Parsing manifest: {}", path.display());
 
-    let cleaned = remove_trailing_commas(content);
+    let normalized = normalize_smart_quotes(content);
+    let no_comments = strip_json_comments(&normalized);
+    let cleaned = remove_trailing_commas(&no_comments);
 
-    // Strip UTF-8 BOM if present (EF BB BF)
     let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
 
     let manifest: ModManifest = match serde_json::from_str(cleaned) {
@@ -625,7 +746,10 @@ fn fix_sub_mod_urls(mods_path: &PathBuf, mods: &mut Vec<ModInfo>) {
     for (root_key, indices) in groups.iter() {
         println!("[mod_parser] Group '{}': {} mods", root_key, indices.len());
         
-        let root_path = group_root_path.get(root_key).unwrap();
+        let root_path = match group_root_path.get(root_key) {
+            Some(p) => p,
+            None => continue,
+        };
         let root_manifest_path = root_path.join("manifest.json");
         println!("[mod_parser] Root manifest path: {}", root_manifest_path.display());
         println!("[mod_parser] Root manifest exists: {}", root_manifest_path.exists());
@@ -638,7 +762,9 @@ fn fix_sub_mod_urls(mods_path: &PathBuf, mods: &mut Vec<ModInfo>) {
             println!("[mod_parser] Method 1 - Reading root manifest: {}", root_manifest_path.display());
             if let Ok(content) = std::fs::read_to_string(&root_manifest_path) {
                 println!("[mod_parser] Method 1 - Read {} bytes from manifest", content.len());
-                let cleaned = remove_trailing_commas(&content);
+                let normalized = normalize_smart_quotes(&content);
+                let no_comments = strip_json_comments(&normalized);
+                let cleaned = remove_trailing_commas(&no_comments);
                 let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
                 match serde_json::from_str::<ModManifest>(cleaned) {
                     Ok(root_manifest) => {
@@ -677,7 +803,9 @@ fn fix_sub_mod_urls(mods_path: &PathBuf, mods: &mut Vec<ModInfo>) {
             println!("[mod_parser] Method 2 - Reading root manifest: {}", root_manifest_path.display());
             if let Ok(content) = std::fs::read_to_string(&root_manifest_path) {
                 println!("[mod_parser] Method 2 - Read {} bytes from manifest", content.len());
-                let cleaned = remove_trailing_commas(&content);
+                let normalized = normalize_smart_quotes(&content);
+                let no_comments = strip_json_comments(&normalized);
+                let cleaned = remove_trailing_commas(&no_comments);
                 let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
                 match serde_json::from_str::<ModManifest>(cleaned) {
                     Ok(root_manifest) => {
@@ -792,20 +920,11 @@ fn group_content_packs(mods: Vec<ModInfo>) -> Vec<ModInfo> {
 
     for mod_info in mods {
         if let Some(ref parent_id) = mod_info.content_pack_for {
-            if let Some(parent_folder) = mod_folder_map.get(parent_id) {
-                let sub_path = mod_info.folder_path.replace('\\', "/").trim_end_matches('/').to_string();
-                if sub_path == *parent_folder || sub_path.starts_with(&format!("{}/", parent_folder)) {
-                    parent_map
-                        .entry(parent_id.clone())
-                        .or_insert_with(Vec::new)
-                        .push(mod_info);
-                } else {
-                    println!(
-                        "[mod_parser] Content pack '{}' ({}) is not inside parent folder '{}' and name doesn't start with '[', keeping standalone",
-                        mod_info.name, mod_info.unique_id, parent_folder
-                    );
-                    standalone_mods.push(mod_info);
-                }
+            if mod_folder_map.contains_key(parent_id) {
+                parent_map
+                    .entry(parent_id.clone())
+                    .or_insert_with(Vec::new)
+                    .push(mod_info);
             } else {
                 parent_map
                     .entry(parent_id.clone())
@@ -913,7 +1032,10 @@ fn group_same_folder_mods(mods: Vec<ModInfo>) -> Vec<ModInfo> {
     let mut result = Vec::new();
 
     for key in order {
-        let mut group = folder_groups.remove(&key).unwrap();
+        let mut group = match folder_groups.remove(&key) {
+            Some(g) => g,
+            None => continue,
+        };
 
         if group.len() <= 1 {
             result.push(group.remove(0));
@@ -1286,4 +1408,479 @@ fn base64_encode(data: &[u8]) -> String {
     }
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_manifest_with_numeric_update_keys() {
+        let json = r#"{
+            "Name": "TestMod",
+            "UniqueID": "Test.NumericKeys",
+            "Version": "1.0.0",
+            "Author": "TestAuthor",
+            "Description": "A test mod",
+            "UpdateKeys": [1915, "Nexus:2400"]
+        }"#;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("TestMod");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+        let manifest_path = mod_dir.join("manifest.json");
+        std::fs::write(&manifest_path, json).unwrap();
+
+        let result = parse_manifest(&mod_dir, json, true);
+        assert!(result.is_some(), "Should parse manifest with numeric UpdateKeys");
+        let info = result.unwrap();
+        assert_eq!(info.unique_id, "Test.NumericKeys");
+        assert!(info.nexus_mod_id.is_some(), "Should extract Nexus ID from numeric UpdateKeys");
+    }
+
+    #[test]
+    fn test_parse_manifest_with_mixed_update_keys() {
+        let json = r#"{
+            "Name": "MixedMod",
+            "UniqueID": "Test.MixedKeys",
+            "Version": "1.0.0",
+            "Author": "TestAuthor",
+            "Description": "A test mod",
+            "UpdateKeys": ["Nexus:2400", 1915]
+        }"#;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("MixedMod");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+        let manifest_path = mod_dir.join("manifest.json");
+        std::fs::write(&manifest_path, json).unwrap();
+
+        let result = parse_manifest(&mod_dir, json, true);
+        assert!(result.is_some(), "Should parse manifest with mixed string/numeric UpdateKeys");
+    }
+
+    #[test]
+    fn test_normalize_smart_quotes_converts_curly_quotes() {
+        let input = "\u{201C}hello\u{201D} \u{2018}world\u{2019}";
+        let result = normalize_smart_quotes(input);
+        assert_eq!(result, "\"hello\" \"world\"");
+    }
+
+    #[test]
+    fn test_remove_trailing_commas_before_closing_brace() {
+        let input = r#"{"a": 1, "b": 2,}"#;
+        let result = remove_trailing_commas(input);
+        assert_eq!(result, r#"{"a": 1, "b": 2}"#);
+    }
+
+    #[test]
+    fn test_parse_manifest_content_pack_for_string() {
+        let json = r#"{
+            "Name": "CP Test Pack",
+            "UniqueID": "Test.CPPack",
+            "Version": "1.0.0",
+            "Author": "TestAuthor",
+            "Description": "A content pack",
+            "ContentPackFor": "Pathoschild.ContentPatcher"
+        }"#;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("CPPack");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+
+        let result = parse_manifest(&mod_dir, json, true);
+        assert!(result.is_some(), "Should parse manifest with ContentPackFor as string");
+        let info = result.unwrap();
+        assert_eq!(info.content_pack_for, Some("Pathoschild.ContentPatcher".to_string()));
+    }
+
+    #[test]
+    fn test_parse_manifest_content_pack_for_object() {
+        let json = r#"{
+            "Name": "CP Object Pack",
+            "UniqueID": "Test.CPObjectPack",
+            "Version": "1.0.0",
+            "Author": "TestAuthor",
+            "Description": "A content pack",
+            "ContentPackFor": { "UniqueID": "Pathoschild.ContentPatcher" }
+        }"#;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("CPObjectPack");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+
+        let result = parse_manifest(&mod_dir, json, true);
+        assert!(result.is_some(), "Should parse manifest with ContentPackFor as object");
+        let info = result.unwrap();
+        assert_eq!(info.content_pack_for, Some("Pathoschild.ContentPatcher".to_string()));
+    }
+
+    #[test]
+    fn test_parse_manifest_content_pack_for_object_with_version() {
+        let json = r#"{
+            "Name": "CP Versioned Pack",
+            "UniqueID": "Test.CPVersionedPack",
+            "Version": "1.0.0",
+            "Author": "TestAuthor",
+            "Description": "A content pack",
+            "ContentPackFor": { "UniqueID": "Pathoschild.ContentPatcher", "MinimumVersion": "1.0.0" }
+        }"#;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("CPVersionedPack");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+
+        let result = parse_manifest(&mod_dir, json, true);
+        assert!(result.is_some(), "Should parse manifest with ContentPackFor object with MinimumVersion");
+        let info = result.unwrap();
+        assert_eq!(info.content_pack_for, Some("Pathoschild.ContentPatcher".to_string()));
+    }
+
+    #[test]
+    fn test_parse_manifest_dependencies_with_is_required_false() {
+        let json = r#"{
+            "Name": "DepTest",
+            "UniqueID": "Test.DepTest",
+            "Version": "1.0.0",
+            "Author": "TestAuthor",
+            "Description": "A test mod",
+            "Dependencies": [
+                { "UniqueID": "Test.RequiredDep", "IsRequired": true },
+                { "UniqueID": "Test.OptionalDep", "IsRequired": false }
+            ]
+        }"#;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("DepTest");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+
+        let result = parse_manifest(&mod_dir, json, true);
+        assert!(result.is_some(), "Should parse manifest with dependencies");
+        let info = result.unwrap();
+        assert_eq!(info.dependencies.len(), 2);
+        assert!(info.dependencies[0].is_required);
+        assert!(!info.dependencies[1].is_required);
+    }
+
+    #[test]
+    fn test_parse_manifest_dependencies_default_is_required_true() {
+        let json = r#"{
+            "Name": "DefaultDepTest",
+            "UniqueID": "Test.DefaultDepTest",
+            "Version": "1.0.0",
+            "Author": "TestAuthor",
+            "Description": "A test mod",
+            "Dependencies": [
+                { "UniqueID": "Test.ImplicitRequired" }
+            ]
+        }"#;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("DefaultDepTest");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+
+        let result = parse_manifest(&mod_dir, json, true);
+        assert!(result.is_some(), "Should parse manifest with implicit IsRequired");
+        let info = result.unwrap();
+        assert_eq!(info.dependencies.len(), 1);
+        assert!(info.dependencies[0].is_required, "IsRequired should default to true");
+    }
+
+    #[test]
+    fn test_recursive_find_manifests_skips_underscore_folders() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mods_path = tmp.path().to_path_buf();
+
+        let normal_dir = mods_path.join("NormalMod");
+        std::fs::create_dir_all(&normal_dir).unwrap();
+        std::fs::write(normal_dir.join("manifest.json"), r#"{"Name": "Normal"}"#).unwrap();
+
+        let underscore_dir = mods_path.join("_TempMod");
+        std::fs::create_dir_all(&underscore_dir).unwrap();
+        std::fs::write(underscore_dir.join("manifest.json"), r#"{"Name": "Temp"}"#).unwrap();
+
+        let found = recursive_find_manifests(&mods_path);
+        assert_eq!(found.len(), 1, "Should skip folders starting with _");
+    }
+
+    #[test]
+    fn test_recursive_find_manifests_finds_disabled_mods() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mods_path = tmp.path().to_path_buf();
+
+        let disabled_dir = mods_path.join(".DisabledMod");
+        std::fs::create_dir_all(&disabled_dir).unwrap();
+        std::fs::write(disabled_dir.join("manifest.json"), r#"{"Name": "Disabled"}"#).unwrap();
+
+        let found = recursive_find_manifests(&mods_path);
+        assert_eq!(found.len(), 1, "Should find disabled mods (folders starting with .)");
+    }
+
+    #[test]
+    fn test_parse_manifest_minimal_fields_only() {
+        let json = r#"{
+            "Name": "MinimalMod",
+            "UniqueID": "Test.MinimalMod",
+            "Version": "1.0.0"
+        }"#;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("MinimalMod");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+
+        let result = parse_manifest(&mod_dir, json, true);
+        assert!(result.is_some(), "Should parse minimal manifest with only Name, UniqueID, Version");
+        let info = result.unwrap();
+        assert_eq!(info.name, "MinimalMod");
+        assert_eq!(info.unique_id, "Test.MinimalMod");
+        assert!(info.dependencies.is_empty());
+        assert!(info.content_pack_for.is_none());
+    }
+
+    #[test]
+    fn test_parse_manifest_no_update_keys_no_content_pack() {
+        let json = r#"{
+            "Name": "FullMod",
+            "UniqueID": "Test.FullMod",
+            "Version": "2.1.0",
+            "Author": "SomeAuthor",
+            "Description": "A fully specified mod without UpdateKeys or ContentPackFor",
+            "Dependencies": [
+                { "UniqueID": "Pathoschild.SMAPI" }
+            ]
+        }"#;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("FullMod");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+
+        let result = parse_manifest(&mod_dir, json, true);
+        assert!(result.is_some(), "Should parse manifest without UpdateKeys or ContentPackFor");
+        let info = result.unwrap();
+        assert_eq!(info.name, "FullMod");
+        assert_eq!(info.unique_id, "Test.FullMod");
+        assert_eq!(info.dependencies.len(), 1);
+        assert!(info.content_pack_for.is_none());
+    }
+
+    #[test]
+    fn test_scan_mods_finds_newly_installed_mod() {
+        let tmp = tempfile::tempdir().unwrap();
+        let game_path = tmp.path().to_path_buf();
+        let mods_path = game_path.join("Mods");
+        std::fs::create_dir_all(&mods_path).unwrap();
+
+        let mod_a = mods_path.join("ModA");
+        std::fs::create_dir_all(&mod_a).unwrap();
+        std::fs::write(mod_a.join("manifest.json"), r#"{
+            "Name": "Mod A",
+            "UniqueID": "Test.ModA",
+            "Version": "1.0.0",
+            "Author": "AuthorA"
+        }"#).unwrap();
+
+        let mod_b = mods_path.join("ModB");
+        std::fs::create_dir_all(&mod_b).unwrap();
+        std::fs::write(mod_b.join("manifest.json"), r#"{
+            "Name": "Mod B",
+            "UniqueID": "Test.ModB",
+            "Version": "2.0.0"
+        }"#).unwrap();
+
+        let result = scan_mods(Some(game_path.to_string_lossy().to_string()));
+        assert!(result.is_ok(), "scan_mods should succeed");
+        let mods = result.unwrap();
+        assert_eq!(mods.len(), 2, "Should find both mods, got: {}", mods.len());
+        let names: Vec<&str> = mods.iter().map(|m| m.name.as_str()).collect();
+        assert!(names.contains(&"Mod A"), "Should find Mod A");
+        assert!(names.contains(&"Mod B"), "Should find Mod B");
+    }
+
+    #[test]
+    fn test_scan_mods_realistic_nexus_mod() {
+        let tmp = tempfile::tempdir().unwrap();
+        let game_path = tmp.path().to_path_buf();
+        let mods_path = game_path.join("Mods");
+        std::fs::create_dir_all(&mods_path).unwrap();
+
+        let existing_mod = mods_path.join("CJBCheatsMenu");
+        std::fs::create_dir_all(&existing_mod).unwrap();
+        std::fs::write(existing_mod.join("manifest.json"), r#"{
+            "Name": "CJB Cheats Menu",
+            "Author": "CJB",
+            "Version": "2.2.0",
+            "Description": "CJB Cheats Menu",
+            "UniqueID": "CJBok.CheatsMenu",
+            "EntryDll": "CJBCheatsMenu.dll",
+            "MinimumApiVersion": "4.0.0",
+            "UpdateKeys": ["Nexus:4"]
+        }"#).unwrap();
+
+        let new_mod = mods_path.join("CJBItemSpawner");
+        std::fs::create_dir_all(&new_mod).unwrap();
+        std::fs::write(new_mod.join("manifest.json"), r#"{
+            "Name": "CJB Item Spawner",
+            "Author": "CJB",
+            "Version": "2.3.0",
+            "Description": "CJB Item Spawner",
+            "UniqueID": "CJBok.ItemSpawner",
+            "EntryDll": "CJBItemSpawner.dll",
+            "MinimumApiVersion": "4.0.0",
+            "Dependencies": [
+                { "UniqueID": "CJBok.CheatsMenu", "MinimumVersion": "2.2.0" }
+            ],
+            "UpdateKeys": ["Nexus:2110"]
+        }"#).unwrap();
+
+        let result = scan_mods(Some(game_path.to_string_lossy().to_string()));
+        assert!(result.is_ok(), "scan_mods should succeed");
+        let mods = result.unwrap();
+        assert_eq!(mods.len(), 2, "Should find both mods, got: {} ({:?})", mods.len(), mods.iter().map(|m| &m.name).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn test_scan_mods_content_pack_under_parent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let game_path = tmp.path().to_path_buf();
+        let mods_path = game_path.join("Mods");
+        std::fs::create_dir_all(&mods_path).unwrap();
+
+        let parent = mods_path.join("ContentPatcher");
+        std::fs::create_dir_all(&parent).unwrap();
+        std::fs::write(parent.join("manifest.json"), r#"{
+            "Name": "Content Patcher",
+            "Author": "Pathoschild",
+            "Version": "2.0.0",
+            "Description": "Content Patcher framework",
+            "UniqueID": "Pathoschild.ContentPatcher",
+            "EntryDll": "ContentPatcher.dll",
+            "MinimumApiVersion": "4.0.0",
+            "UpdateKeys": ["Nexus:1915"]
+        }"#).unwrap();
+
+        let cp_pack = mods_path.join("CP_Pack");
+        std::fs::create_dir_all(&cp_pack).unwrap();
+        std::fs::write(cp_pack.join("manifest.json"), r#"{
+            "Name": "My CP Pack",
+            "Author": "TestAuthor",
+            "Version": "1.0.0",
+            "Description": "A content pack",
+            "UniqueID": "Test.MyCPPack",
+            "ContentPackFor": "Pathoschild.ContentPatcher"
+        }"#).unwrap();
+
+        let result = scan_mods(Some(game_path.to_string_lossy().to_string()));
+        assert!(result.is_ok(), "scan_mods should succeed");
+        let mods = result.unwrap();
+        let cp = mods.iter().find(|m| m.unique_id == "Pathoschild.ContentPatcher");
+        assert!(cp.is_some(), "Should find Content Patcher");
+        let cp = cp.unwrap();
+        assert!(cp.is_group, "Content Patcher should be grouped with content pack");
+        assert_eq!(cp.sub_mods.len(), 1, "Should have 1 content pack sub mod");
+    }
+
+    #[test]
+    fn test_strip_json_comments_multiline() {
+        let input = r#"{
+  /* This is a comment
+     spanning multiple lines */
+  "Name": "Test",
+  "Version": "1.0.0"
+}"#;
+        let result = strip_json_comments(input);
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["Name"], "Test");
+    }
+
+    #[test]
+    fn test_strip_json_comments_single_line() {
+        let input = r#"{
+  // This is a single-line comment
+  "Name": "Test",
+  "Version": "1.0.0" // inline comment
+}"#;
+        let result = strip_json_comments(input);
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["Name"], "Test");
+    }
+
+    #[test]
+    fn test_strip_json_comments_preserves_strings() {
+        let input = r#"{
+  "Name": "Test // not a comment",
+  "Description": "Also /* not a comment */ here"
+}"#;
+        let result = strip_json_comments(input);
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["Name"], "Test // not a comment");
+        assert_eq!(parsed["Description"], "Also /* not a comment */ here");
+    }
+
+    #[test]
+    fn test_parse_manifest_with_json_comments() {
+        let json = r#"{
+  /*
+   | This file is automatically generated by ModManifestBuilder
+   | when the project is compiled.
+   | 
+   | Do not change this file directly.
+   */
+  "$schema": "https://smapi.io/schemas/manifest.json",
+  "UniqueID": "furyx639.UnlimitedStorage",
+  "Name": "Unlimited Storage",
+  "Author": "LeFauxMatt",
+  "Version": "1.2.0",
+  "Description": "Makes storages hold unlimited items.",
+  "MinimumApiVersion": "4.1",
+  "MinimumGameVersion": "1.6.14",
+  "EntryDll": "UnlimitedStorage.dll",
+  "Dependencies": [
+    {
+      "UniqueID": "spacechase0.GenericModConfigMenu",
+      "MinimumVersion": "1.14.1",
+      "IsRequired": false
+    }
+  ],
+  "UpdateKeys": [
+    "Nexus:30323",
+    "CurseForge:1169561",
+    "GitHub:LeFauxMatt/UnlimitedStorage"
+  ]
+}"#;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("UnlimitedStorage");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+
+        let result = parse_manifest(&mod_dir, json, true);
+        assert!(result.is_some(), "Should parse manifest with JSON comments");
+        let info = result.unwrap();
+        assert_eq!(info.unique_id, "furyx639.UnlimitedStorage");
+        assert_eq!(info.name, "Unlimited Storage");
+        assert!(info.nexus_mod_id.is_some());
+    }
+
+    #[test]
+    fn test_parse_manifest_with_update_keys_empty_array() {
+        let json = r#"{
+    "Name": "Blackjack",
+    "Author": "SuperMarco",
+    "Version": "1.0.0",
+    "Description": "Replaces Calico Jack with a full-featured Blackjack minigame.",
+    "UniqueID": "SuperMarco.Blackjack",
+    "EntryDll": "Blackjack.dll",
+    "MinimumApiVersion": "4.0.0",
+    "UpdateKeys": []
+}"#;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("Blackjack");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+
+        let result = parse_manifest(&mod_dir, json, true);
+        assert!(result.is_some(), "Should parse manifest with empty UpdateKeys array");
+        let info = result.unwrap();
+        assert_eq!(info.unique_id, "SuperMarco.Blackjack");
+        assert!(info.url.is_some(), "Should still have a URL from BUILTIN_DICT or fallback");
+    }
 }

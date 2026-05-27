@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+﻿use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -6,6 +6,7 @@ use std::sync::OnceLock;
 use tauri::Emitter;
 
 use crate::mod_name_resolver::resolve_mod_name;
+use crate::app_logger::log_info;
 
 pub const NEXUS_API_BASE: &str = "https://api.nexusmods.com/v1";
 pub const STARDEW_GAME_ID: &str = "stardewvalley";
@@ -86,6 +87,7 @@ pub struct NexusFileDownloadInfo {
     pub upload_time: String,
     pub download_url: Option<String>,
     pub is_premium_only: bool,
+    pub category_id: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -384,7 +386,12 @@ pub async fn check_mod_updates(
                         let has_update = {
                             let nexus_ver = mod_info.version.strip_prefix('v').unwrap_or(&mod_info.version);
                             let local_ver = current_version.strip_prefix('v').unwrap_or(&current_version);
-                            crate::update_checker::compare_versions(nexus_ver, local_ver) > 0
+                            let result = crate::update_checker::compare_versions(nexus_ver, local_ver) > 0;
+                            log_info("NexusUpdateCheck", &format!(
+                                "{}: local={} nexus={} has_update={}",
+                                unique_id, local_ver, nexus_ver, result
+                            ));
+                            result
                         };
                         updates.push(ModUpdateInfo {
                             unique_id,
@@ -486,6 +493,7 @@ pub async fn get_nexus_mod_files(
                 upload_time: f["uploaded_time"].as_str().unwrap_or("").to_string(),
                 download_url: None,
                 is_premium_only: f["is_premium"].as_bool().unwrap_or(false),
+                category_id: f["category_id"].as_i64().unwrap_or(1),
             })
             .collect();
 
@@ -573,7 +581,11 @@ fn extract_nexus_id_from_manifest(folder_path: &str) -> Option<String> {
         }
     };
 
-    let manifest: serde_json::Value = match serde_json::from_str(&content) {
+    let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+    let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+    let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+
+    let manifest: serde_json::Value = match serde_json::from_str(cleaned) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("[extract_nexus_id] 解析 manifest.json 失败: {}", e);
@@ -583,14 +595,20 @@ fn extract_nexus_id_from_manifest(folder_path: &str) -> Option<String> {
 
     if let Some(update_keys) = manifest.get("UpdateKeys").and_then(|v| v.as_array()) {
         for key in update_keys {
-            if let Some(key_str) = key.as_str() {
-                if key_str.starts_with("Nexus:") {
-                    let raw_id = key_str.trim_start_matches("Nexus:").trim();
-                    let digits: String = raw_id.chars().filter(|c| c.is_ascii_digit()).collect();
-                    if !digits.is_empty() {
-                        eprintln!("[extract_nexus_id] 从 UpdateKey '{}' 提取到 ID: {}", key_str, digits);
-                        return Some(digits);
-                    }
+            let key_str = if let Some(s) = key.as_str() {
+                s.to_string()
+            } else if let Some(n) = key.as_i64() {
+                return Some(n.to_string());
+            } else {
+                continue;
+            };
+
+            if key_str.starts_with("Nexus:") {
+                let raw_id = key_str.trim_start_matches("Nexus:").trim();
+                let digits: String = raw_id.chars().filter(|c| c.is_ascii_digit()).collect();
+                if !digits.is_empty() {
+                    eprintln!("[extract_nexus_id] 从 UpdateKey '{}' 提取到 ID: {}", key_str, digits);
+                    return Some(digits);
                 }
             }
         }
@@ -966,6 +984,105 @@ fn expand_mod_abbreviation(query: &str) -> String {
     query.trim().to_string()
 }
 
+async fn search_nexus_website(
+    client: &reqwest::Client,
+    query: &str,
+) -> Result<Vec<NexusModSearchResult>, String> {
+    let url = format!(
+        "https://www.nexusmods.com/stardewvalley/ajax/search?term={}&game_id=1303",
+        urlencoding::encode(query)
+    );
+    eprintln!("[search_nexus_website] 请求: {}", url);
+
+    let response = client
+        .get(&url)
+        .header("User-Agent", USER_AGENT)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| format!("网站搜索请求失败: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("网站搜索失败 (状态码: {})", response.status()));
+    }
+
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("解析网站搜索响应失败: {}", e))?;
+
+    let mut results: Vec<NexusModSearchResult> = Vec::new();
+
+    if let Some(mods_arr) = body.get("MODS").and_then(|m| m.as_array()) {
+        for mod_item in mods_arr {
+            let mod_id = mod_item.get("mod_id")
+                .and_then(|v| v.as_str())
+                .or_else(|| mod_item.get("id").and_then(|v| v.as_str()))
+                .unwrap_or("0");
+
+            let name = mod_item.get("mod_name")
+                .and_then(|v| v.as_str())
+                .or_else(|| mod_item.get("name").and_then(|v| v.as_str()))
+                .unwrap_or("");
+
+            let summary = mod_item.get("summary")
+                .and_then(|v| v.as_str())
+                .or_else(|| mod_item.get("description").and_then(|v| v.as_str()))
+                .unwrap_or("");
+
+            let author = mod_item.get("author")
+                .and_then(|v| v.as_str())
+                .or_else(|| mod_item.get("username").and_then(|v| v.as_str()))
+                .unwrap_or("");
+
+            let picture_url = mod_item.get("image")
+                .and_then(|v| v.as_str())
+                .or_else(|| mod_item.get("thumbnail").and_then(|v| v.as_str()))
+                .map(|s| {
+                    if s.starts_with("http") {
+                        s.to_string()
+                    } else {
+                        format!("https://www.nexusmods.com{}", s)
+                    }
+                });
+
+            let downloads = mod_item.get("downloads")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.replace(",", "").parse::<u64>().ok())
+                .or_else(|| mod_item.get("downloads").and_then(|v| v.as_u64()))
+                .unwrap_or(0);
+
+            let endorsements = mod_item.get("endorsements")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.replace(",", "").parse::<u64>().ok())
+                .or_else(|| mod_item.get("endorsements").and_then(|v| v.as_u64()))
+                .unwrap_or(0);
+
+            let uploaded_time = mod_item.get("date")
+                .and_then(|v| v.as_str())
+                .or_else(|| mod_item.get("uploaded_time").and_then(|v| v.as_str()))
+                .unwrap_or("");
+
+            results.push(NexusModSearchResult {
+                mod_id: mod_id.to_string(),
+                name: name.to_string(),
+                summary: summary.to_string(),
+                version: String::new(),
+                author: author.to_string(),
+                picture_url,
+                downloads,
+                endorsements,
+                uploaded_time: uploaded_time.to_string(),
+                nexus_url: format!("https://www.nexusmods.com/stardewvalley/mods/{}", mod_id),
+                size: 0,
+            });
+        }
+    }
+
+    eprintln!("[search_nexus_website] 网站搜索返回 {} 个结果", results.len());
+    Ok(results)
+}
+
 async fn search_graphql_mods(
     client: &reqwest::Client,
     api_key: &str,
@@ -1055,7 +1172,7 @@ async fn search_graphql_mods(
     let mut results: Vec<NexusModSearchResult> = Vec::new();
 
     for mod_id in &mod_ids {
-        let url = format!("https://api.nexusmods.com/v1/games/stardewvalley/mods/{}.json", mod_id);
+        let url = format!("{}/games/stardewvalley/mods/{}.json", NEXUS_API_BASE, mod_id);
 
         match client
             .get(&url)
@@ -1110,7 +1227,7 @@ pub async fn search_nexus_mods(
 
     if is_mod_id {
         let mod_id = trimmed.to_string();
-        let url = format!("https://api.nexusmods.com/v1/games/stardewvalley/mods/{}.json", mod_id);
+        let url = format!("{}/games/stardewvalley/mods/{}.json", NEXUS_API_BASE, mod_id);
         let response = client
             .get(&url)
             .header("User-Agent", USER_AGENT)
@@ -1150,7 +1267,8 @@ pub async fn search_nexus_mods(
         Ok((vec![result], 1))
     } else if trimmed.is_empty() {
         let url_str = format!(
-            "https://api.nexusmods.com/v1/games/stardewvalley/mods/updated.json?period=1w"
+            "{}/games/stardewvalley/mods/updated.json?period=1w",
+            NEXUS_API_BASE
         );
 
         eprintln!("[search_nexus_mods] 空搜索：获取最新 MOD: {}", url_str);
@@ -1192,51 +1310,40 @@ pub async fn search_nexus_mods(
         eprintln!("[search_nexus_mods] 使用 GraphQL 搜索: '{}' -> 展开为 '{}'", trimmed, search_term);
 
         match search_graphql_mods(&client, &api_key, &search_term).await {
-            Ok(results) => {
+            Ok(results) if !results.is_empty() => {
                 let total_pages = if results.len() > 20 { 2 } else { 1 };
                 eprintln!("[search_nexus_mods] GraphQL 搜索返回 {} 个结果", results.len());
                 Ok((results, total_pages))
             }
-            Err(e) => {
-                eprintln!("[search_nexus_mods] GraphQL 搜索失败: {}, 降级到 REST API", e);
-                let url_str = format!(
-                    "https://api.nexusmods.com/v1/games/stardewvalley/mods/updated.json?period=1m"
-                );
-
-                let response = client
-                    .get(url_str.as_str())
-                    .header("User-Agent", USER_AGENT)
-                    .header("apikey", &api_key)
-                    .timeout(std::time::Duration::from_secs(15))
-                    .send()
-                    .await
-                    .map_err(|e2| format!("搜索请求失败: {}", e2))?;
-
-                if !response.status().is_success() {
-                    let status = response.status();
-                    return Err(format!("搜索失败 (状态码: {})", status));
+            Ok(results) => {
+                eprintln!("[search_nexus_mods] GraphQL 返回 0 结果，尝试网站搜索");
+                match search_nexus_website(&client, trimmed).await {
+                    Ok(web_results) if !web_results.is_empty() => {
+                        eprintln!("[search_nexus_mods] 网站搜索返回 {} 个结果", web_results.len());
+                        Ok((web_results, 1))
+                    }
+                    _ => {
+                        eprintln!("[search_nexus_mods] 网站搜索也无结果，返回 GraphQL 空结果");
+                        Ok((results, 1))
+                    }
                 }
-
-                let body: serde_json::Value = response
-                    .json()
-                    .await
-                    .map_err(|e2| format!("解析搜索响应失败: {}", e2))?;
-
-                let mods_arr = extract_mods_array(&body);
-
-                let mut results: Vec<NexusModSearchResult> = mods_arr.iter()
-                    .map(|md| parse_mod_search_result(md))
-                    .collect();
-
-                let lower_query = trimmed.to_lowercase();
-                results.retain(|m| {
-                    m.name.to_lowercase().contains(&lower_query)
-                        || m.summary.to_lowercase().contains(&lower_query)
-                        || m.author.to_lowercase().contains(&lower_query)
-                });
-
-                results.truncate(20);
-                Ok((results, 1))
+            }
+            Err(e) => {
+                eprintln!("[search_nexus_mods] GraphQL 搜索失败: {}, 尝试网站搜索", e);
+                match search_nexus_website(&client, trimmed).await {
+                    Ok(web_results) if !web_results.is_empty() => {
+                        eprintln!("[search_nexus_mods] 网站搜索返回 {} 个结果", web_results.len());
+                        Ok((web_results, 1))
+                    }
+                    Ok(_) => {
+                        eprintln!("[search_nexus_mods] 网站搜索也无结果");
+                        Err(format!("未找到与 '{}' 相关的模组", trimmed))
+                    }
+                    Err(web_err) => {
+                        eprintln!("[search_nexus_mods] 网站搜索也失败: {}", web_err);
+                        Err(format!("搜索失败: GraphQL 和网站搜索均不可用"))
+                    }
+                }
             }
         }
     }
@@ -1244,49 +1351,59 @@ pub async fn search_nexus_mods(
 
 
 
-#[tauri::command]
-pub async fn get_trending_nexus_mods(
-    api_key: String,
+async fn fetch_nexus_mods_by_period(
+    api_key: &str,
+    period: &str,
+    sort_by: &str,
+    limit: usize,
+    label: &str,
 ) -> Result<Vec<NexusModSearchResult>, String> {
     let client = build_nexus_async_client();
 
+    let url = format!(
+        "{}/games/stardewvalley/mods/updated.json?period={}",
+        NEXUS_API_BASE,
+        period
+    );
+    eprintln!("[{}] 请求: {}", label, url);
+
     let response = client
-        .get("https://api.nexusmods.com/v1/games/stardewvalley/mods/updated.json?period=1w")
+        .get(&url)
         .header("User-Agent", USER_AGENT)
-        .header("apikey", &api_key)
+        .header("apikey", api_key)
         .timeout(std::time::Duration::from_secs(15))
         .send()
         .await
-        .map_err(|e| format!("获取热门MOD失败: {}", e))?;
+        .map_err(|e| format!("获取MOD失败: {}", e))?;
 
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        eprintln!("[get_trending_nexus_mods] API 错误: {} - {}", status, body);
-        return Err(format!("获取热门MOD失败 (状态码: {})", status));
+        eprintln!("[{}] API 错误: {} - {}", label, status, body);
+        return Err(format!("获取MOD失败 (状态码: {})", status));
     }
 
     let body: serde_json::Value = response
         .json()
         .await
-        .map_err(|e| format!("解析热门MOD响应失败: {}", e))?;
+        .map_err(|e| format!("解析响应失败: {}", e))?;
 
     let mod_ids = extract_mod_ids_from_updated(&body);
-    eprintln!("[get_trending_nexus_mods] 获取到 {} 个 MOD ID", mod_ids.len());
+    eprintln!("[{}] 获取到 {} 个 MOD ID", label, mod_ids.len());
 
     if mod_ids.is_empty() {
         return Err("未获取到 MOD 列表".to_string());
     }
 
-    let ids_to_fetch: Vec<u64> = mod_ids.into_iter().take(20).collect();
+    let ids_to_fetch: Vec<u64> = mod_ids.into_iter().take(limit).collect();
 
     let mut handles: Vec<tokio::task::JoinHandle<Option<NexusModSearchResult>>> = Vec::new();
 
     for mod_id in ids_to_fetch {
         let client_clone = client.clone();
-        let api_key_clone = api_key.clone();
+        let api_key_clone = api_key.to_string();
         handles.push(tokio::spawn(async move {
-            let url = format!("https://api.nexusmods.com/v1/games/stardewvalley/mods/{}.json", mod_id);
+            let url = format!("{}/games/stardewvalley/mods/{}.json", NEXUS_API_BASE, mod_id);
             match client_clone
                 .get(&url)
                 .header("User-Agent", USER_AGENT)
@@ -1299,17 +1416,17 @@ pub async fn get_trending_nexus_mods(
                     match resp.json::<serde_json::Value>().await {
                         Ok(mod_data) => Some(parse_mod_search_result(&mod_data)),
                         Err(e) => {
-                            eprintln!("[get_trending_nexus_mods] 解析 mod {} 数据失败: {}", mod_id, e);
+                            eprintln!("[fetch_nexus_mods] 解析 mod {} 数据失败: {}", mod_id, e);
                             None
                         }
                     }
                 }
                 Ok(resp) => {
-                    eprintln!("[get_trending_nexus_mods] 获取 mod {} 详情失败: {}", mod_id, resp.status());
+                    eprintln!("[fetch_nexus_mods] 获取 mod {} 详情失败: {}", mod_id, resp.status());
                     None
                 }
                 Err(e) => {
-                    eprintln!("[get_trending_nexus_mods] 请求 mod {} 详情失败: {}", mod_id, e);
+                    eprintln!("[fetch_nexus_mods] 请求 mod {} 详情失败: {}", mod_id, e);
                     None
                 }
             }
@@ -1323,10 +1440,41 @@ pub async fn get_trending_nexus_mods(
         }
     }
 
-    results.sort_by(|a, b| b.endorsements.cmp(&a.endorsements));
+    match sort_by {
+        "uploaded_time" => {
+            results.sort_by(|a, b| b.uploaded_time.cmp(&a.uploaded_time));
+        }
+        "downloads" => {
+            results.sort_by(|a, b| b.downloads.cmp(&a.downloads));
+        }
+        _ => {
+            results.sort_by(|a, b| b.endorsements.cmp(&a.endorsements));
+        }
+    }
 
-    eprintln!("[get_trending_nexus_mods] 获取到 {} 个热门MOD", results.len());
+    eprintln!("[{}] 获取到 {} 个MOD", label, results.len());
     Ok(results)
+}
+
+#[tauri::command]
+pub async fn get_trending_nexus_mods(
+    api_key: String,
+) -> Result<Vec<NexusModSearchResult>, String> {
+    fetch_nexus_mods_by_period(&api_key, "1w", "endorsements", 20, "trending").await
+}
+
+#[tauri::command]
+pub async fn get_recently_updated_nexus_mods(
+    api_key: String,
+) -> Result<Vec<NexusModSearchResult>, String> {
+    fetch_nexus_mods_by_period(&api_key, "1d", "uploaded_time", 20, "recently_updated").await
+}
+
+#[tauri::command]
+pub async fn get_monthly_top_nexus_mods(
+    api_key: String,
+) -> Result<Vec<NexusModSearchResult>, String> {
+    fetch_nexus_mods_by_period(&api_key, "1m", "endorsements", 20, "monthly_top").await
 }
 
 #[tauri::command]
@@ -1416,7 +1564,7 @@ pub async fn browse_nexus_category(
         let client_clone = client.clone();
         let api_key_clone = api_key.clone();
         handles.push(tokio::spawn(async move {
-            let url = format!("https://api.nexusmods.com/v1/games/stardewvalley/mods/{}.json", mod_id);
+            let url = format!("{}/games/stardewvalley/mods/{}.json", NEXUS_API_BASE, mod_id);
             match client_clone
                 .get(&url)
                 .header("User-Agent", USER_AGENT)
@@ -1457,7 +1605,7 @@ pub async fn get_nexus_categories(
     eprintln!("[get_nexus_categories] 获取 N 网分类列表");
 
     let response = match client
-        .get("https://api.nexusmods.com/v1/games/stardewvalley/categories")
+        .get(format!("{}/games/stardewvalley/categories", NEXUS_API_BASE))
         .header("User-Agent", USER_AGENT)
         .header("apikey", &api_key)
         .timeout(std::time::Duration::from_secs(15))
@@ -1631,13 +1779,11 @@ pub async fn open_nexus_browser(
     .title("Nexus Mods 浏览器 - 下载的模组将自动安装")
     .inner_size(1100.0, 750.0)
     .visible(true)
+    .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
     .initialization_script(auto_download_script)
     .on_navigation(move |url| {
         let url_str = url.as_str();
-        if url_str.contains("nexus-cdn.com") || url_str.contains("supporter-files") {
-            eprintln!("[nexus_browser] 拦截 CDN 导航，由 on_download 处理下载");
-            return false;
-        }
+        eprintln!("[nexus_browser] 导航: {}", url_str);
         true
     })
     .on_download(move |_webview, event| {
@@ -1645,23 +1791,23 @@ pub async fn open_nexus_browser(
             DownloadEvent::Requested { url, destination } => {
                 let url_str = url.to_string();
                 eprintln!("[nexus_browser] on_download Requested: {}", url_str);
-                if url_str.contains("nexus-cdn.com") || url_str.contains("supporter-files") || url_str.contains("nexusmods.com") {
-                    eprintln!("[nexus_browser] 已拦截下载，设置下载路径");
-                    let file_name = extract_filename_from_url(&url_str);
-                    let safe_name = file_name.replace(|c: char| !c.is_alphanumeric() && c != '.' && c != '-' && c != '_', "_");
-                    let dest = temp_dir_for_dl.join(&safe_name);
-                    eprintln!("[nexus_browser] 下载到: {}", dest.display());
-                    *destination = dest.clone();
-                    if let Ok(mut fp) = file_path_dl.lock() {
-                        *fp = Some(dest.to_string_lossy().to_string());
-                    }
-                    let _ = app_progress.emit("mod-install-progress", serde_json::json!({
-                        "step": "downloading_file",
-                        "mod_name": "Nexus Mod",
-                        "message": "正在下载文件...",
-                    }));
+                let file_name = extract_filename_from_url(&url_str);
+                let safe_name = file_name.replace(|c: char| !c.is_alphanumeric() && c != '.' && c != '-' && c != '_', "_");
+                if safe_name.is_empty() || safe_name == "_" {
+                    eprintln!("[nexus_browser] 无法提取文件名，忽略");
                     return true;
                 }
+                let dest = temp_dir_for_dl.join(&safe_name);
+                eprintln!("[nexus_browser] 拦截下载，重定向到: {}", dest.display());
+                *destination = dest.clone();
+                if let Ok(mut fp) = file_path_dl.lock() {
+                    *fp = Some(dest.to_string_lossy().to_string());
+                }
+                let _ = app_progress.emit("mod-install-progress", serde_json::json!({
+                    "step": "downloading_file",
+                    "mod_name": "Nexus Mod",
+                    "message": "正在下载文件...",
+                }));
             }
             DownloadEvent::Finished { url, path, success } => {
                 eprintln!("[nexus_browser] Download finished: {} success={}", url, success);
@@ -1690,8 +1836,8 @@ pub async fn open_nexus_browser(
     let mods_path_wait = mods_path_for_dl.clone();
 
     tokio::spawn(async move {
-        for _ in 0..600 {
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        for _ in 0..1200 {
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
             if finished_flag_wait.load(Ordering::SeqCst) {
                 break;
             }
@@ -1854,13 +2000,11 @@ async fn download_mod_via_webview(
     .title(format!("Nexus Mods 下载 - {} - 自动获取中..", mod_name))
     .inner_size(1000.0, 700.0)
     .visible(true)
+    .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
     .initialization_script(auto_download_script)
     .on_navigation(move |url| {
         let url_str = url.as_str();
-        if url_str.contains("nexus-cdn.com") || url_str.contains("supporter-files") {
-            eprintln!("[nexus_webview] 检测到 CDN 链接，阻止导航由 on_download 处理: {}", url_str);
-            return false;
-        }
+        eprintln!("[nexus_webview] 导航: {}", url_str);
         true
     })
     .on_download(move |_webview, event| {
@@ -1868,23 +2012,23 @@ async fn download_mod_via_webview(
             DownloadEvent::Requested { url, destination } => {
                 let url_str = url.to_string();
                 eprintln!("[nexus_webview] on_download Requested: {}", url_str);
-                if url_str.contains("nexus-cdn.com") || url_str.contains("supporter-files") || url_str.contains("nexusmods.com") {
-                    eprintln!("[nexus_webview] 已拦截下载，设置下载路径");
-                    let file_name = extract_filename_from_url(&url_str);
-                    let safe_name = file_name.replace(|c: char| !c.is_alphanumeric() && c != '.' && c != '-' && c != '_', "_");
-                    let dest = temp_dir_for_dl.join(&safe_name);
-                    eprintln!("[nexus_webview] 下载到: {}", dest.display());
-                    *destination = dest.clone();
-                    if let Ok(mut fp) = file_path_dl.lock() {
-                        *fp = Some(dest.to_string_lossy().to_string());
-                    }
-                    let _ = app_dl.emit("mod-install-progress", serde_json::json!({
-                        "step": "downloading_file",
-                        "mod_name": &mod_name_for_dl,
-                        "message": "正在下载文件...",
-                    }));
+                let file_name = extract_filename_from_url(&url_str);
+                let safe_name = file_name.replace(|c: char| !c.is_alphanumeric() && c != '.' && c != '-' && c != '_', "_");
+                if safe_name.is_empty() || safe_name == "_" {
+                    eprintln!("[nexus_webview] 无法提取文件名，忽略");
                     return true;
                 }
+                let dest = temp_dir_for_dl.join(&safe_name);
+                eprintln!("[nexus_webview] 拦截下载，重定向到: {}", dest.display());
+                *destination = dest.clone();
+                if let Ok(mut fp) = file_path_dl.lock() {
+                    *fp = Some(dest.to_string_lossy().to_string());
+                }
+                let _ = app_dl.emit("mod-install-progress", serde_json::json!({
+                    "step": "downloading_file",
+                    "mod_name": &mod_name_for_dl,
+                    "message": "正在下载文件...",
+                }));
             }
             DownloadEvent::Finished { url, path, success } => {
                 eprintln!("[nexus_webview] Download finished: {} success={}", url, success);
@@ -1906,8 +2050,8 @@ async fn download_mod_via_webview(
     .build()
     .map_err(|e| format!("创建浏览器窗口失败: {}", e))?;
 
-    for _ in 0..300 {
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    for _ in 0..1200 {
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
         if download_finished.load(Ordering::SeqCst) {
             break;
         }
@@ -2166,12 +2310,117 @@ pub async fn download_mod_from_nexus(
         Some(fid) => files.into_iter().find(|f| f.file_id == fid)
             .ok_or_else(|| "指定的文件不存在".to_string())?,
         None => {
-            let main_file = files.iter().find(|f| !f.is_premium_only);
-            main_file.cloned().unwrap_or_else(|| files.into_iter().next().unwrap())
+            let non_premium: Vec<_> = files.into_iter()
+                .filter(|f| !f.is_premium_only)
+                .collect();
+
+            let main_files: Vec<_> = non_premium.iter()
+                .filter(|f| f.category_id == 1)
+                .cloned()
+                .collect();
+            if !main_files.is_empty() {
+                let mut sorted = main_files;
+                sorted.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
+                sorted.into_iter().next()
+                    .ok_or_else(|| "该MOD没有可下载的文件".to_string())?
+            } else {
+                let update_files: Vec<_> = non_premium.iter()
+                    .filter(|f| f.category_id == 2)
+                    .cloned()
+                    .collect();
+                if !update_files.is_empty() {
+                    let mut sorted = update_files;
+                    sorted.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
+                    sorted.into_iter().next()
+                        .ok_or_else(|| "该MOD没有可下载的文件".to_string())?
+                } else {
+                    let mut sorted = non_premium;
+                    sorted.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
+                    sorted.into_iter().next()
+                        .ok_or_else(|| "该MOD没有可下载的文件".to_string())?
+                }
+            }
         }
     };
 
-    eprintln!("[download_mod_from_nexus] 目标文件: {} (file_id={})", target_file.name, target_file.file_id);
+    log_info("NexusDownload", &format!(
+        "Selected file: {} (file_id={}, category={}, version={})",
+        target_file.name, target_file.file_id, target_file.category_id, target_file.version
+    ));
+
+    if !api_key.is_empty() {
+        let client_dl = build_nexus_async_client();
+        match get_nexus_file_download_link(&client_dl, &api_key, &mod_id, &target_file.file_id).await {
+            Ok(cdn_uri) => {
+                eprintln!("[download_mod_from_nexus] API 直接下载: mod_id={}, file_id={}, cdn_uri={}", mod_id, target_file.file_id, cdn_uri);
+                let _ = app.emit("mod-install-progress", serde_json::json!({
+                    "step": "downloading",
+                    "mod_name": mod_name,
+                    "message": "正在通过 API 直接下载模组...",
+                }));
+
+                let temp_dir = PathBuf::from(&mods_path).join(".temp_nexus_download");
+                if temp_dir.exists() { let _ = fs::remove_dir_all(&temp_dir); }
+                fs::create_dir_all(&temp_dir).map_err(|e| format!("创建临时文件夹失败: {}", e))?;
+
+                let file_name = extract_filename_from_url(&cdn_uri);
+                let lower = file_name.to_lowercase();
+                let temp_file_path = if lower.ends_with(".zip") || lower.ends_with(".7z") || lower.ends_with(".rar") {
+                    temp_dir.join(&file_name)
+                } else {
+                    temp_dir.join(format!("{}.zip", mod_name.replace(|c: char| !c.is_alphanumeric() && c != '.' && c != '-' && c != '_', "_")))
+                };
+
+                let dl_client = build_download_client();
+                match download_file_with_progress(&dl_client, &cdn_uri, &temp_file_path, &app, &mod_name).await {
+                    Ok(()) => {
+                        let _ = app.emit("mod-install-progress", serde_json::json!({
+                            "step": "installing",
+                            "mod_name": mod_name,
+                            "message": "正在安装模组...",
+                        }));
+
+                        let archive_path = temp_file_path.to_string_lossy().to_string();
+                        let result = crate::mod_installer::install_mod_from_archive_blocking(
+                            app.clone(),
+                            archive_path,
+                            mods_path.clone(),
+                            old_unique_id.clone(),
+                        );
+
+                        let _ = fs::remove_file(&temp_file_path);
+                        let _ = fs::remove_dir_all(&temp_dir);
+
+                        match result {
+                            Ok(install_result) => {
+                                eprintln!("[download_mod_from_nexus] API 下载安装成功: {}", install_result.mod_name.as_deref().unwrap_or("unknown"));
+                                return Ok(ModDownloadResult {
+                                    success: true,
+                                    mod_name: install_result.mod_name.unwrap_or_else(|| mod_name.clone()),
+                                    mod_version: target_file.version.clone(),
+                                    message: install_result.message,
+                                    file_size: 0,
+                                });
+                            }
+                            Err(e) => {
+                                eprintln!("[download_mod_from_nexus] API 下载安装失败: {}, 降级为 WebView 下载", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[download_mod_from_nexus] API 下载文件失败: {}, 降级为 WebView 下载", e);
+                    }
+                }
+
+                let _ = fs::remove_dir_all(&temp_dir);
+            }
+            Err(e) => {
+                eprintln!("[download_mod_from_nexus] 获取 CDN 链接失败: {}, 降级为 WebView 下载", e);
+            }
+        }
+    } else {
+        eprintln!("[download_mod_from_nexus] 无 API Key，使用 WebView 下载");
+    }
 
     download_mod_via_webview(&app, &mod_id, &target_file.file_id, &mod_name, &mods_path, old_unique_id).await
 }
@@ -2214,6 +2463,7 @@ async fn get_mod_files_via_api(
         upload_time: f["uploaded_time"].as_str().unwrap_or("").to_string(),
         download_url: None,
         is_premium_only: f["is_premium"].as_bool().unwrap_or(false),
+        category_id: f["category_id"].as_i64().unwrap_or(1),
     }).collect())
 }
 
@@ -2313,3 +2563,62 @@ fn sanitize_file_name(name: &str) -> String {
         .trim()
         .to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn test_extract_nexus_id_numeric_update_key() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("TestMod");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+        std::fs::write(mod_dir.join("manifest.json"), r#"{
+            "Name": "Test Mod",
+            "UniqueID": "Test.Mod",
+            "Version": "1.0.0",
+            "UpdateKeys": [1915]
+        }"#).unwrap();
+
+        let result = extract_nexus_id_from_manifest(mod_dir.to_str().unwrap());
+        assert_eq!(result, Some("1915".to_string()),
+            "Numeric UpdateKeys should be handled like 'Nexus:1915'");
+    }
+
+    #[test]
+    fn test_extract_nexus_id_smart_quotes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("TestMod");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+        let smart_quote_manifest = format!("{{
+            \u{201C}Name\u{201D}: \u{201C}Test Mod\u{201D},
+            \u{201C}UniqueID\u{201D}: \u{201C}Test.Mod\u{201D},
+            \u{201C}Version\u{201D}: \u{201C}1.0.0\u{201D},
+            \u{201C}UpdateKeys\u{201D}: [\u{201C}Nexus:1915\u{201D}]
+        }}");
+        std::fs::write(mod_dir.join("manifest.json"), smart_quote_manifest).unwrap();
+
+        let result = extract_nexus_id_from_manifest(mod_dir.to_str().unwrap());
+        assert_eq!(result, Some("1915".to_string()),
+            "Should parse manifest with smart quotes and extract Nexus ID");
+    }
+
+    #[test]
+    fn test_extract_nexus_id_string_update_key() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("TestMod");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+        std::fs::write(mod_dir.join("manifest.json"), r#"{
+            "Name": "Test Mod",
+            "UniqueID": "Test.Mod",
+            "Version": "1.0.0",
+            "UpdateKeys": ["Nexus:1915"]
+        }"#).unwrap();
+
+        let result = extract_nexus_id_from_manifest(mod_dir.to_str().unwrap());
+        assert_eq!(result, Some("1915".to_string()),
+            "String Nexus UpdateKeys should work");
+    }
+}
+

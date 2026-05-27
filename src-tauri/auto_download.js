@@ -22,8 +22,6 @@
     }
 
     function svlUpdateStatus(text, color) {
-        var el = document.getElementById('svl-status');
-        if (el) { el.innerHTML = text; if (color) el.style.background = color; }
     }
 
     function svlClickElement(el, reason) {
@@ -120,27 +118,9 @@
     }
 
     function svlInjectUI() {
-        if (document.getElementById('svl-helper')) return;
-        var d = document.createElement('div');
-        d.id = 'svl-helper';
-        d.style.cssText = 'position:fixed;top:10px;left:10px;z-index:999999;font-family:Arial;max-width:220px;pointer-events:none;';
-        var s = document.createElement('div');
-        s.id = 'svl-status';
-        s.style.cssText = 'background:rgba(108,92,231,0.9);color:#fff;padding:5px 7px;border-radius:4px;font-size:10px;line-height:1.3;box-shadow:0 1px 4px rgba(0,0,0,0.3);';
-        s.innerHTML = '<b>SVL</b> v45';
-        d.appendChild(s);
-        document.body.appendChild(d);
     }
 
     function svlShowDebug(title, lines) {
-        var oldPanel = document.getElementById('svl-debug-panel');
-        if (oldPanel) oldPanel.remove();
-        var panel = document.createElement('div');
-        panel.id = 'svl-debug-panel';
-        panel.style.cssText = 'position:fixed;top:60px;left:10px;z-index:999999;background:rgba(0,0,0,0.92);color:#0f0;font:9px monospace;padding:6px;border-radius:4px;max-width:480px;max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;';
-        panel.innerHTML = '<b style="color:#ff0">' + title + '</b>\n' + (lines.length > 0 ? lines.join('\n') : '(空)');
-        document.body.appendChild(panel);
-        svlLog('DEBUG: ' + title + ' (' + lines.length + ' items)');
     }
 
     function svlIsNavOrMenu(el) {

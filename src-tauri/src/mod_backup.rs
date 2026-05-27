@@ -52,9 +52,7 @@ pub struct ModBackupList {
 }
 
 fn get_backup_dir() -> Result<PathBuf, String> {
-    let app_data = dirs::config_dir()
-        .ok_or("Cannot find app data directory".to_string())?;
-    let backup_dir = app_data.join("svl").join("mod-backups");
+    let backup_dir = crate::app_logger::get_svl_data_dir().join("mod-backups");
     Ok(backup_dir)
 }
 
@@ -153,8 +151,10 @@ pub fn backup_mod_before_update(
         "original_path": mod_path,
         "custom_dir": is_custom,
     });
-    fs::write(&meta_path, serde_json::to_string_pretty(&meta).unwrap())
-        .unwrap_or_default();
+    let meta_json = serde_json::to_string_pretty(&meta)
+        .map_err(|e| format!("备份元数据序列化失败: {}", e))?;
+    fs::write(&meta_path, meta_json)
+        .map_err(|e| format!("写入备份元数据失败: {}", e))?;
 
     Ok(ModBackupResult {
         success: true,
@@ -278,5 +278,241 @@ pub fn delete_mod_backup(
     Ok(ModRestoreResult {
         success: true,
         message: "Backup deleted".to_string(),
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModSnapshotInfo {
+    pub snapshot_name: String,
+    pub created_at: String,
+    pub mod_count: usize,
+    pub size_mb: f64,
+    pub label: String,
+    pub snapshot_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModSnapshotList {
+    pub snapshots: Vec<ModSnapshotInfo>,
+    pub total_snapshots: usize,
+    pub total_size_mb: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SnapshotResult {
+    pub success: bool,
+    pub message: String,
+}
+
+fn get_snapshot_dir() -> Result<PathBuf, String> {
+    let snapshot_dir = crate::app_logger::get_svl_data_dir().join("mod-snapshots");
+    Ok(snapshot_dir)
+}
+
+#[tauri::command]
+pub fn create_snapshot(
+    mods_path: String,
+    label: String,
+) -> Result<SnapshotResult, String> {
+    let mods_dir = PathBuf::from(&mods_path);
+
+    if !mods_dir.exists() || !mods_dir.is_dir() {
+        return Err("Mods directory does not exist".to_string());
+    }
+
+    let snapshot_dir = get_snapshot_dir()?;
+    fs::create_dir_all(&snapshot_dir)
+        .map_err(|e| format!("Failed to create snapshot directory: {}", e))?;
+
+    let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
+    let sanitized_label = if label.is_empty() {
+        timestamp.to_string()
+    } else {
+        format!("{}_{}", timestamp, label.replace(' ', "_").replace('/', "_").replace('\\', "_"))
+    };
+    let snapshot_path = snapshot_dir.join(&sanitized_label);
+
+    fs::create_dir_all(&snapshot_path)
+        .map_err(|e| format!("Failed to create snapshot folder: {}", e))?;
+
+    let mut mod_count = 0usize;
+
+    let entries = fs::read_dir(&mods_dir)
+        .map_err(|e| format!("Failed to read Mods directory: {}", e))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+        let mod_dir = entry.path();
+        if !mod_dir.is_dir() {
+            continue;
+        }
+
+        let dir_name = mod_dir.file_name().and_then(|n| n.to_str()).unwrap_or("unknown");
+        let dest = snapshot_path.join(dir_name);
+        copy_dir_recursive(&mod_dir, &dest)?;
+        mod_count += 1;
+    }
+
+    let size_bytes = calculate_dir_size(&snapshot_path);
+    let size_mb = size_bytes as f64 / (1024.0 * 1024.0);
+
+    let meta_path = snapshot_path.join(".svl_snapshot_meta.json");
+    let meta = serde_json::json!({
+        "label": sanitized_label,
+        "created_at": Utc::now().to_rfc3339(),
+        "mod_count": mod_count,
+        "size_mb": size_mb,
+        "original_mods_path": mods_path,
+    });
+    let meta_json = serde_json::to_string_pretty(&meta)
+        .map_err(|e| format!("Failed to write snapshot metadata: {}", e))?;
+    fs::write(&meta_path, meta_json)
+        .map_err(|e| format!("Failed to write snapshot metadata: {}", e))?;
+
+    Ok(SnapshotResult {
+        success: true,
+        message: format!("Snapshot created: {} mods, {:.1} MB", mod_count, size_mb),
+    })
+}
+
+#[tauri::command]
+pub fn list_snapshots() -> Result<ModSnapshotList, String> {
+    let snapshot_dir = get_snapshot_dir()?;
+
+    if !snapshot_dir.exists() {
+        return Ok(ModSnapshotList {
+            snapshots: Vec::new(),
+            total_snapshots: 0,
+            total_size_mb: 0.0,
+        });
+    }
+
+    let mut snapshots = Vec::new();
+    let mut total_size = 0.0f64;
+
+    let entries = fs::read_dir(&snapshot_dir)
+        .map_err(|e| format!("Failed to read snapshot directory: {}", e))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+        let path = entry.path();
+
+        if !path.is_dir() {
+            continue;
+        }
+
+        let meta_path = path.join(".svl_snapshot_meta.json");
+        if !meta_path.exists() {
+            continue;
+        }
+
+        if let Ok(content) = fs::read_to_string(&meta_path) {
+            if let Ok(meta) = serde_json::from_str::<serde_json::Value>(&content) {
+                let mod_count = meta["mod_count"].as_u64().unwrap_or(0) as usize;
+                let size_mb = meta["size_mb"].as_f64().unwrap_or(0.0);
+                total_size += size_mb;
+
+                snapshots.push(ModSnapshotInfo {
+                    snapshot_name: path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string(),
+                    created_at: meta["created_at"].as_str().unwrap_or("Unknown").to_string(),
+                    mod_count,
+                    size_mb,
+                    label: meta["label"].as_str().unwrap_or("").to_string(),
+                    snapshot_path: path.to_string_lossy().to_string(),
+                });
+            }
+        }
+    }
+
+    snapshots.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+    let total_snapshots = snapshots.len();
+
+    Ok(ModSnapshotList {
+        snapshots,
+        total_snapshots,
+        total_size_mb: total_size,
+    })
+}
+
+#[tauri::command]
+pub fn restore_snapshot(
+    snapshot_name: String,
+    mods_path: String,
+) -> Result<SnapshotResult, String> {
+    let snapshot_dir = get_snapshot_dir()?;
+    let snapshot_path = snapshot_dir.join(&snapshot_name);
+
+    if !snapshot_path.exists() {
+        return Err("Snapshot does not exist".to_string());
+    }
+
+    let mods_dir = PathBuf::from(&mods_path);
+
+    let entries = fs::read_dir(&mods_dir)
+        .map_err(|e| format!("Failed to read Mods directory: {}", e))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+        let path = entry.path();
+        if path.is_dir() {
+            if is_safe_to_delete(&path, &mods_dir) {
+                fs::remove_dir_all(&path)
+                    .map_err(|e| format!("Failed to remove mod: {}", e))?;
+            } else {
+                eprintln!("[SNAPSHOT SAFETY] Skipping unsafe path: {}", path.display());
+            }
+        }
+    }
+
+    let snapshot_entries = fs::read_dir(&snapshot_path)
+        .map_err(|e| format!("Failed to read snapshot: {}", e))?;
+
+    let mut restored = 0usize;
+
+    for entry in snapshot_entries {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+        let path = entry.path();
+        let name = entry.file_name();
+
+        let name_str = name.to_string_lossy();
+        if name_str.starts_with(".svl_") {
+            continue;
+        }
+
+        if path.is_dir() {
+            let dest = mods_dir.join(&*name);
+            copy_dir_recursive(&path, &dest)?;
+            restored += 1;
+        }
+    }
+
+    Ok(SnapshotResult {
+        success: true,
+        message: format!("Restored {} mods from snapshot", restored),
+    })
+}
+
+#[tauri::command]
+pub fn delete_snapshot(
+    snapshot_name: String,
+) -> Result<SnapshotResult, String> {
+    let snapshot_dir = get_snapshot_dir()?;
+    let snapshot_path = snapshot_dir.join(&snapshot_name);
+
+    if !snapshot_path.exists() {
+        return Err("Snapshot does not exist".to_string());
+    }
+
+    if !is_safe_to_delete(&snapshot_path, &snapshot_dir) {
+        return Err("Safety check failed: cannot delete snapshot path".to_string());
+    }
+
+    fs::remove_dir_all(&snapshot_path)
+        .map_err(|e| format!("Failed to delete snapshot: {}", e))?;
+
+    Ok(SnapshotResult {
+        success: true,
+        message: "Snapshot deleted".to_string(),
     })
 }

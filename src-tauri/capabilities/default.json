@@ -20,9 +20,6 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:allow-write-file",
-    "fs:allow-create",
-    "updater:default",
-    "updater:allow-check",
-    "updater:allow-download-and-install"
+    "fs:allow-create"
   ]
 }

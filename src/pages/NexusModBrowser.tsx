@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Typography, Input, Button, List, Tag, Space, Pagination, message, Spin, Progress, Select, Empty, Alert, Card, Row, Col, Divider, theme, Steps, Modal, Collapse, Checkbox } from 'antd';
-import { SearchOutlined, DownloadOutlined, HeartOutlined, ThunderboltOutlined, StarOutlined, LinkOutlined, FireOutlined, ReloadOutlined, GlobalOutlined, ArrowLeftOutlined, QuestionCircleOutlined, SettingOutlined, InfoCircleOutlined, UserOutlined } from '@ant-design/icons';
+import { Typography, Input, Button, Tag, Space, Pagination, message, Spin, Progress, Select, Empty, Alert, Card, Row, Col, Divider, theme, Steps, Modal, Collapse, Checkbox, Segmented, Tooltip } from 'antd';
+import { SearchOutlined, DownloadOutlined, HeartOutlined, ThunderboltOutlined, FireOutlined, ReloadOutlined, GlobalOutlined, ArrowLeftOutlined, QuestionCircleOutlined, SettingOutlined, InfoCircleOutlined, UserOutlined, ClockCircleOutlined, CrownOutlined, EyeOutlined, SortAscendingOutlined } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useTranslation } from 'react-i18next';
@@ -23,12 +23,30 @@ interface NexusModSearchResult {
 }
 
 function formatNum(num: number): string {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toString();
-  }
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+  return num.toString();
+}
 
-function ModCard({ mod, onDownload, onOpenNexus, downloading, downloadProgress, downloadStatus, t, token, selected, onSelect }: {
+function formatDate(dateStr: string): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return '今天';
+    if (diffDays === 1) return '昨天';
+    if (diffDays < 7) return `${diffDays}天前`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}周前`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)}月前`;
+    return `${Math.floor(diffDays / 365)}年前`;
+  } catch {
+    return dateStr;
+  }
+}
+
+function ModGridCard({ mod, onDownload, onOpenNexus, downloading, downloadProgress, downloadStatus, t, token, selected, onSelect }: {
   mod: NexusModSearchResult;
   onDownload: (mod: NexusModSearchResult) => void;
   onOpenNexus: (url: string) => void;
@@ -40,29 +58,42 @@ function ModCard({ mod, onDownload, onOpenNexus, downloading, downloadProgress, 
   selected: boolean;
   onSelect: (modId: string) => void;
 }) {
-
   return (
     <Card
       hoverable
-      style={{ height: '100%', background: token.colorBgContainer, borderColor: selected ? token.colorPrimary : token.colorBorder, borderWidth: selected ? 2 : 1 }}
-      bodyStyle={{ padding: 12, display: 'flex', flexDirection: 'column', height: '100%' }}
+      style={{
+        height: '100%',
+        background: token.colorBgContainer,
+        borderColor: selected ? token.colorPrimary : token.colorBorder,
+        borderWidth: selected ? 2 : 1,
+        borderRadius: 10,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+      bodyStyle={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column' }}
+      className="mod-grid-card"
     >
-      <div style={{ display: 'flex', gap: 12, flex: 1 }}>
-        <Checkbox
-          checked={selected}
-          onChange={() => onSelect(mod.mod_id)}
-          style={{ flexShrink: 0, marginTop: 2 }}
-        />
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          paddingTop: '56.25%',
+          background: `linear-gradient(135deg, ${token.colorPrimaryBg}, ${token.colorBgLayout})`,
+          overflow: 'hidden',
+        }}
+      >
         {mod.picture_url ? (
           <img
             src={mod.picture_url}
             alt={mod.name}
             style={{
-              width: 64,
-              height: 64,
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
               objectFit: 'cover',
-              borderRadius: 6,
-              flexShrink: 0,
             }}
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = 'none';
@@ -70,68 +101,120 @@ function ModCard({ mod, onDownload, onOpenNexus, downloading, downloadProgress, 
           />
         ) : (
           <div style={{
-            width: 64,
-            height: 64,
-            borderRadius: 6,
-            background: token.colorPrimaryBg,
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 24,
-            flexShrink: 0,
+            fontSize: 40,
           }}>
             🎮
           </div>
         )}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ marginBottom: 4 }}>
-            <Text strong ellipsis style={{ fontSize: 14, maxWidth: '100%' }}>{mod.name}</Text>
-            {mod.version && <Tag color="blue" style={{ marginLeft: 4, fontSize: 11 }}>v{mod.version}</Tag>}
-          </div>
-          <Paragraph
-            ellipsis={{ rows: 2 }}
-            style={{ marginBottom: 6, color: token.colorTextSecondary, fontSize: 12, lineHeight: '18px' }}
-          >
-            {mod.summary || 'No description'}
-          </Paragraph>
-          <Space size={12} wrap>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              <HeartOutlined /> {formatNum(mod.endorsements)}
-            </Text>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              <ThunderboltOutlined /> {formatNum(mod.downloads)}
-            </Text>
-          </Space>
+        <div style={{
+          position: 'absolute',
+          top: 8,
+          left: 8,
+          display: 'flex',
+          gap: 4,
+          alignItems: 'center',
+        }}>
+          <Checkbox
+            checked={selected}
+            onChange={() => onSelect(mod.mod_id)}
+            style={{ background: 'rgba(0,0,0,0.4)', borderRadius: 4, padding: '0 4px' }}
+          />
+          <Tag color="default" style={{ margin: 0, fontSize: 10, lineHeight: '18px', padding: '0 6px', borderRadius: 4, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none' }}>
+            #{mod.mod_id}
+          </Tag>
+          {mod.version && (
+            <Tag color="blue" style={{ margin: 0, fontSize: 10, lineHeight: '18px', padding: '0 6px', borderRadius: 4 }}>
+              v{mod.version}
+            </Tag>
+          )}
+        </div>
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: '24px 10px 8px',
+          background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
+        }}>
+          <Text style={{ color: '#fff', fontSize: 14, fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+            {mod.name}
+          </Text>
         </div>
       </div>
-      <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+
+      <div style={{ padding: '10px 12px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            <UserOutlined /> {mod.author}
+          </Text>
+          {mod.uploaded_time && (
+            <Text type="secondary" style={{ fontSize: 11, marginLeft: 'auto' }}>
+              {formatDate(mod.uploaded_time)}
+            </Text>
+          )}
+        </div>
+
+        <Paragraph
+          ellipsis={{ rows: 2 }}
+          style={{ marginBottom: 8, color: token.colorTextSecondary, fontSize: 12, lineHeight: '18px', flex: 1 }}
+        >
+          {mod.summary || 'No description'}
+        </Paragraph>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+          <Tooltip title={t('features.nexus.endorsements')}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              <HeartOutlined style={{ color: '#ff4d4f' }} /> {formatNum(mod.endorsements)}
+            </Text>
+          </Tooltip>
+          <Tooltip title={t('features.nexus.downloads')}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              <ThunderboltOutlined style={{ color: '#1890ff' }} /> {formatNum(mod.downloads)}
+            </Text>
+          </Tooltip>
+        </div>
+
         {downloading ? (
-          <div style={{ flex: 1 }}>
+          <div>
             <Text type="secondary" style={{ fontSize: 11 }}>{downloadStatus || t('features.nexus.downloading')}</Text>
             <Progress percent={downloadProgress} size="small" status="active" />
           </div>
         ) : (
-          <>
+          <div style={{ display: 'flex', gap: 6 }}>
             <Button
               type="primary"
               size="small"
               icon={<DownloadOutlined />}
               onClick={() => onDownload(mod)}
-              style={{ flex: 1 }}
+              style={{ flex: 1, borderRadius: 6 }}
             >
               {t('features.nexus.download')}
             </Button>
-            <Button
-              size="small"
-              icon={<LinkOutlined />}
-              onClick={() => onOpenNexus(mod.nexus_url)}
-            />
-          </>
+            <Tooltip title={t('features.nexus.viewOnNexus')}>
+              <Button
+                size="small"
+                icon={<EyeOutlined />}
+                onClick={() => onOpenNexus(mod.nexus_url)}
+                style={{ borderRadius: 6 }}
+              />
+            </Tooltip>
+          </div>
         )}
       </div>
     </Card>
   );
 }
+
+type BrowseTab = 'trending' | 'recent' | 'monthly';
+type SortBy = 'endorsements' | 'downloads' | 'updated';
 
 export default function NexusModBrowser() {
   const { t } = useTranslation();
@@ -147,9 +230,22 @@ export default function NexusModBrowser() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [hasSearched, setHasSearched] = useState(false);
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('svl-nexus-api-key') || '');
+
+  const [browseTab, setBrowseTab] = useState<BrowseTab>('trending');
+  const [sortBy, setSortBy] = useState<SortBy>('endorsements');
+
   const [trendingMods, setTrendingMods] = useState<NexusModSearchResult[]>([]);
   const [trendingLoading, setTrendingLoading] = useState(false);
   const [trendingLoaded, setTrendingLoaded] = useState(false);
+
+  const [recentlyUpdatedMods, setRecentlyUpdatedMods] = useState<NexusModSearchResult[]>([]);
+  const [recentlyUpdatedLoading, setRecentlyUpdatedLoading] = useState(false);
+  const [recentlyUpdatedLoaded, setRecentlyUpdatedLoaded] = useState(false);
+
+  const [monthlyTopMods, setMonthlyTopMods] = useState<NexusModSearchResult[]>([]);
+  const [monthlyTopLoading, setMonthlyTopLoading] = useState(false);
+  const [monthlyTopLoaded, setMonthlyTopLoaded] = useState(false);
+
   const [showTutorial, setShowTutorial] = useState(false);
   const [neverShowTutorial, setNeverShowTutorial] = useState(
     localStorage.getItem('svl-never-show-nexus-tutorial') === 'true'
@@ -170,6 +266,12 @@ export default function NexusModBrowser() {
     window.addEventListener('nexus-api-key-changed', handleApiKeyChange);
     return () => window.removeEventListener('nexus-api-key-changed', handleApiKeyChange);
   }, []);
+
+  useEffect(() => {
+    if (apiKey) {
+      loadTabData(browseTab, apiKey);
+    }
+  }, [apiKey]);
 
   useEffect(() => {
     const unlisten = listen('mod-install-progress', (event: any) => {
@@ -222,9 +324,7 @@ export default function NexusModBrowser() {
   const loadTrendingMods = useCallback(async (key: string) => {
     setTrendingLoading(true);
     try {
-      const mods = await invoke<NexusModSearchResult[]>('get_trending_nexus_mods', {
-        apiKey: key,
-      });
+      const mods = await invoke<NexusModSearchResult[]>('get_trending_nexus_mods', { apiKey: key });
       setTrendingMods(mods);
       setTrendingLoaded(true);
     } catch (err) {
@@ -233,6 +333,102 @@ export default function NexusModBrowser() {
       setTrendingLoading(false);
     }
   }, []);
+
+  const loadRecentlyUpdatedMods = useCallback(async (key: string) => {
+    setRecentlyUpdatedLoading(true);
+    try {
+      const mods = await invoke<NexusModSearchResult[]>('get_recently_updated_nexus_mods', { apiKey: key });
+      setRecentlyUpdatedMods(mods);
+      setRecentlyUpdatedLoaded(true);
+    } catch (err) {
+      console.error('Failed to load recently updated mods:', err);
+    } finally {
+      setRecentlyUpdatedLoading(false);
+    }
+  }, []);
+
+  const loadMonthlyTopMods = useCallback(async (key: string) => {
+    setMonthlyTopLoading(true);
+    try {
+      const mods = await invoke<NexusModSearchResult[]>('get_monthly_top_nexus_mods', { apiKey: key });
+      setMonthlyTopMods(mods);
+      setMonthlyTopLoaded(true);
+    } catch (err) {
+      console.error('Failed to load monthly top mods:', err);
+    } finally {
+      setMonthlyTopLoading(false);
+    }
+  }, []);
+
+  const loadTabData = useCallback((tab: BrowseTab, key: string) => {
+    switch (tab) {
+      case 'trending':
+        if (!trendingLoaded) loadTrendingMods(key);
+        break;
+      case 'recent':
+        if (!recentlyUpdatedLoaded) loadRecentlyUpdatedMods(key);
+        break;
+      case 'monthly':
+        if (!monthlyTopLoaded) loadMonthlyTopMods(key);
+        break;
+    }
+  }, [trendingLoaded, recentlyUpdatedLoaded, monthlyTopLoaded, loadTrendingMods, loadRecentlyUpdatedMods, loadMonthlyTopMods]);
+
+  const handleTabChange = (tab: string) => {
+    setBrowseTab(tab as BrowseTab);
+    if (apiKey) {
+      loadTabData(tab as BrowseTab, apiKey);
+    }
+  };
+
+  const handleRefreshTab = () => {
+    if (!apiKey) return;
+    switch (browseTab) {
+      case 'trending':
+        setTrendingLoaded(false);
+        loadTrendingMods(apiKey);
+        break;
+      case 'recent':
+        setRecentlyUpdatedLoaded(false);
+        loadRecentlyUpdatedMods(apiKey);
+        break;
+      case 'monthly':
+        setMonthlyTopLoaded(false);
+        loadMonthlyTopMods(apiKey);
+        break;
+    }
+  };
+
+  const getCurrentMods = (): NexusModSearchResult[] => {
+    let mods: NexusModSearchResult[] = [];
+    switch (browseTab) {
+      case 'trending': mods = trendingMods; break;
+      case 'recent': mods = recentlyUpdatedMods; break;
+      case 'monthly': mods = monthlyTopMods; break;
+    }
+
+    const sorted = [...mods];
+    switch (sortBy) {
+      case 'endorsements':
+        sorted.sort((a, b) => b.endorsements - a.endorsements);
+        break;
+      case 'downloads':
+        sorted.sort((a, b) => b.downloads - a.downloads);
+        break;
+      case 'updated':
+        sorted.sort((a, b) => b.uploaded_time.localeCompare(a.uploaded_time));
+        break;
+    }
+    return sorted;
+  };
+
+  const getCurrentLoading = (): boolean => {
+    switch (browseTab) {
+      case 'trending': return trendingLoading;
+      case 'recent': return recentlyUpdatedLoading;
+      case 'monthly': return monthlyTopLoading;
+    }
+  };
 
   const categoryOptions = [
     { value: 'all', label: t('features.nexus.allCategories') },
@@ -328,7 +524,7 @@ export default function NexusModBrowser() {
       return;
     }
 
-    const allMods = [...trendingMods, ...results];
+    const allMods = [...trendingMods, ...recentlyUpdatedMods, ...monthlyTopMods, ...results];
     const toDownload = allMods.filter(m => selectedModIds.has(m.mod_id));
 
     setBatchDownloading(true);
@@ -381,27 +577,78 @@ export default function NexusModBrowser() {
     setSelectedModIds(new Set());
   };
 
-  const formatSize = (bytes: number): string => {
-    if (bytes === 0) return '';
-    const mb = bytes / 1024 / 1024;
-    return `${mb.toFixed(1)} MB`;
-  };
+  const browseTabs = [
+    {
+      value: 'trending',
+      label: (
+        <Space>
+          <FireOutlined />
+          {t('features.nexus.trending')}
+        </Space>
+      ),
+    },
+    {
+      value: 'recent',
+      label: (
+        <Space>
+          <ClockCircleOutlined />
+          {t('features.nexus.recentlyUpdated')}
+        </Space>
+      ),
+    },
+    {
+      value: 'monthly',
+      label: (
+        <Space>
+          <CrownOutlined />
+          {t('features.nexus.monthlyTop')}
+        </Space>
+      ),
+    },
+  ];
+
+  const sortOptions = [
+    { value: 'endorsements', label: t('features.nexus.sortByEndorsements') },
+    { value: 'downloads', label: t('features.nexus.sortByDownloads') },
+    { value: 'updated', label: t('features.nexus.sortByUpdated') },
+  ];
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '16px 24px', background: 'var(--svl-bg-primary)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <Title level={3} style={{ margin: '0 0 4px 0' }}>
             {t('features.nexus.title')}
           </Title>
           <Text type="secondary">{t('features.nexus.description')}</Text>
         </div>
-        <Button
-          icon={<QuestionCircleOutlined />}
-          onClick={() => setShowTutorial(true)}
-        >
-          {t('features.nexus.howToUse') || '使用教程'}
-        </Button>
+        <Space>
+          {selectedModIds.size > 0 && (
+            <>
+              <Button
+                onClick={handleClearSelection}
+                style={{ borderColor: '#ff4d4f', color: '#ff4d4f' }}
+              >
+                {t('features.nexus.clearSelection')}
+              </Button>
+              <Button
+                type="primary"
+                icon={<DownloadOutlined />}
+                onClick={handleBatchDownload}
+                loading={batchDownloading}
+                style={{ background: '#52c41a', borderColor: '#52c41a' }}
+              >
+                {t('features.nexus.batchDownload')} ({selectedModIds.size})
+              </Button>
+            </>
+          )}
+          <Button
+            icon={<QuestionCircleOutlined />}
+            onClick={() => setShowTutorial(true)}
+          >
+            {t('features.nexus.howToUse') || '使用教程'}
+          </Button>
+        </Space>
       </div>
 
       {!apiKey && (
@@ -414,28 +661,36 @@ export default function NexusModBrowser() {
         />
       )}
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+      <div style={{
+        display: 'flex',
+        gap: 10,
+        marginBottom: 20,
+        padding: '12px 16px',
+        background: token.colorBgContainer,
+        borderRadius: 10,
+        border: `1px solid ${token.colorBorder}`,
+      }}>
         <Input
           placeholder={t('features.nexus.searchPlaceholder')}
-          prefix={<SearchOutlined />}
+          prefix={<SearchOutlined style={{ color: token.colorTextQuaternary }} />}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onPressEnter={() => handleSearch(searchQuery, 1, selectedCategory)}
-          style={{ flex: 1, minWidth: 300 }}
-          size="large"
+          style={{ flex: 1, minWidth: 280 }}
+          size="middle"
           disabled={!apiKey}
+          allowClear
         />
         <Select
           value={selectedCategory}
           onChange={(val) => setSelectedCategory(val)}
-          style={{ width: 180 }}
-          size="large"
+          style={{ width: 160 }}
+          size="middle"
           options={categoryOptions}
           disabled={!apiKey}
         />
         <Button
           type="primary"
-          size="large"
           icon={<SearchOutlined />}
           onClick={() => handleSearch(searchQuery, 1, selectedCategory)}
           loading={loading}
@@ -444,81 +699,44 @@ export default function NexusModBrowser() {
           {t('features.nexus.search')}
         </Button>
         <Button
-          size="large"
           icon={<GlobalOutlined />}
           onClick={handleOpenBrowser}
           style={{ background: '#6c5ce7', borderColor: '#6c5ce7', color: '#fff' }}
         >
           {t('features.nexus.openBrowser') || 'N网浏览器'}
         </Button>
-        {selectedModIds.size > 0 && (
-          <>
-            <Button
-              size="large"
-              onClick={handleClearSelection}
-              style={{ borderColor: '#ff4d4f', color: '#ff4d4f' }}
-            >
-              {t('features.nexus.clearSelection')}
-            </Button>
-            <Button
-              type="primary"
-              size="large"
-              icon={<DownloadOutlined />}
-              onClick={handleBatchDownload}
-              loading={batchDownloading}
-              style={{ background: '#52c41a', borderColor: '#52c41a' }}
-            >
-              {t('features.nexus.batchDownload')} ({selectedModIds.size})
-            </Button>
-          </>
-        )}
       </div>
 
-      {!hasSearched && apiKey && (
-        <div style={{ marginBottom: 32 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <Space>
-                <FireOutlined style={{ color: '#ff4d4f', fontSize: 20 }} />
-                <Title level={4} style={{ margin: 0 }}>{t('features.nexus.trending')}</Title>
-              </Space>
-              {!trendingLoaded && (
-                <Button
-                  size="small"
-                  icon={<FireOutlined />}
-                  onClick={() => loadTrendingMods(apiKey)}
-                  loading={trendingLoading}
-                >
-                  {t('features.nexus.loadTrending')}
-                </Button>
-              )}
-              {trendingLoaded && (
-                <Button
-                  size="small"
-                  icon={<ReloadOutlined />}
-                  onClick={() => loadTrendingMods(apiKey)}
-                  loading={trendingLoading}
-                >
-                  {t('features.nexus.refresh')}
-                </Button>
-              )}
-            </div>
+      {hasSearched ? (
+        <>
+          <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Button
+              icon={<ArrowLeftOutlined />}
+              onClick={handleBackToHome}
+              size="small"
+            >
+              {t('features.nexus.backToHome')}
+            </Button>
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              {t('features.nexus.searchResultFor', { query: searchQuery })} · {results.length} {t('features.nexus.modsCount')}
+            </Text>
+          </div>
 
-            {trendingLoading && (
-              <div style={{ textAlign: 'center', padding: 40 }}>
-                <Spin size="large" />
-                <div style={{ marginTop: 12 }}>
-                  <Text type="secondary">{t('features.nexus.loadingTrending')}</Text>
-                </div>
+          {loading && (
+            <div style={{ textAlign: 'center', padding: 60 }}>
+              <Spin size="large" />
+              <div style={{ marginTop: 16 }}>
+                <Text type="secondary">{t('features.nexus.searching')}</Text>
               </div>
-            )}
+            </div>
+          )}
 
-            {!trendingLoading && trendingMods.length > 0 && (
-              <>
-              <Row gutter={[12, 12]}>
-                {trendingMods.map((mod) => (
-                  <Col key={mod.mod_id} xs={24} sm={12} md={8} lg={6}>
-                    <ModCard
+          {!loading && results.length > 0 && (
+            <>
+              <Row gutter={[16, 16]}>
+                {results.map((mod) => (
+                  <Col key={mod.mod_id} xs={24} sm={12} md={8} lg={6} xl={4}>
+                    <ModGridCard
                       mod={mod}
                       onDownload={handleDownload}
                       onOpenNexus={handleOpenNexus}
@@ -533,194 +751,122 @@ export default function NexusModBrowser() {
                   </Col>
                 ))}
               </Row>
-              </>
-            )}
 
-            {!trendingLoading && !trendingLoaded && (
-              <div style={{ textAlign: 'center', padding: 40 }}>
-                <Text type="secondary" style={{ fontSize: 14 }}>
-                  {t('features.nexus.trendingHint')}
-                </Text>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+              {totalPages > 1 && (
+                <div style={{ textAlign: 'center', marginTop: 24, marginBottom: 24 }}>
+                  <Pagination
+                    current={currentPage}
+                    total={totalPages * 20}
+                    pageSize={20}
+                    onChange={(page) => {
+                      handleSearch(searchQuery, page, selectedCategory);
+                    }}
+                    showSizeChanger={false}
+                  />
+                </div>
+              )}
+            </>
+          )}
 
-      {loading && (
-        <div style={{ textAlign: 'center', padding: 60 }}>
-          <Spin size="large" />
-          <div style={{ marginTop: 16 }}>
-            <Text type="secondary">{t('features.nexus.searching')}</Text>
-          </div>
-        </div>
-      )}
-
-      {!loading && results.length > 0 && (
-        <>
-          <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={handleBackToHome}
-              size="small"
-            >
-              {t('features.nexus.backToHome')}
-            </Button>
-            {selectedCategory !== 'all' && !searchQuery.trim() && (
-              <>
-                <Tag color="purple" style={{ fontSize: 14, padding: '4px 12px' }}>
-                  {categoryOptions.find(c => c.value === selectedCategory)?.label || selectedCategory}
-                </Tag>
-                <Text type="secondary">{results.length} 个模组</Text>
-              </>
-            )}
-          </div>
-          <List
-            dataSource={results}
-            renderItem={(mod) => (
-              <List.Item
-                style={{
-                  marginBottom: 16,
-                  padding: 16,
-                  background: token.colorBgContainer,
-                  borderRadius: 8,
-                  border: `1px solid ${selectedModIds.has(mod.mod_id) ? token.colorPrimary : token.colorBorder}`,
-                  borderWidth: selectedModIds.has(mod.mod_id) ? 2 : 1,
-                }}
+          {!loading && results.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 60 }}>
+              <Empty description={t('features.nexus.noResults')} />
+              <Button
+                icon={<ArrowLeftOutlined />}
+                onClick={handleBackToHome}
+                style={{ marginTop: 16 }}
               >
-                <Checkbox
-                  checked={selectedModIds.has(mod.mod_id)}
-                  onChange={() => toggleModSelect(mod.mod_id)}
-                  style={{ marginRight: 8, alignSelf: 'flex-start', marginTop: 4 }}
-                />
-                <List.Item.Meta
-                  avatar={
-                    mod.picture_url ? (
-                      <img
-                        src={mod.picture_url}
-                        alt={mod.name}
-                        style={{
-                          width: 80,
-                          height: 80,
-                          objectFit: 'cover',
-                          borderRadius: 8,
-                        }}
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <div style={{
-                        width: 80,
-                        height: 80,
-                        borderRadius: 8,
-                        background: token.colorPrimaryBg,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 32,
-                      }}>
-                        🎮
-                      </div>
-                    )
-                  }
-                  title={
-                    <Space>
-                      <Text strong style={{ fontSize: 16 }}>{mod.name}</Text>
-                      {mod.version && <Tag color="blue">v{mod.version}</Tag>}
-                    </Space>
-                  }
-                  description={
-                    <div>
-                      <Paragraph
-                        ellipsis={{ rows: 2, expandable: false }}
-                        style={{ marginBottom: 8, color: token.colorTextSecondary }}
-                      >
-                        {mod.summary || 'No description available.'}
-                      </Paragraph>
-                      <Space size={16} wrap>
-                        <Text type="secondary">
-                          <HeartOutlined /> {formatNum(mod.endorsements)}
-                        </Text>
-                        <Text type="secondary">
-                          <ThunderboltOutlined /> {formatNum(mod.downloads)}
-                        </Text>
-                        <Text type="secondary">
-                          <StarOutlined /> {mod.author}
-                        </Text>
-                        {mod.size > 0 && <Text type="secondary">{formatSize(mod.size)}</Text>}
-                      </Space>
-                    </div>
-                  }
-                />
-                <Space direction="vertical" size="small" align="end">
-                  {downloadingModId === mod.mod_id ? (
-                    <div style={{ width: 160 }}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>{downloadStatus || t('features.nexus.downloading')}</Text>
-                      <Progress percent={downloadProgress} size="small" status="active" />
-                    </div>
-                  ) : (
-                    <>
-                      <Button
-                        type="primary"
-                        icon={<DownloadOutlined />}
-                        onClick={() => handleDownload(mod)}
-                        loading={downloadingModId !== null}
-                      >
-                        {t('features.nexus.download')}
-                      </Button>
-                      <Button
-                        icon={<LinkOutlined />}
-                        size="small"
-                        onClick={() => handleOpenNexus(mod.nexus_url)}
-                      >
-                        {t('features.nexus.viewOnNexus')}
-                      </Button>
-                    </>
-                  )}
-                </Space>
-              </List.Item>
-            )}
-          />
-
-          {totalPages > 1 && (
-            <div style={{ textAlign: 'center', marginTop: 24, marginBottom: 24 }}>
-              <Pagination
-                current={currentPage}
-                total={totalPages * 20}
-                pageSize={20}
-                onChange={(page) => {
-                  handleSearch(searchQuery, page, selectedCategory);
-                }}
-                showSizeChanger={false}
-              />
+                {t('features.nexus.backToHome')}
+              </Button>
             </div>
           )}
         </>
-      )}
+      ) : (
+        <>
+          {apiKey && (
+            <>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 16,
+                padding: '0 4px',
+              }}>
+                <Segmented
+                  value={browseTab}
+                  onChange={handleTabChange}
+                  options={browseTabs}
+                  style={{ background: token.colorBgLayout }}
+                />
+                <Space>
+                  <Select
+                    value={sortBy}
+                    onChange={setSortBy}
+                    options={sortOptions}
+                    size="small"
+                    style={{ width: 140 }}
+                    suffixIcon={<SortAscendingOutlined />}
+                  />
+                  <Button
+                    size="small"
+                    icon={<ReloadOutlined />}
+                    onClick={handleRefreshTab}
+                    loading={getCurrentLoading()}
+                  >
+                    {t('features.nexus.refresh')}
+                  </Button>
+                </Space>
+              </div>
 
-      {!loading && hasSearched && results.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 60 }}>
-          <Empty description={t('features.nexus.noResults')} />
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={handleBackToHome}
-            style={{ marginTop: 16 }}
-          >
-            {t('features.nexus.backToHome')}
-          </Button>
-        </div>
-      )}
+              {getCurrentLoading() && !getCurrentMods().length && (
+                <div style={{ textAlign: 'center', padding: 80 }}>
+                  <Spin size="large" />
+                  <div style={{ marginTop: 16 }}>
+                    <Text type="secondary">{t('features.nexus.loadingMods')}</Text>
+                  </div>
+                </div>
+              )}
 
-      {!loading && !hasSearched && !apiKey && (
-        <div style={{ textAlign: 'center', padding: 80 }}>
-          <SearchOutlined style={{ fontSize: 48, color: token.colorTextSecondary, marginBottom: 16 }} />
-          <div>
-            <Text type="secondary" style={{ fontSize: 16 }}>
-              {t('features.nexus.searchPlaceholder')}
-            </Text>
-          </div>
-        </div>
+              {!getCurrentLoading() && getCurrentMods().length > 0 && (
+                <Row gutter={[16, 16]}>
+                  {getCurrentMods().map((mod) => (
+                    <Col key={mod.mod_id} xs={24} sm={12} md={8} lg={6} xl={4}>
+                      <ModGridCard
+                        mod={mod}
+                        onDownload={handleDownload}
+                        onOpenNexus={handleOpenNexus}
+                        downloading={downloadingModId === mod.mod_id}
+                        downloadProgress={downloadProgress}
+                        downloadStatus={downloadStatus}
+                        t={t}
+                        token={token}
+                        selected={selectedModIds.has(mod.mod_id)}
+                        onSelect={toggleModSelect}
+                      />
+                    </Col>
+                  ))}
+                </Row>
+              )}
+
+              {!getCurrentLoading() && getCurrentMods().length === 0 && (
+                <div style={{ textAlign: 'center', padding: 60 }}>
+                  <Empty description={t('features.nexus.noModsInCategory')} />
+                </div>
+              )}
+            </>
+          )}
+
+          {!apiKey && (
+            <div style={{ textAlign: 'center', padding: 80 }}>
+              <SearchOutlined style={{ fontSize: 48, color: token.colorTextSecondary, marginBottom: 16 }} />
+              <div>
+                <Text type="secondary" style={{ fontSize: 16 }}>
+                  {t('features.nexus.searchPlaceholder')}
+                </Text>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <Modal
@@ -812,7 +958,7 @@ export default function NexusModBrowser() {
                   </div>
                 </div>
               ),
-              icon: <DownloadOutlined style={{ color: '#722ed1' }} />,
+              icon: <DownloadOutlined style={{ color: 'var(--svl-primary)' }} />,
             },
           ]}
         />

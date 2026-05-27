@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>更新日志 - SVL</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg: #0e0e10;
+            --surface: #16161a;
+            --surface-hover: #1c1c21;
+            --border: #27272a;
+            --text: #fafaf9;
+            --text-secondary: #a1a1aa;
+            --text-tertiary: #71717a;
+            --brand: #d4a843;
+            --brand-dim: rgba(212,168,67,0.1);
+        }
+        body.light-theme {
+            --bg: #faf9f7;
+            --surface: #f0eeeb;
+            --surface-hover: #e8e5e1;
+            --border: #e0ddd8;
+            --text: #2d2a26;
+            --text-secondary: #5a5450;
+            --text-tertiary: #7a7470;
+            --brand: #b8922e;
+            --brand-dim: rgba(184,146,46,0.1);
+        }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
+        .section-label { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--brand); margin-bottom: 12px; }
+        .section-title { font-size: 28px; font-weight: 700; color: var(--text); }
+        .section-subtitle { font-size: 15px; color: var(--text-secondary); max-width: 480px; }
+        .tag { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+        .tag { background: rgba(212,168,67,0.1); color: var(--brand); }
+        .tag-green { background: rgba(34,197,94,0.1); color: #22c55e; }
+        .tag-red { background: rgba(239,68,68,0.1); color: #ef4444; }
+        .tag-blue { background: rgba(59,130,246,0.1); color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <main class="flex-1 py-24">
+        <div class="max-w-3xl mx-auto px-6">
+            <div class="mb-14">
+                <span class="section-label">Changelog</span>
+                <h1 class="section-title">更新日志</h1>
+                <p class="section-subtitle mt-4">SVL 的每一次进步，都在这里记录</p>
+            </div>
+
+            <div class="relative">
+                <div class="absolute left-[19px] top-0 bottom-0 w-px" style="background: var(--border); opacity: 0.5;"></div>
+
+                <div class="space-y-8">
+                    <!-- v1.0.2 -->
+                    <div class="relative flex gap-5">
+                        <div class="relative z-10 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background: var(--surface); border: 1px solid var(--border);">
+                            <div class="w-2.5 h-2.5 rounded-full" style="background: #3b82f6;"></div>
+                        </div>
+                        <div class="card flex-1 py-5 px-6">
+                            <div class="flex flex-wrap items-center gap-3 mb-3">
+                                <span class="text-lg font-bold" style="color: var(--text);">v1.0.2</span>
+                                <span class="tag">更新</span>
+                                <span class="text-xs" style="color: var(--text-tertiary);">2025-05-18</span>
+                            </div>
+                            <h3 class="font-semibold text-base mb-4" style="color: var(--text);">N 网一键下载 & 稳定性提升</h3>
+                            <ul class="space-y-2.5">
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-green tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">新增</span>
+                                    <span>新增 Nexus Mods 内置浏览器，登录后可搜索并一键下载安装 MOD</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-green tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">新增</span>
+                                    <span>新增 MOD 依赖关系可视化图表</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-red tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">修复</span>
+                                    <span>修复部分 MOD 解压后文件夹嵌套导致无法识别的问题</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-red tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">修复</span>
+                                    <span>修复 SMAPI 路径检测在 GOG 版本上的兼容性问题</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-blue tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">优化</span>
+                                    <span>优化 MOD 列表加载速度，大幅减少卡顿</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-blue tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">优化</span>
+                                    <span>升级冲突检测引擎，支持更多 MOD 类型的兼容性检查</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- v1.0.1 -->
+                    <div class="relative flex gap-5">
+                        <div class="relative z-10 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background: var(--surface); border: 1px solid var(--border);">
+                            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--text-tertiary);"></div>
+                        </div>
+                        <div class="card flex-1 py-5 px-6">
+                            <div class="flex flex-wrap items-center gap-3 mb-3">
+                                <span class="text-lg font-bold" style="color: var(--text);">v1.0.1</span>
+                                <span class="tag-red tag">修复</span>
+                                <span class="text-xs" style="color: var(--text-tertiary);">2025-04-22</span>
+                            </div>
+                            <h3 class="font-semibold text-base mb-4" style="color: var(--text);">Bug 修复 & 体验优化</h3>
+                            <ul class="space-y-2.5">
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-red tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">修复</span>
+                                    <span>修复配置方案切换时部分 MOD 启用状态未正确保存的问题</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-red tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">修复</span>
+                                    <span>修复备份恢复后游戏启动报错的兼容性问题</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-red tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">修复</span>
+                                    <span>修复深色模式下部分文字对比度不足的问题</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-blue tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">优化</span>
+                                    <span>优化拖拽安装的文件解析逻辑，支持更多压缩格式</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-blue tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">优化</span>
+                                    <span>改进版本更新检查的稳定性</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- v1.0.0 -->
+                    <div class="relative flex gap-5">
+                        <div class="relative z-10 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background: var(--surface); border: 1px solid var(--border);">
+                            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--brand);"></div>
+                        </div>
+                        <div class="card flex-1 py-5 px-6">
+                            <div class="flex flex-wrap items-center gap-3 mb-3">
+                                <span class="text-lg font-bold" style="color: var(--text);">v1.0.0</span>
+                                <span class="tag-green tag">发布</span>
+                                <span class="text-xs" style="color: var(--text-tertiary);">2025-03-15</span>
+                            </div>
+                            <h3 class="font-semibold text-base mb-4" style="color: var(--text);">SVL 正式发布 🎉</h3>
+                            <ul class="space-y-2.5">
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-green tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">新增</span>
+                                    <span>一键安装 MOD — 拖拽 .zip 文件即可自动安装</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-green tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">新增</span>
+                                    <span>自动冲突检测 — 智能分析 MOD 依赖和兼容性</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-green tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">新增</span>
+                                    <span>智能备份恢复 — 修改前自动备份，一键回滚</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-green tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">新增</span>
+                                    <span>MOD 版本管理 — 自动检测更新，支持版本锁定</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-green tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">新增</span>
+                                    <span>配置方案切换 — 保存多套 MOD 配置，一键切换</span>
+                                </li>
+                                <li class="flex items-start gap-2.5 text-sm leading-relaxed" style="color: var(--text-secondary);">
+                                    <span class="tag-green tag mt-0.5 flex-shrink-0" style="font-size: 10px; padding: 1px 6px;">新增</span>
+                                    <span>极速启动游戏 — 内置 SMAPI 集成，多平台支持</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

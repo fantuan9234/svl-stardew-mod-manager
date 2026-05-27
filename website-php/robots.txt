@@ -1,0 +1,32 @@
+User-agent: Baiduspider
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /backend/
+Disallow: /data/
+Crawl-delay: 1
+
+User-agent: Googlebot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /backend/
+Disallow: /data/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /backend/
+Disallow: /data/
+
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /backend/
+Disallow: /data/
+
+Sitemap: https://svlmod.cn/sitemap.xml
+Sitemap: https://svlmod.cn/sitemap.php
+Host: svlmod.cn

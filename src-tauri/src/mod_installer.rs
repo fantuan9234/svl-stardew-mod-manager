@@ -10,8 +10,14 @@ use crate::mod_name_resolver::resolve_mod_name;
 use crate::dependency_patches::apply_final_patches;
 
 fn is_safe_to_delete(target: &Path, mods_dir: &Path) -> bool {
-    let target_canon = target.canonicalize().unwrap_or_else(|_| target.to_path_buf());
-    let mods_canon = mods_dir.canonicalize().unwrap_or_else(|_| mods_dir.to_path_buf());
+    let target_canon = match target.canonicalize() {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    let mods_canon = match mods_dir.canonicalize() {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
 
     // Must NOT be the Mods directory itself
     if target_canon == mods_canon {
@@ -43,7 +49,10 @@ pub fn find_existing_mod_folder(mods_dir: &PathBuf, unique_id: &str) -> Option<P
             }
             let manifest_path = path.join("manifest.json");
             if let Ok(content) = fs::read_to_string(&manifest_path) {
-                if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&content) {
+                let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+                let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(cleaned) {
                     if manifest["UniqueID"].as_str() == Some(unique_id) {
                         return Some(path);
                     }
@@ -51,7 +60,10 @@ pub fn find_existing_mod_folder(mods_dir: &PathBuf, unique_id: &str) -> Option<P
             }
             let dot_manifest = path.join(".manifest.json");
             if let Ok(content) = fs::read_to_string(&dot_manifest) {
-                if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&content) {
+                let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+                let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(cleaned) {
                     if manifest["UniqueID"].as_str() == Some(unique_id) {
                         return Some(path);
                     }
@@ -78,7 +90,10 @@ fn remove_old_mod_versions(mods_dir: &PathBuf, unique_id: &str) -> Vec<String> {
             let mut matched = false;
             let manifest_path = path.join("manifest.json");
             if let Ok(content) = fs::read_to_string(&manifest_path) {
-                if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&content) {
+                let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+                let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(cleaned) {
                     if manifest["UniqueID"].as_str() == Some(unique_id) {
                         matched = true;
                     }
@@ -88,7 +103,10 @@ fn remove_old_mod_versions(mods_dir: &PathBuf, unique_id: &str) -> Vec<String> {
                 let folder_name_stripped = folder_name.strip_prefix('.').unwrap_or(&folder_name);
                 let dot_manifest = path.join(format!("{}.manifest.json", folder_name_stripped));
                 if let Ok(content) = fs::read_to_string(&dot_manifest) {
-                    if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&content) {
+                    let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+                    let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                    let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                    if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(cleaned) {
                         if manifest["UniqueID"].as_str() == Some(unique_id) {
                             matched = true;
                         }
@@ -281,6 +299,23 @@ pub(crate) fn install_mod_from_archive_blocking(
         },
     );
 
+    let installed_manifest = dest_path.join("manifest.json");
+    if installed_manifest.exists() {
+        if let Ok(content) = fs::read_to_string(&installed_manifest) {
+            let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+            let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+            let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+            if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(cleaned) {
+                let installed_version = manifest["Version"].as_str().unwrap_or("unknown");
+                let installed_uid = manifest["UniqueID"].as_str().unwrap_or("unknown");
+                crate::app_logger::log_info("ModInstaller", &format!(
+                    "Installed '{}' (UniqueID: {}) version: {} at {}",
+                    mod_name, installed_uid, installed_version, dest_path.display()
+                ));
+            }
+        }
+    }
+
     println!("[install_mod_from_archive] done, mod_name={}, mods_path={}", mod_name, mods_path);
 
     Ok(InstallResult {
@@ -438,7 +473,12 @@ fn extract_zip(archive: &PathBuf, dest: &PathBuf) -> Result<(), String> {
     let mut archive =
         zip::ZipArchive::new(file).map_err(|e| format!("读取 ZIP 失败: {}", e))?;
 
-    let dest_canonical = dest.canonicalize().unwrap_or_else(|_| dest.clone());
+    let dest_canonical = match dest.canonicalize() {
+        Ok(c) => c,
+        Err(_) => {
+            return Err("无法解析目标目录路径，可能存在安全隐患".to_string());
+        }
+    };
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).map_err(|e| format!("读取文件索引失败: {}", e))?;
@@ -708,7 +748,10 @@ fn check_mod_dependencies_blocking(
     let content = fs::read_to_string(&manifest_path)
         .map_err(|e| format!("读取 manifest.json 失败: {}", e))?;
 
-    let manifest: serde_json::Value = serde_json::from_str(&content)
+    let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+    let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+    let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+    let manifest: serde_json::Value = serde_json::from_str(cleaned)
         .map_err(|e| format!("解析 manifest.json 失败: {}", e))?;
 
     let mod_name = manifest["Name"].as_str().unwrap_or("未知 MOD").to_string();
@@ -728,7 +771,7 @@ fn check_mod_dependencies_blocking(
                 continue;
             }
 
-            let is_required = dep["IsRequired"].as_bool().unwrap_or(false);
+            let is_required = dep["IsRequired"].as_bool().unwrap_or(true);
 
             let dep_folder = mods_dir.join(&dep_id);
             let mut found = false;
@@ -742,7 +785,10 @@ fn check_mod_dependencies_blocking(
                             let mf = p.join("manifest.json");
                             if mf.exists() {
                                 if let Ok(mc) = fs::read_to_string(&mf) {
-                                    if let Ok(mv) = serde_json::from_str::<serde_json::Value>(&mc) {
+                                    let normalized = crate::mod_parser::normalize_smart_quotes(&mc);
+                                    let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                                    let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                                    if let Ok(mv) = serde_json::from_str::<serde_json::Value>(cleaned) {
                                         if mv["UniqueID"].as_str() == Some(&dep_id) {
                                             found = true;
                                             break;
@@ -777,7 +823,10 @@ fn check_mod_dependencies_blocking(
                 let mf = p.join("manifest.json");
                 if mf.exists() {
                     if let Ok(mc) = fs::read_to_string(&mf) {
-                        if let Ok(mv) = serde_json::from_str::<serde_json::Value>(&mc) {
+                        let normalized = crate::mod_parser::normalize_smart_quotes(&mc);
+                        let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                        let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                        if let Ok(mv) = serde_json::from_str::<serde_json::Value>(cleaned) {
                             if let Some(uid) = mv["UniqueID"].as_str() {
                                 installed_mod_ids.insert(uid.to_string());
                             }

@@ -201,20 +201,31 @@ pub fn scan_mods_for_profiles(game_path: &str) -> Vec<ModInfo> {
 
 /// 递归扫描Mods文件夹，获取所有mod的实际路径（包括已禁用的）
 fn scan_all_mod_folders(mods_path: &PathBuf) -> Vec<(String, PathBuf)> {
+    scan_all_mod_folders_with_depth(mods_path, 0)
+}
+
+fn scan_all_mod_folders_with_depth(mods_path: &PathBuf, depth: usize) -> Vec<(String, PathBuf)> {
+    const MAX_RECURSION_DEPTH: usize = 5;
+
+    if depth > MAX_RECURSION_DEPTH {
+        return Vec::new();
+    }
+
     let mut results = Vec::new();
-    
+
     if let Ok(entries) = fs::read_dir(mods_path) {
         for entry in entries.flatten() {
             let path = entry.path();
             if !path.is_dir() {
                 continue;
             }
-            
-            // 读取manifest获取unique_id
+
             let manifest_path = path.join("manifest.json");
             if manifest_path.exists() {
                 if let Ok(content) = fs::read_to_string(&manifest_path) {
-                    let cleaned = crate::mod_parser::remove_trailing_commas(&content);
+                    let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+                    let no_comments = crate::mod_parser::strip_json_comments(&normalized);
+                    let cleaned = crate::mod_parser::remove_trailing_commas(&no_comments);
                     let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
                     if let Ok(manifest) = serde_json::from_str::<crate::mod_parser::ModManifest>(cleaned) {
                         if let Some(uid) = &manifest.unique_id {
@@ -223,9 +234,8 @@ fn scan_all_mod_folders(mods_path: &PathBuf) -> Vec<(String, PathBuf)> {
                     }
                 }
             }
-            
-            // 递归扫描子文件夹
-            let nested = scan_all_mod_folders(&path);
+
+            let nested = scan_all_mod_folders_with_depth(&path, depth + 1);
             results.extend(nested);
         }
     }
@@ -325,7 +335,9 @@ pub(crate) fn apply_profile_mod_states(game_path: &str, profile: &Profile) -> Re
                                 let manifest_path = sub_path.join("manifest.json");
                                 if manifest_path.exists() {
                                     if let Ok(content) = fs::read_to_string(&manifest_path) {
-                                        let cleaned = crate::mod_parser::remove_trailing_commas(&content);
+                                        let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+                                        let no_comments = crate::mod_parser::strip_json_comments(&normalized);
+                                        let cleaned = crate::mod_parser::remove_trailing_commas(&no_comments);
                                         let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
                                         if let Ok(manifest) = serde_json::from_str::<crate::mod_parser::ModManifest>(cleaned) {
                                             if let Some(uid) = &manifest.unique_id {
@@ -587,7 +599,7 @@ pub fn apply_profile(game_path: &str, profile_name: &str) -> Result<Profile, Str
 
     // 保存当前mod状态，以便退出档案时恢复
     let current_mods = crate::mod_parser::scan_mods(Some(game_path.to_string()))
-        .unwrap_or_default();
+        .map_err(|e| format!("应用档案前扫描当前mod失败: {}", e))?;
     let current_states: Vec<(String, bool)> = current_mods.iter()
         .map(|m| (m.unique_id.clone(), m.enabled))
         .collect();
@@ -925,7 +937,8 @@ pub fn set_profile_binding(save_folder_name: String, profile_name: Option<String
     let mut bindings: HashMap<String, String> = if bindings_path.exists() {
         let content = fs::read_to_string(&bindings_path)
             .map_err(|e| format!("Failed to read bindings: {}", e))?;
-        serde_json::from_str(&content).unwrap_or_default()
+        serde_json::from_str(&content)
+            .map_err(|e| format!("解析档案绑定文件失败 ({}): {}", bindings_path.display(), e))?
     } else {
         HashMap::new()
     };

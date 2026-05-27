@@ -1,6 +1,7 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import zh from './zh.json';
+import zhTW from './zh-TW.json';
 import en from './en.json';
 
 const savedLanguage = localStorage.getItem('svl-language');
@@ -10,6 +11,7 @@ i18n
   .init({
     resources: {
       zh: { translation: zh },
+      'zh-TW': { translation: zhTW },
       en: { translation: en },
     },
     lng: savedLanguage || 'zh',

@@ -278,7 +278,11 @@ export default function ModManager() {
   };
 
   const handleDownloadSmapi = async () => {
-    await openUrl(SMAPI_OFFICIAL_URL, t('app.smapiInstaller.openUrlFailed'));
+    try {
+      await invoke('open_nexus_browser', { initialUrl: 'https://www.nexusmods.com/stardewvalley/mods/2400' });
+    } catch {
+      await openUrl(SMAPI_OFFICIAL_URL, t('app.smapiInstaller.openUrlFailed'));
+    }
   };
 
   const handleFindGameDir = useCallback(() => {

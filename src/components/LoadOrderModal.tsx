@@ -21,7 +21,7 @@ interface LoadOrderModalProps {
 }
 
 const layerColors: Record<string, string> = {
-  Framework: 'purple',
+  Framework: 'volcano',
   Library: 'blue',
   Core: 'green',
   Content: 'orange',

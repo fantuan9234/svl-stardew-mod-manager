@@ -50,6 +50,23 @@ pub struct UpdateConfigResult {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModConfigListItem {
+    pub mod_name: String,
+    pub unique_id: String,
+    pub folder_path: String,
+    pub config_path: String,
+    pub field_count: usize,
+    pub has_config: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModConfigListResult {
+    pub configs: Vec<ModConfigListItem>,
+    pub total_mods_with_config: usize,
+    pub total_mods_scanned: usize,
+}
+
 fn infer_field_type(value: &serde_json::Value) -> ConfigFieldType {
     match value {
         serde_json::Value::Bool(_) => ConfigFieldType::Bool,
@@ -181,5 +198,99 @@ pub fn update_mod_config(
     Ok(UpdateConfigResult {
         success: true,
         message: format!("Updated {} fields in config.json", update_count),
+    })
+}
+
+#[tauri::command]
+pub fn list_mod_configs(mods_path: String) -> Result<ModConfigListResult, String> {
+    let mods_dir = PathBuf::from(&mods_path);
+
+    if !mods_dir.exists() || !mods_dir.is_dir() {
+        return Err("Mods directory does not exist".to_string());
+    }
+
+    let mut configs = Vec::new();
+    let mut total_scanned = 0usize;
+
+    let entries = fs::read_dir(&mods_dir)
+        .map_err(|e| format!("Failed to read Mods directory: {}", e))?;
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        let mod_dir = entry.path();
+        if !mod_dir.is_dir() {
+            continue;
+        }
+
+        total_scanned += 1;
+
+        if let Ok(sub_entries) = fs::read_dir(&mod_dir) {
+            for sub_entry in sub_entries.flatten() {
+                let sub_path = sub_entry.path();
+                if sub_path.is_dir() {
+                    let config_path = sub_path.join("config.json");
+                    if config_path.exists() {
+                        let (name, unique_id) = read_manifest_info(&sub_path);
+                        let field_count = if let Ok(content) = fs::read_to_string(&config_path) {
+                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                                json.as_object().map(|o| o.len()).unwrap_or(0)
+                            } else {
+                                0
+                            }
+                        } else {
+                            0
+                        };
+
+                        configs.push(ModConfigListItem {
+                            mod_name: name,
+                            unique_id,
+                            folder_path: sub_path.to_string_lossy().to_string(),
+                            config_path: config_path.to_string_lossy().to_string(),
+                            field_count,
+                            has_config: true,
+                        });
+                    }
+                }
+            }
+        }
+
+        let config_path = mod_dir.join("config.json");
+        if config_path.exists() {
+            let (name, unique_id) = read_manifest_info(&mod_dir);
+            let field_count = if let Ok(content) = fs::read_to_string(&config_path) {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                    json.as_object().map(|o| o.len()).unwrap_or(0)
+                } else {
+                    0
+                }
+            } else {
+                0
+            };
+
+            if !configs.iter().any(|c: &ModConfigListItem| c.folder_path == mod_dir.to_string_lossy()) {
+                configs.push(ModConfigListItem {
+                    mod_name: name,
+                    unique_id,
+                    folder_path: mod_dir.to_string_lossy().to_string(),
+                    config_path: config_path.to_string_lossy().to_string(),
+                    field_count,
+                    has_config: true,
+                });
+            }
+        }
+    }
+
+    configs.sort_by(|a, b| a.mod_name.to_lowercase().cmp(&b.mod_name.to_lowercase()));
+
+    let total_with_config = configs.len();
+
+    Ok(ModConfigListResult {
+        configs,
+        total_mods_with_config: total_with_config,
+        total_mods_scanned: total_scanned,
     })
 }

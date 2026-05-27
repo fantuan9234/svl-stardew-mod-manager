@@ -76,18 +76,18 @@ export default function ModBackupConfirmModal({
           </div>
         </div>
 
-        <div style={{ padding: '12px 16px', background: '#2d2418', borderRadius: 8, marginBottom: 16 }}>
+        <div style={{ padding: '12px 16px', background: 'var(--svl-bg-card)', borderRadius: 8, marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ color: '#a09880', fontSize: 12 }}>{t('app.modBackup.modName')}</span>
-            <span style={{ color: '#f0e6d3', fontSize: 12 }}>{modName}</span>
+            <span style={{ color: 'var(--svl-text-primary)', fontSize: 12 }}>{modName}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ color: '#a09880', fontSize: 12 }}>Unique ID</span>
-            <span style={{ color: '#f0e6d3', fontSize: 12, fontFamily: 'monospace' }}>{modUniqueId}</span>
+            <span style={{ color: 'var(--svl-text-primary)', fontSize: 12, fontFamily: 'monospace' }}>{modUniqueId}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ color: '#a09880', fontSize: 12 }}>{t('app.modBackup.version')}</span>
-            <span style={{ color: '#f0e6d3', fontSize: 12 }}>{modVersion}</span>
+            <span style={{ color: 'var(--svl-text-primary)', fontSize: 12 }}>{modVersion}</span>
           </div>
         </div>
 
@@ -106,10 +106,10 @@ export default function ModBackupConfirmModal({
                 style={{
                   flex: 1,
                   padding: '8px 12px',
-                  background: '#1a1510',
-                  border: '1px solid #4a3d2e',
+                  background: 'var(--svl-bg-primary)',
+                  border: '1px solid var(--svl-border)',
                   borderRadius: 6,
-                  color: '#f0e6d3',
+                  color: 'var(--svl-text-primary)',
                   fontSize: 12,
                   fontFamily: 'monospace',
                 }}
@@ -127,11 +127,11 @@ export default function ModBackupConfirmModal({
         )}
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-          <Button onClick={onSkipBackup} style={{ color: '#8a7d6b' }}>
+          <Button onClick={onSkipBackup} style={{ color: 'var(--svl-text-muted)' }}>
             {t('app.modBackup.skip')}
           </Button>
           <Button onClick={handleClose}>{t('app.common.cancel')}</Button>
-          <Button type="primary" onClick={handleConfirm} style={{ background: '#8b6914', borderColor: '#8b6914' }}>
+          <Button type="primary" onClick={handleConfirm} style={{ background: 'var(--svl-primary)', borderColor: 'var(--svl-primary)' }}>
             <DatabaseOutlined />
             {t('app.modBackup.confirmBackup')}
           </Button>

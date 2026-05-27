@@ -21,11 +21,11 @@ pub struct ModDictUpdateResult {
 
 #[derive(Debug, Clone, Deserialize)]
 struct SmapiModEntry {
-    #[serde(rename = "UniqueID")]
+    #[serde(rename = "id")]
     unique_id: Option<String>,
-    #[serde(rename = "NexusID")]
+    #[serde(rename = "nexus")]
     nexus_id: Option<serde_json::Value>,
-    #[serde(rename = "Name")]
+    #[serde(rename = "name")]
     name: Option<String>,
 }
 
@@ -58,9 +58,9 @@ pub async fn update_mod_dict() -> Result<ModDictUpdateResult, String> {
     let mods_json: serde_json::Value = serde_json::from_str(&cleaned)
         .map_err(|e| format!("解析 JSON 失败: {}", e))?;
 
-    let mods_array = mods_json["Mods"]
+    let mods_array = mods_json["mods"]
         .as_array()
-        .ok_or("JSON 格式错误：未找到 Mods 数组")?;
+        .ok_or("JSON 格式错误：未找到 mods 数组")?;
 
     let mut new_mapping = HashMap::new();
     let mut parsed_count = 0;
@@ -74,17 +74,25 @@ pub async fn update_mod_dict() -> Result<ModDictUpdateResult, String> {
             }
         };
 
-        if let Some(unique_id) = smapi_entry.unique_id {
+        if let Some(unique_id_str) = smapi_entry.unique_id {
             if let Some(ref nexus_value) = smapi_entry.nexus_id {
                 if let Some(nexus_id) = extract_nexus_id(nexus_value) {
-                    new_mapping.insert(unique_id.clone(), nexus_id);
+                    for uid in unique_id_str.split(',').map(|s| s.trim()) {
+                        if !uid.is_empty() {
+                            new_mapping.insert(uid.to_string(), nexus_id.clone());
+                        }
+                    }
                     parsed_count += 1;
                 }
             }
             if let Some(name) = smapi_entry.name {
                 if let Some(ref nexus_value) = smapi_entry.nexus_id {
                     if let Some(nexus_id) = extract_nexus_id(nexus_value) {
-                        new_mapping.insert(name.clone(), nexus_id);
+                        for n in name.split(',').map(|s| s.trim()) {
+                            if !n.is_empty() {
+                                new_mapping.insert(n.to_string(), nexus_id.clone());
+                            }
+                        }
                     }
                 }
             }

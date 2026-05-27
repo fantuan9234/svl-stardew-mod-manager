@@ -7,13 +7,12 @@ import appIcon from '../assets/donate/app-icon.png';
 const adData = [
   {
     id: 1,
-    title: '24小时无人值守星露谷物语联机',
+    title: '联机卡顿不流畅？房主在线时间不固定？来试试联机服务器',
     subtitle: '手机+PC+iOS三端互通联机',
-    description: '无人数上限 · 可开大型社区服',
     tag: '星露谷专属',
     tagColor: '#00b894',
     link: 'https://yy.0play.cn/auth/register?ref=REF1330FA2E',
-    features: ['24小时稳定运行', '三端互通联机', '无人数上限', '支持大型社区服'],
+    features: ['24小时稳定运行', '三端互通联机', '无人数上限 · 24小时无人值守', '支持模组'],
   },
 ];
 
@@ -155,7 +154,7 @@ export default function HomeModal() {
               margin: 0,
               fontSize: 26,
               fontWeight: 700,
-              color: '#f0e6d3',
+              color: 'var(--svl-text-primary)',
               letterSpacing: '-0.3px',
               lineHeight: 1.2,
             }}
@@ -166,7 +165,7 @@ export default function HomeModal() {
             style={{
               margin: '8px 0 0',
               fontSize: 14,
-              color: '#8a7d6b',
+              color: 'var(--svl-text-muted)',
               fontWeight: 400,
             }}
           >
@@ -189,7 +188,7 @@ export default function HomeModal() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: 8,
-              background: 'linear-gradient(135deg, #8b6914, #c49a3b)',
+              background: 'linear-gradient(135deg, var(--svl-primary), var(--svl-primary-light))',
               color: '#fff',
               border: 'none',
               padding: '14px 48px',
@@ -232,8 +231,8 @@ export default function HomeModal() {
           style={{
             width: '100%',
             maxWidth: 560,
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
+            background: 'var(--svl-surface-faint)',
+            border: '1px solid var(--svl-border)',
             borderRadius: 16,
             padding: 20,
             marginBottom: 28,
@@ -253,10 +252,10 @@ export default function HomeModal() {
                 width: 3,
                 height: 14,
                 borderRadius: 2,
-                background: '#c49a3b',
+                background: 'var(--svl-primary-light)',
               }}
             />
-            <span style={{ color: '#8a7d6b', fontSize: 12, fontWeight: 600, letterSpacing: '0.5px' }}>
+            <span style={{ color: 'var(--svl-text-muted)', fontSize: 12, fontWeight: 600, letterSpacing: '0.5px' }}>
               赞助商推荐
             </span>
           </div>
@@ -323,22 +322,13 @@ export default function HomeModal() {
               </h2>
               <p
                 style={{
-                  margin: '0 0 4px',
+                  margin: '0 0 16px',
                   color: '#00d4ff',
                   fontSize: 13,
                   fontWeight: 600,
                 }}
               >
                 {ad.subtitle}
-              </p>
-              <p
-                style={{
-                  margin: '0 0 16px',
-                  color: 'rgba(255,255,255,0.55)',
-                  fontSize: 12,
-                }}
-              >
-                {ad.description}
               </p>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {ad.features.map((feature, idx) => (
@@ -350,8 +340,8 @@ export default function HomeModal() {
                       gap: 4,
                       padding: '4px 10px',
                       borderRadius: 5,
-                      background: 'rgba(255,255,255,0.06)',
-                      border: '1px solid rgba(255,255,255,0.08)',
+                      background: 'var(--svl-border)',
+                      border: '1px solid var(--svl-border)',
                       color: 'rgba(255,255,255,0.75)',
                       fontSize: 11,
                       fontWeight: 500,
@@ -396,7 +386,7 @@ export default function HomeModal() {
           onClick={handleDontShowAgain}
           style={{
             background: 'transparent',
-            border: '1px solid rgba(255,255,255,0.08)',
+            border: '1px solid var(--svl-border)',
             color: '#5a5040',
             padding: '10px 28px',
             borderRadius: 8,
@@ -406,12 +396,12 @@ export default function HomeModal() {
             letterSpacing: '0.5px',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.color = '#8a7d6b';
+            e.currentTarget.style.color = 'var(--svl-text-muted)';
             e.currentTarget.style.borderColor = 'rgba(196, 154, 59, 0.3)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.color = '#5a5040';
-            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+            e.currentTarget.style.borderColor = 'var(--svl-border)';
           }}
         >
           {t('home.ads.dontShowAgain')}

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+use crate::app_logger::{log_info, log_warn, log_error};
 use crate::compatibility_list::get_mod_metadata;
 use crate::mod_name_resolver::resolve_mod_name;
 
@@ -50,7 +51,7 @@ pub async fn check_single_mod_update(
     mod_folder_path: Option<String>,
     api_key: Option<String>,
 ) -> Result<ModUpdateStatus, String> {
-    eprintln!("[update_checker] Checking update for: {} (current: {})", unique_id, current_version);
+    log_info("UpdateChecker", &format!("Checking update for: {} (current: {})", unique_id, current_version));
 
     let name = resolve_mod_name(&unique_id);
 
@@ -123,7 +124,7 @@ pub async fn check_single_mod_update(
                 if let Some(ref key) = api_key {
                     if !key.is_empty() {
                         if let Some(ref nexus_id) = nexus_update_info.nexus_mod_id {
-                            if let Ok(nexus_status) = check_nexus_mod_version(key, nexus_id, &current_version).await {
+                            if let Ok(nexus_status) = check_nexus_mod_version(key, nexus_id, &current_version, &unique_id).await {
                                 return Ok(nexus_status);
                             }
                         }
@@ -143,7 +144,7 @@ pub async fn check_single_mod_update(
                 "name": name,
             });
             if let Some(nexus_id) = get_nexus_id_from_mod_data(&mod_data) {
-                if let Ok(nexus_status) = check_nexus_mod_version(key, &nexus_id, &current_version).await {
+                if let Ok(nexus_status) = check_nexus_mod_version(key, &nexus_id, &current_version, &unique_id).await {
                     return Ok(nexus_status);
                 }
             }
@@ -170,7 +171,7 @@ pub async fn check_all_mods_updates(
     mods_data: Vec<serde_json::Value>,
     api_key: Option<String>,
 ) -> Result<Vec<ModUpdateStatus>, String> {
-    eprintln!("[update_checker] Checking updates for {} mods", mods_data.len());
+    log_info("UpdateChecker", &format!("Checking updates for {} mods", mods_data.len()));
 
     let mut updates = Vec::new();
 
@@ -193,7 +194,7 @@ pub async fn check_all_mods_updates(
                         if let Some(ref key) = api_key {
                             if !key.is_empty() {
                                 if let Some(nexus_id) = status.nexus_mod_id.as_ref() {
-                                    if let Ok(nexus_status) = check_nexus_mod_version(key, nexus_id, &current_version).await {
+                                    if let Ok(nexus_status) = check_nexus_mod_version(key, nexus_id, &current_version, &unique_id).await {
                                         enriched = true;
                                         if nexus_status.has_update {
                                             updates.push(nexus_status);
@@ -213,7 +214,7 @@ pub async fn check_all_mods_updates(
                     if let Some(ref key) = api_key {
                         if !key.is_empty() {
                             if let Some(nexus_id) = status.nexus_mod_id.as_ref() {
-                                if let Ok(nexus_status) = check_nexus_mod_version(key, nexus_id, &current_version).await {
+                                if let Ok(nexus_status) = check_nexus_mod_version(key, nexus_id, &current_version, &unique_id).await {
                                     if nexus_status.has_update {
                                         updates.push(nexus_status);
                                     }
@@ -226,7 +227,7 @@ pub async fn check_all_mods_updates(
                 }
             }
             Err(e) => {
-                eprintln!("[update_checker] Failed to check local update for {}: {}", unique_id, e);
+                log_warn("UpdateChecker", &format!("Failed to check local update for {}: {}", unique_id, e));
             }
         }
 
@@ -234,14 +235,14 @@ pub async fn check_all_mods_updates(
         if let Some(ref key) = api_key {
             if !key.is_empty() {
                 if let Some(nexus_id) = get_nexus_id_from_mod_data(mod_entry) {
-                    match check_nexus_mod_version(key, &nexus_id, &current_version).await {
+                    match check_nexus_mod_version(key, &nexus_id, &current_version, &unique_id).await {
                         Ok(nexus_status) => {
                             if nexus_status.has_update {
                                 updates.push(nexus_status);
                             }
                         }
                         Err(e) => {
-                            eprintln!("[update_checker] Nexus API check failed for {}: {}", unique_id, e);
+                            log_warn("UpdateChecker", &format!("Nexus API check failed for {}: {}", unique_id, e));
                         }
                     }
                 }
@@ -249,7 +250,6 @@ pub async fn check_all_mods_updates(
         }
     }
 
-    // Sort by update source priority
     updates.sort_by(|a, b| {
         let priority_a = match a.update_source {
             UpdateSource::UnofficialUpdate => 0,
@@ -266,7 +266,7 @@ pub async fn check_all_mods_updates(
         priority_a.cmp(&priority_b)
     });
 
-    eprintln!("[update_checker] Found {} mods with updates", updates.len());
+    log_info("UpdateChecker", &format!("Found {} mods with updates", updates.len()));
     Ok(updates)
 }
 
@@ -277,7 +277,7 @@ pub async fn batch_update_mods(
     api_key: String,
     mods_path: String,
 ) -> Result<BatchUpdateResult, String> {
-    eprintln!("[update_checker] Batch updating {} mods", mods_to_update.len());
+    log_info("UpdateChecker", &format!("Batch updating {} mods", mods_to_update.len()));
 
     let mut details = Vec::new();
     let mut updated_count = 0;
@@ -292,7 +292,7 @@ pub async fn batch_update_mods(
         }
 
         if let Some(nexus_id) = get_nexus_id_from_mod_data(mod_entry) {
-            eprintln!("[update_checker] Auto-downloading {} from Nexus (mod_id={})", name, nexus_id);
+            log_info("UpdateChecker", &format!("Auto-downloading {} from Nexus (mod_id={})", name, nexus_id));
 
             match crate::nexus_api::download_mod_from_nexus(
                 app.clone(),
@@ -305,6 +305,26 @@ pub async fn batch_update_mods(
                 Ok(download_result) => {
                     if download_result.success {
                         updated_count += 1;
+                        log_info("UpdateChecker", &format!("Updated {} successfully: {}", name, download_result.message));
+
+                        let mods_dir = std::path::PathBuf::from(&mods_path);
+                        if let Some(existing) = crate::mod_installer::find_existing_mod_folder(&mods_dir, &unique_id) {
+                            let manifest_path = existing.join("manifest.json");
+                            if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+                            let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+                            let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                            let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                            if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(cleaned) {
+                                    let installed_ver = manifest["Version"].as_str().unwrap_or("unknown");
+                                    let installed_uid = manifest["UniqueID"].as_str().unwrap_or("unknown");
+                                    log_info("UpdateChecker", &format!(
+                                        "Post-install verify: {} uid={} version={} at {}",
+                                        name, installed_uid, installed_ver, existing.display()
+                                    ));
+                                }
+                            }
+                        }
+
                         details.push(ModUpdateDetail {
                             unique_id: unique_id.clone(),
                             name: name.clone(),
@@ -313,6 +333,7 @@ pub async fn batch_update_mods(
                         });
                     } else {
                         failed_count += 1;
+                        log_error("UpdateChecker", &format!("Failed to update {}: {}", name, download_result.message));
                         details.push(ModUpdateDetail {
                             unique_id: unique_id.clone(),
                             name: name.clone(),
@@ -323,6 +344,7 @@ pub async fn batch_update_mods(
                 }
                 Err(e) => {
                     failed_count += 1;
+                    log_error("UpdateChecker", &format!("Download failed for {}: {}", name, e));
                     details.push(ModUpdateDetail {
                         unique_id: unique_id.clone(),
                         name: name.clone(),
@@ -352,14 +374,35 @@ pub async fn batch_update_mods(
 
 fn normalize_version(v: &str) -> String {
     let trimmed = v.trim().trim_start_matches('v').trim_start_matches('V');
-    trimmed.to_string()
+    let parts: Vec<&str> = trimmed.split('.').collect();
+    let mut normalized: Vec<String> = Vec::new();
+    for part in parts {
+        if part.is_empty() {
+            continue;
+        }
+        if let Ok(num) = part.parse::<u64>() {
+            normalized.push(num.to_string());
+        } else {
+            let prefix: String = part.chars().take_while(|c| c.is_ascii_digit()).collect();
+            if !prefix.is_empty() {
+                normalized.push(prefix);
+            }
+            break;
+        }
+    }
+    while normalized.len() < 3 {
+        normalized.push("0".to_string());
+    }
+    normalized.join(".")
 }
 
 pub fn compare_versions(v1: &str, v2: &str) -> i32 {
-    let parts1: Vec<u64> = normalize_version(v1).split('.')
+    let n1 = normalize_version(v1);
+    let n2 = normalize_version(v2);
+    let parts1: Vec<u64> = n1.split('.')
         .filter_map(|s| s.parse().ok())
         .collect();
-    let parts2: Vec<u64> = normalize_version(v2).split('.')
+    let parts2: Vec<u64> = n2.split('.')
         .filter_map(|s| s.parse().ok())
         .collect();
 
@@ -392,37 +435,101 @@ fn check_manifest_update_keys(folder_path: &str, current_version: &str) -> Optio
         Err(_) => return None,
     };
 
-    let manifest: serde_json::Value = match serde_json::from_str(&content) {
+    let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+    let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+    let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+
+    let manifest: serde_json::Value = match serde_json::from_str(cleaned) {
         Ok(v) => v,
         Err(_) => return None,
     };
 
     if let Some(update_keys) = manifest.get("UpdateKeys").and_then(|v| v.as_array()) {
         for key in update_keys {
-            if let Some(key_str) = key.as_str() {
-                if key_str.starts_with("Nexus:") {
-                    let raw_id = key_str.trim_start_matches("Nexus:").trim();
-                    let digits: String = raw_id.chars().filter(|c| c.is_ascii_digit()).collect();
-                    
-                    if !digits.is_empty() {
-                        return Some(ModUpdateStatus {
-                            unique_id: manifest["UniqueID"].as_str()
-                                .or_else(|| manifest["Name"].as_str())
-                                .unwrap_or("Unknown").to_string(),
-                            name: manifest["Name"].as_str().unwrap_or("Unknown").to_string(),
-                            current_version: current_version.to_string(),
-                            latest_version: None,
-                            has_update: false,
-                            update_source: UpdateSource::NexusApi,
-                            download_url: Some(format!(
-                                "https://www.nexusmods.com/stardewvalley/mods/{}",
-                                digits
-                            )),
-                            nexus_mod_id: Some(digits),
-                            changelog: None,
-                            is_nexus_premium: false,
-                        });
-                    }
+            let key_str = if let Some(s) = key.as_str() {
+                s.to_string()
+            } else if let Some(n) = key.as_i64() {
+                format!("Nexus:{}", n)
+            } else {
+                continue;
+            };
+
+            if key_str.starts_with("Nexus:") {
+                let raw_id = key_str.trim_start_matches("Nexus:").trim();
+                let digits: String = raw_id.chars().filter(|c| c.is_ascii_digit()).collect();
+                
+                if !digits.is_empty() {
+                    return Some(ModUpdateStatus {
+                        unique_id: manifest["UniqueID"].as_str()
+                            .or_else(|| manifest["Name"].as_str())
+                            .unwrap_or("Unknown").to_string(),
+                        name: manifest["Name"].as_str().unwrap_or("Unknown").to_string(),
+                        current_version: current_version.to_string(),
+                        latest_version: None,
+                        has_update: false,
+                        update_source: UpdateSource::NexusApi,
+                        download_url: Some(format!(
+                            "https://www.nexusmods.com/stardewvalley/mods/{}",
+                            digits
+                        )),
+                        nexus_mod_id: Some(digits),
+                        changelog: None,
+                        is_nexus_premium: false,
+                    });
+                }
+            } else if key_str.starts_with("GitHub:") {
+                let repo = key_str.trim_start_matches("GitHub:").trim();
+                if !repo.is_empty() {
+                    return Some(ModUpdateStatus {
+                        unique_id: manifest["UniqueID"].as_str()
+                            .or_else(|| manifest["Name"].as_str())
+                            .unwrap_or("Unknown").to_string(),
+                        name: manifest["Name"].as_str().unwrap_or("Unknown").to_string(),
+                        current_version: current_version.to_string(),
+                        latest_version: None,
+                        has_update: false,
+                        update_source: UpdateSource::NexusApi,
+                        download_url: Some(format!("https://github.com/{}/releases", repo)),
+                        nexus_mod_id: None,
+                        changelog: None,
+                        is_nexus_premium: false,
+                    });
+                }
+            } else if key_str.starts_with("ModDrop:") {
+                let moddrop_id = key_str.trim_start_matches("ModDrop:").trim();
+                if !moddrop_id.is_empty() {
+                    return Some(ModUpdateStatus {
+                        unique_id: manifest["UniqueID"].as_str()
+                            .or_else(|| manifest["Name"].as_str())
+                            .unwrap_or("Unknown").to_string(),
+                        name: manifest["Name"].as_str().unwrap_or("Unknown").to_string(),
+                        current_version: current_version.to_string(),
+                        latest_version: None,
+                        has_update: false,
+                        update_source: UpdateSource::NexusApi,
+                        download_url: Some(format!("https://www.moddrop.com/sdv/mod/{}", moddrop_id)),
+                        nexus_mod_id: None,
+                        changelog: None,
+                        is_nexus_premium: false,
+                    });
+                }
+            } else if key_str.starts_with("Chucklefish:") {
+                let cf_id = key_str.trim_start_matches("Chucklefish:").trim();
+                if !cf_id.is_empty() {
+                    return Some(ModUpdateStatus {
+                        unique_id: manifest["UniqueID"].as_str()
+                            .or_else(|| manifest["Name"].as_str())
+                            .unwrap_or("Unknown").to_string(),
+                        name: manifest["Name"].as_str().unwrap_or("Unknown").to_string(),
+                        current_version: current_version.to_string(),
+                        latest_version: None,
+                        has_update: false,
+                        update_source: UpdateSource::NexusApi,
+                        download_url: Some(format!("https://community.playstarbound.com/resources/{}", cf_id)),
+                        nexus_mod_id: None,
+                        changelog: None,
+                        is_nexus_premium: false,
+                    });
                 }
             }
         }
@@ -513,6 +620,45 @@ mod tests {
             "Should extract nexus mod ID from download_url as fallback"
         );
     }
+
+    #[test]
+    fn test_check_manifest_update_keys_numeric_nexus_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("TestMod");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+        std::fs::write(mod_dir.join("manifest.json"), r#"{
+            "Name": "Test Mod",
+            "UniqueID": "Test.Mod",
+            "Version": "1.0.0",
+            "UpdateKeys": [1915]
+        }"#).unwrap();
+
+        let result = check_manifest_update_keys(mod_dir.to_str().unwrap(), "1.0.0");
+        assert!(result.is_some(), "Should parse numeric UpdateKeys");
+        let status = result.unwrap();
+        assert_eq!(status.nexus_mod_id, Some("1915".to_string()),
+            "Numeric Nexus ID in UpdateKeys should be handled like 'Nexus:1915'");
+    }
+
+    #[test]
+    fn test_check_manifest_update_keys_github_source() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("TestMod");
+        std::fs::create_dir_all(&mod_dir).unwrap();
+        std::fs::write(mod_dir.join("manifest.json"), r#"{
+            "Name": "Test Mod",
+            "UniqueID": "Test.Mod",
+            "Version": "1.0.0",
+            "UpdateKeys": ["GitHub:Pathoschild/SMAPI"]
+        }"#).unwrap();
+
+        let result = check_manifest_update_keys(mod_dir.to_str().unwrap(), "1.0.0");
+        assert!(result.is_some(), "Should parse GitHub UpdateKeys");
+        let status = result.unwrap();
+        assert!(status.download_url.is_some(), "GitHub source should produce a download URL");
+        assert!(status.download_url.as_ref().unwrap().contains("github.com"),
+            "GitHub source should produce a github.com URL");
+    }
 }
 
 #[tauri::command]
@@ -523,7 +669,7 @@ pub async fn download_mod_update(
     mods_path: String,
     old_unique_id: Option<String>,
 ) -> Result<String, String> {
-    eprintln!("[download_mod_update] Downloading mod update for nexus_id={}", nexus_mod_id);
+    log_info("UpdateChecker", &format!("Downloading mod update for nexus_id={}", nexus_mod_id));
 
     if api_key.is_empty() {
         return Err("需要设置 Nexus API Key 才能下载 MOD".into());
@@ -535,12 +681,43 @@ pub async fn download_mod_update(
         return Err("该 MOD 没有可用的下载文件".into());
     }
 
-    let target_file = files.into_iter()
-        .filter(|f| !f.is_premium_only)
-        .max_by_key(|f| f.upload_time.clone())
-        .ok_or("该 MOD 的所有文件都需要付费会员".to_string())?;
+    let target_file = {
+        let non_premium: Vec<_> = files.into_iter()
+            .filter(|f| !f.is_premium_only)
+            .collect();
 
-    eprintln!("[download_mod_update] Downloading: {} (file_id={})", target_file.name, target_file.file_id);
+        let main_files: Vec<_> = non_premium.iter()
+            .filter(|f| f.category_id == 1)
+            .cloned()
+            .collect();
+        if !main_files.is_empty() {
+            let mut sorted = main_files;
+            sorted.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
+            sorted.into_iter().next()
+                .ok_or("该 MOD 的所有文件都需要付费会员".to_string())?
+        } else {
+            let update_files: Vec<_> = non_premium.iter()
+                .filter(|f| f.category_id == 2)
+                .cloned()
+                .collect();
+            if !update_files.is_empty() {
+                let mut sorted = update_files;
+                sorted.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
+                sorted.into_iter().next()
+                    .ok_or("该 MOD 的所有文件都需要付费会员".to_string())?
+            } else {
+                let mut sorted = non_premium;
+                sorted.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
+                sorted.into_iter().next()
+                    .ok_or("该 MOD 的所有文件都需要付费会员".to_string())?
+            }
+        }
+    };
+
+    log_info("UpdateChecker", &format!(
+        "Selected file: {} (file_id={}, category={}, version={})",
+        target_file.name, target_file.file_id, target_file.category_id, target_file.version
+    ));
 
     let result = crate::nexus_api::download_mod_from_nexus(
         app,
@@ -562,6 +739,7 @@ async fn check_nexus_mod_version(
     api_key: &str,
     nexus_mod_id: &str,
     current_version: &str,
+    unique_id: &str,
 ) -> Result<ModUpdateStatus, String> {
     use crate::nexus_api::build_nexus_async_client;
     use crate::nexus_api::add_nexus_async_headers;
@@ -593,11 +771,16 @@ async fn check_nexus_mod_version(
     let latest_version = mod_info["version"].as_str().unwrap_or("").to_string();
     let has_update = compare_versions(current_version, &latest_version) < 0;
 
+    log_info("UpdateChecker", &format!(
+        "Nexus version check: {} local={} nexus={} has_update={}",
+        unique_id, current_version, latest_version, has_update
+    ));
+
     let mod_name = mod_info["name"].as_str().unwrap_or("Unknown").to_string();
     let summary = mod_info["summary"].as_str().unwrap_or("").to_string();
 
     Ok(ModUpdateStatus {
-        unique_id: format!("Nexus:{}", nexus_mod_id),
+        unique_id: unique_id.to_string(),
         name: mod_name,
         current_version: current_version.to_string(),
         latest_version: Some(latest_version),

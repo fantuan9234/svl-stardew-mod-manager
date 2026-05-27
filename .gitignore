@@ -80,12 +80,14 @@ test_*.py
 skills-lock.json
 vitest.config.ts
 
-# Website / PHP (not part of the app)
-website/
+# Website build output (not source)
 website-dist/
-website-php/
 cloudflare-worker/
-*.php
+
+# PHP runtime / config with secrets
+website-php/data/
+website-php/*.db
+website-php/*.sqlite
 
 # Build archives
 release-archive/

@@ -36,6 +36,8 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
   const [isDragOver, setIsDragOver] = useState(false);
   const progressRef = useRef<InstallProgress[]>([]);
   const installingRef = useRef(false);
+  const processFileRef = useRef<(filePath: string) => Promise<void>>(async () => {});
+  const executeInstallRef = useRef<(filePaths: string[]) => Promise<void>>(async () => {});
 
   useEffect(() => {
     let disposed = false;
@@ -61,11 +63,11 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
         );
         if (archives.length > 0) {
           for (const f of archives) {
-            processFile(f);
+            processFileRef.current(f);
           }
         }
         if (folders.length > 0) {
-          executeInstall(folders);
+          executeInstallRef.current(folders);
         }
         if (archives.length === 0 && folders.length === 0) {
           message.warning(t('app.modInstall.unsupportedFormat'));
@@ -176,6 +178,9 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
     console.log('[DropZone] install complete, calling onInstallSuccess, modsPath:', modsPath);
     onInstallSuccess();
   };
+
+  processFileRef.current = processFile;
+  executeInstallRef.current = executeInstall;
 
   const handleDraggerClick = async () => {
     if (installing) return;

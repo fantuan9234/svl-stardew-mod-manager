@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>推荐服务 - SVL 星露谷 MOD 管理器</title>
+    <meta name="description" content="SVL 推荐的星露谷物语联机服务：24小时无人值守，手机+PC+iOS三端互通，无人数上限，支持大型社区服">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        .svg-icon { display: inline-block; vertical-align: middle; flex-shrink: 0; }
+        .svg-icon-sm { width: 1rem; height: 1rem; }
+        .svg-icon-md { width: 1.5rem; height: 1.5rem; }
+        .svg-icon-lg { width: 2.4rem; height: 2.4rem; }
+
+        :root {
+            --spring-green: #6BCB77; --deep-green: #2D6A4F; --forest: #1B4332;
+            --meadow: #95D5B2; --sun: #FFD166; --gold: #F4A261; --warm-brown: #E76F51;
+            --sky-blue: #74C0FC; --lavender: #B8A9C9; --earth-brown: #8B6914;
+            --cream: #FFF8F0; --soil: #5C4033; --bark: #3E2723; --petal-pink: #FFB6C1;
+            --berry-purple: #9B59B6; --crop-yellow: #F4D03F; --water-blue: #2980B9; --wood: #A0522D;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+            background: var(--cream); color: var(--bark); line-height: 1.7; overflow-x: hidden;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-12px); }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes glow-pulse {
+            0%, 100% { box-shadow: 0 0 30px rgba(0, 212, 255, 0.1); }
+            50% { box-shadow: 0 0 60px rgba(0, 212, 255, 0.2); }
+        }
+
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            padding: 1rem 2.5rem; display: flex; justify-content: space-between; align-items: center;
+            transition: all 0.4s ease;
+        }
+        nav.scrolled {
+            background: rgba(255, 248, 240, 0.95); backdrop-filter: blur(15px);
+            box-shadow: 0 4px 30px rgba(43, 39, 35, 0.1); padding: 0.7rem 2.5rem;
+            border-bottom: 3px solid var(--spring-green);
+        }
+        .nav-brand {
+            display: flex; align-items: center; gap: 0.75rem;
+            font-family: 'Press Start 2P', monospace; font-size: 1.1rem;
+            color: var(--forest); text-decoration: none; letter-spacing: 2px;
+        }
+        .nav-brand-icon {
+            width: 38px; height: 38px; border-radius: 8px; object-fit: contain;
+            image-rendering: pixelated; box-shadow: 0 4px 15px rgba(45, 106, 79, 0.3);
+        }
+        .nav-links { display: flex; gap: 2rem; align-items: center; list-style: none; }
+        .nav-links a {
+            text-decoration: none; color: var(--bark); font-weight: 600; font-size: 0.9rem;
+            transition: color 0.3s ease; position: relative;
+        }
+        .nav-links a:hover { color: var(--spring-green); }
+        .nav-links a.active { color: var(--spring-green); }
+        .nav-links a.active::after {
+            content: ''; position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%);
+            width: 6px; height: 6px; border-radius: 50%; background: var(--spring-green);
+        }
+        .nav-cta {
+            background: linear-gradient(135deg, var(--sun), var(--gold)); color: var(--bark) !important;
+            padding: 0.55rem 1.3rem; border-radius: 8px; font-weight: 700; transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 209, 102, 0.3), inset 0 -3px 0 rgba(0,0,0,0.1);
+            border: 2px solid var(--gold);
+        }
+        .nav-cta:hover { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(255, 209, 102, 0.4); }
+
+        .ad-hero {
+            min-height: 55vh; display: flex; align-items: center; justify-content: center;
+            position: relative; overflow: hidden;
+            background: linear-gradient(160deg, #0f0d0a 0%, #1a1612 30%, #14110e 60%, #0d0b08 100%);
+            padding: 8rem 2.5rem 4rem; text-align: center;
+        }
+        .ad-hero::before {
+            content: ''; position: absolute; top: -15%; left: 50%; transform: translateX(-50%);
+            width: 800px; height: 600px;
+            background: radial-gradient(ellipse at center, rgba(139, 105, 20, 0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .ad-hero-content { position: relative; z-index: 2; max-width: 700px; }
+        .ad-hero-tag {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            background: rgba(196, 154, 59, 0.15); border: 1px solid rgba(196, 154, 59, 0.3);
+            color: var(--gold); font-weight: 700; font-size: 0.7rem;
+            padding: 0.4rem 1.2rem; border-radius: 100px; margin-bottom: 1.5rem;
+            font-family: 'Press Start 2P', monospace; letter-spacing: 2px;
+        }
+        .ad-hero h1 {
+            font-size: 2.5rem; font-weight: 900; color: #f0e6d3; margin-bottom: 1rem;
+            line-height: 1.3;
+        }
+        .ad-hero h1 span { color: var(--sun); }
+        .ad-hero-subtitle {
+            color: #8a7d6b; font-size: 1.1rem; margin-bottom: 2rem;
+        }
+        .ad-hero-features {
+            display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap;
+        }
+        .ad-hero-feature {
+            display: flex; align-items: center; gap: 0.5rem;
+            color: rgba(255,255,255,0.7); font-size: 0.85rem;
+        }
+        .ad-hero-feature .dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #00ff88;
+        }
+
+        .ad-card-section {
+            padding: 5rem 2.5rem; max-width: 800px; margin: 0 auto;
+        }
+        .ad-card {
+            background: linear-gradient(160deg, #1a1612, #2a2318);
+            border-radius: 24px; overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+            animation: glow-pulse 4s ease-in-out infinite;
+        }
+        .ad-card-header {
+            padding: 2.5rem 3rem 0; display: flex; align-items: center; gap: 1rem;
+        }
+        .ad-card-label {
+            display: flex; align-items: center; gap: 0.6rem;
+        }
+        .ad-card-label-bar {
+            width: 3px; height: 14px; border-radius: 2px; background: #c49a3b;
+        }
+        .ad-card-label-text {
+            color: #8a7d6b; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.5px;
+        }
+        .ad-card-body {
+            position: relative; padding: 2rem 3rem;
+            background: linear-gradient(135deg, #0a1a2e 0%, #112240 50%, #0d1b2a 100%);
+            border-radius: 16px; margin: 1.5rem 3rem 0;
+            overflow: hidden;
+        }
+        .ad-card-body::before {
+            content: ''; position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 32px 32px; pointer-events: none;
+        }
+        .ad-card-body::after {
+            content: ''; position: absolute; top: -30%; right: -10%;
+            width: 300px; height: 300px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 212, 255, 0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .ad-tag {
+            display: inline-flex; align-items: center;
+            background: #00b894; color: #fff;
+            padding: 0.25rem 0.8rem; border-radius: 4px;
+            font-size: 0.7rem; font-weight: 600; margin-bottom: 0.8rem;
+        }
+        .ad-title {
+            font-size: 1.8rem; font-weight: 800; color: #fff; margin-bottom: 0.4rem;
+        }
+        .ad-subtitle {
+            color: #00d4ff; font-size: 1rem; font-weight: 600; margin-bottom: 0.3rem;
+        }
+        .ad-desc {
+            color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-bottom: 1.5rem;
+        }
+        .ad-features {
+            display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 2rem;
+        }
+        .ad-feature {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            padding: 0.35rem 0.8rem; border-radius: 5px;
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.75); font-size: 0.75rem; font-weight: 500;
+        }
+        .ad-feature .check { color: #00ff88; font-size: 0.85rem; }
+        .ad-cta-btn {
+            display: inline-flex; align-items: center; gap: 0.6rem;
+            background: linear-gradient(135deg, #8b6914, #c49a3b); color: #fff;
+            padding: 0.9rem 2.5rem; border-radius: 12px; text-decoration: none;
+            font-weight: 700; font-size: 1rem; transition: all 0.25s ease;
+            border: none; cursor: pointer;
+            box-shadow: 0 4px 24px rgba(139, 105, 20, 0.35);
+        }
+        .ad-cta-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(139, 105, 20, 0.5);
+        }
+
+        .ad-info-section {
+            padding: 4rem 2.5rem; max-width: 800px; margin: 0 auto;
+        }
+        .ad-info-section h2 {
+            font-size: 1.8rem; font-weight: 800; color: var(--forest); margin-bottom: 2rem;
+            text-align: center;
+        }
+        .ad-info-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem;
+        }
+        .ad-info-card {
+            background: white; border-radius: 16px; padding: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        }
+        .ad-info-card .emoji { font-size: 2rem; margin-bottom: 0.8rem; }
+        .ad-info-card h3 {
+            font-size: 1.1rem; font-weight: 700; color: var(--forest); margin-bottom: 0.5rem;
+        }
+        .ad-info-card p {
+            color: var(--soil); font-size: 0.9rem; line-height: 1.7;
+        }
+
+        .download-bar {
+            padding: 4rem 2.5rem; background: linear-gradient(135deg, var(--deep-green), var(--forest));
+            text-align: center;
+        }
+        .download-bar h2 { color: white; font-size: 2rem; font-weight: 800; margin-bottom: 0.6rem; }
+        .download-bar p { color: rgba(255,255,255,0.6); font-size: 0.95rem; margin-bottom: 2rem; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 0.6rem;
+            padding: 1rem 2.5rem; border-radius: 12px; text-decoration: none;
+            font-weight: 700; font-size: 1rem; transition: all 0.3s ease;
+        }
+        .btn-sun {
+            background: linear-gradient(135deg, var(--sun), var(--gold)); color: var(--bark);
+            border: 2px solid var(--earth-brown);
+        }
+        .btn-sun:hover { transform: translateY(-4px); box-shadow: 0 12px 35px rgba(0, 0, 0, 0.3); }
+
+        footer {
+            background: var(--bark); color: rgba(255, 255, 255, 0.4);
+            padding: 2.5rem; text-align: center;
+        }
+        .footer-brand {
+            font-family: 'Press Start 2P', monospace; font-size: 1rem;
+            color: var(--spring-green); margin-bottom: 0.4rem; letter-spacing: 3px;
+        }
+        .footer-links { display: flex; gap: 1.5rem; justify-content: center; margin: 1rem 0; flex-wrap: wrap; }
+        .footer-links a { color: rgba(255, 255, 255, 0.4); text-decoration: none; font-size: 0.85rem; transition: color 0.3s ease; }
+        .footer-links a:hover { color: var(--sun); }
+        .footer-copy { font-size: 0.75rem; color: rgba(255, 255, 255, 0.25); }
+
+        .reveal { opacity: 0; transform: translateY(30px); transition: all 0.8s ease; }
+        .reveal.active { opacity: 1; transform: translateY(0); }
+
+        @media (max-width: 900px) {
+            .ad-info-grid { grid-template-columns: 1fr; }
+            .ad-card-body { padding: 1.5rem; margin: 1rem 1.5rem 0; }
+            .ad-card-header { padding: 2rem 1.5rem 0; }
+            .ad-title { font-size: 1.4rem; }
+            .ad-hero h1 { font-size: 1.8rem; }
+            .nav-links .hide-mobile { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <nav id="navbar">
+        <a href="index.html" class="nav-brand">
+            <img src="app-icon.png" alt="SVL Logo" class="nav-brand-icon"> SVL
+        </a>
+        <ul class="nav-links">
+            <li><a href="features.html" class="hide-mobile">功能</a></li>
+            <li><a href="ads.html" class="active">推荐</a></li>
+            <li><a href="announcements.html" class="hide-mobile">公告</a></li>
+            <li><a href="http://211.101.247.248:8866/download/SVL_1.1.5_x64-setup.exe" class="nav-cta">下载</a></li>
+        </ul>
+    </nav>
+
+    <section class="ad-hero">
+        <div class="ad-hero-content">
+            <div class="ad-hero-tag">赞助商推荐</div>
+            <h1>24小时无人值守<br><span>星露谷物语联机</span></h1>
+            <p class="ad-hero-subtitle">与好友一起在农场里耕耘，无需担心服务器掉线</p>
+            <div class="ad-hero-features">
+                <div class="ad-hero-feature"><span class="dot"></span>24小时稳定运行</div>
+                <div class="ad-hero-feature"><span class="dot"></span>三端互通联机</div>
+                <div class="ad-hero-feature"><span class="dot"></span>无人数上限</div>
+                <div class="ad-hero-feature"><span class="dot"></span>支持大型社区服</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="ad-card-section reveal">
+        <div class="ad-card">
+            <div class="ad-card-header">
+                <div class="ad-card-label">
+                    <div class="ad-card-label-bar"></div>
+                    <span class="ad-card-label-text">赞助商推荐</span>
+                </div>
+            </div>
+            <div class="ad-card-body">
+                <div class="ad-tag">星露谷专属</div>
+                <h2 class="ad-title">24小时无人值守星露谷物语联机</h2>
+                <p class="ad-subtitle">手机+PC+iOS三端互通联机</p>
+                <p class="ad-desc">无人数上限 · 可开大型社区服</p>
+                <div class="ad-features">
+                    <div class="ad-feature"><span class="check">✓</span> 24小时稳定运行</div>
+                    <div class="ad-feature"><span class="check">✓</span> 三端互通联机</div>
+                    <div class="ad-feature"><span class="check">✓</span> 无人数上限</div>
+                    <div class="ad-feature"><span class="check">✓</span> 支持大型社区服</div>
+                </div>
+                <a href="https://yy.0play.cn/auth/register?ref=REF1330FA2E" target="_blank" class="ad-cta-btn">
+                    立即体验 →
+                </a>
+            </div>
+            <div style="padding: 2rem 3rem;">
+                <p style="color: rgba(255,255,255,0.3); font-size: 0.75rem; text-align: center;">
+                    此为赞助商推荐服务，SVL 不对其服务质量承担责任
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="ad-info-section reveal">
+        <h2>为什么推荐这个服务？</h2>
+        <div class="ad-info-grid">
+            <div class="ad-info-card">
+                <div class="emoji">⏰</div>
+                <h3>24小时稳定运行</h3>
+                <p>服务器全天候在线，无需担心掉线或维护，随时随地可以进入农场。</p>
+            </div>
+            <div class="ad-info-card">
+                <div class="emoji">📱</div>
+                <h3>三端互通</h3>
+                <p>支持手机、PC、iOS 三端联机，无论使用什么设备都能加入农场。</p>
+            </div>
+            <div class="ad-info-card">
+                <div class="emoji">👥</div>
+                <h3>无人数上限</h3>
+                <p>没有玩家数量限制，可以邀请更多好友一起游玩，开大型社区服也不在话下。</p>
+            </div>
+            <div class="ad-info-card">
+                <div class="emoji">🌾</div>
+                <h3>星露谷专属优化</h3>
+                <p>针对星露谷物语进行专门优化，MOD 兼容性好，游戏体验流畅。</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="download-bar">
+        <h2>下载 SVL，开始联机</h2>
+        <p>管理好你的 MOD，轻松加入联机服务器</p>
+        <a href="http://211.101.247.248:8866/download/SVL_1.1.5_x64-setup.exe" class="btn btn-sun">Windows 版下载</a>
+    </section>
+
+    <footer>
+        <div class="footer-brand">SVL</div>
+        <div class="footer-links">
+            <a href="index.html">首页</a>
+            <a href="features.html">功能特性</a>
+            <a href="ads.html">推荐服务</a>
+            <a href="announcements.html">更新公告</a>
+        </div>
+        <p class="footer-copy"> 2025 SVL Team. MIT License.</p>
+    </footer>
+
+    <script>
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            navbar.classList.toggle('scrolled', window.scrollY > 50);
+        });
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('active'); });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+    </script>
+</body>
+</html>

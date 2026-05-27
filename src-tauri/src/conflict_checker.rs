@@ -42,13 +42,14 @@ pub fn check_conflicts(mods: Vec<ModInfo>) -> Result<Vec<ConflictReport>, String
     let mut conflicts = Vec::new();
     let mut reported_ids: HashSet<String> = HashSet::new();
 
-    let installed_ids: HashSet<String> = mods.iter().map(|m| m.unique_id.clone()).collect();
+    let installed_ids: HashSet<String> = mods.iter().map(|m| m.unique_id.to_lowercase()).collect();
 
     for mod_info in &mods {
         for dep in &mod_info.dependencies {
-            if !installed_ids.contains(&dep.unique_id) {
+            let dep_id_lower = dep.unique_id.to_lowercase();
+            if !installed_ids.contains(&dep_id_lower) {
                 if dep.is_required {
-                    if !reported_ids.contains(&dep.unique_id) {
+                    if !reported_ids.contains(&dep_id_lower) {
                         let display_name = resolve_mod_name(&dep.unique_id);
                         conflicts.push(ConflictReport {
                             mod_name: mod_info.name.clone(),
@@ -59,8 +60,20 @@ pub fn check_conflicts(mods: Vec<ModInfo>) -> Result<Vec<ConflictReport>, String
                             solution: format!("请安装 '{}' 模组", display_name),
                             affected_mods: None,
                         });
-                        reported_ids.insert(dep.unique_id.clone());
+                        reported_ids.insert(dep_id_lower);
                     }
+                } else if !reported_ids.contains(&dep_id_lower) {
+                    let display_name = resolve_mod_name(&dep.unique_id);
+                    conflicts.push(ConflictReport {
+                        mod_name: mod_info.name.clone(),
+                        unique_id: dep.unique_id.clone(),
+                        conflict_type: ConflictType::OptionalDependencyMissing,
+                        description: format!("模组 '{}' 的可选依赖 '{}' 未安装", mod_info.name, display_name),
+                        severity: Severity::Info,
+                        solution: format!("如需该功能，请安装 '{}' 模组", display_name),
+                        affected_mods: None,
+                    });
+                    reported_ids.insert(dep_id_lower);
                 }
             }
         }
@@ -68,7 +81,8 @@ pub fn check_conflicts(mods: Vec<ModInfo>) -> Result<Vec<ConflictReport>, String
 
     for mod_info in &mods {
         if let Some(patch) = mod_patches::get_missing_dependency(&mod_info.unique_id) {
-            if !reported_ids.contains(&patch.missing_id) && !installed_ids.contains(&patch.missing_id) {
+            let patch_id_lower = patch.missing_id.to_lowercase();
+            if !reported_ids.contains(&patch_id_lower) && !installed_ids.contains(&patch_id_lower) {
                 let display_name = resolve_mod_name(&patch.missing_id);
                 conflicts.push(ConflictReport {
                     mod_name: mod_info.name.clone(),
@@ -79,7 +93,7 @@ pub fn check_conflicts(mods: Vec<ModInfo>) -> Result<Vec<ConflictReport>, String
                     solution: format!("请安装 '{}' 模组", display_name),
                     affected_mods: None,
                 });
-                reported_ids.insert(patch.missing_id.clone());
+                reported_ids.insert(patch_id_lower);
             }
         }
     }
@@ -132,7 +146,7 @@ fn check_version_conflicts(
 ) {
     let mod_versions: HashMap<String, (String, String)> = mods
         .iter()
-        .map(|m| (m.unique_id.clone(), (m.name.clone(), m.version.clone())))
+        .map(|m| (m.unique_id.to_lowercase(), (m.name.clone(), m.version.clone())))
         .collect();
 
     for mod_info in mods {
@@ -140,11 +154,12 @@ fn check_version_conflicts(
             if !dep.is_required {
                 continue;
             }
-            if !installed_ids.contains(&dep.unique_id) {
+            let dep_id_lower = dep.unique_id.to_lowercase();
+            if !installed_ids.contains(&dep_id_lower) {
                 continue;
             }
             if let Some(ref min_version) = dep.minimum_version {
-                if let Some((dep_name, dep_version)) = mod_versions.get(&dep.unique_id) {
+                if let Some((dep_name, dep_version)) = mod_versions.get(&dep_id_lower) {
                     if crate::update_checker::compare_versions(dep_version, min_version) < 0 {
                         conflicts.push(ConflictReport {
                             mod_name: mod_info.name.clone(),
@@ -242,5 +257,92 @@ fn collect_asset_paths(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mod_parser::ModDependencyInfo;
+
+    fn make_mod(name: &str, unique_id: &str, deps: Vec<ModDependencyInfo>) -> ModInfo {
+        ModInfo {
+            name: name.to_string(),
+            version: "1.0.0".to_string(),
+            author: "TestAuthor".to_string(),
+            description: String::new(),
+            unique_id: unique_id.to_string(),
+            enabled: true,
+            is_required: false,
+            has_dependencies: !deps.is_empty(),
+            dependency_count: deps.len(),
+            is_content_pack: false,
+            content_pack_for: None,
+            folder_path: format!("C:/Mods/{}", name),
+            has_conflict: false,
+            conflict_warning: None,
+            url: None,
+            category: "other".to_string(),
+            screenshot_path: None,
+            thumbnail_path: None,
+            has_update: false,
+            latest_version: None,
+            update_url: None,
+            dependencies: deps,
+            manifest_content: None,
+            sub_mods: vec![],
+            is_group: false,
+            internal_component_ids: vec![],
+            nexus_mod_id: None,
+        }
+    }
+
+    #[test]
+    fn test_check_conflicts_case_insensitive_dependency_match() {
+        let dep = ModDependencyInfo {
+            unique_id: "test.dependency".to_string(),
+            minimum_version: None,
+            is_required: true,
+        };
+        let mod_a = make_mod("Mod A", "Test.ModA", vec![dep]);
+        let mod_b = make_mod("Mod B", "Test.Dependency", vec![]);
+
+        let conflicts = check_conflicts(vec![mod_a, mod_b]).unwrap();
+        let missing: Vec<&ConflictReport> = conflicts.iter()
+            .filter(|c| matches!(c.conflict_type, ConflictType::MissingDependency))
+            .collect();
+        assert!(missing.is_empty(), "Should not report missing dependency when case differs: {:?}", missing);
+    }
+
+    #[test]
+    fn test_check_conflicts_reports_missing_dependency() {
+        let dep = ModDependencyInfo {
+            unique_id: "Test.MissingMod".to_string(),
+            minimum_version: None,
+            is_required: true,
+        };
+        let mod_a = make_mod("Mod A", "Test.ModA", vec![dep]);
+
+        let conflicts = check_conflicts(vec![mod_a]).unwrap();
+        let missing: Vec<&ConflictReport> = conflicts.iter()
+            .filter(|c| matches!(c.conflict_type, ConflictType::MissingDependency))
+            .collect();
+        assert_eq!(missing.len(), 1, "Should report missing dependency");
+    }
+
+    #[test]
+    fn test_check_conflicts_optional_dependency_not_reported_as_error() {
+        let dep = ModDependencyInfo {
+            unique_id: "Test.OptionalMod".to_string(),
+            minimum_version: None,
+            is_required: false,
+        };
+        let mod_a = make_mod("Mod A", "Test.ModA", vec![dep]);
+
+        let conflicts = check_conflicts(vec![mod_a]).unwrap();
+        let errors: Vec<&ConflictReport> = conflicts.iter()
+            .filter(|c| matches!(c.conflict_type, ConflictType::MissingDependency))
+            .collect();
+        assert!(errors.is_empty(), "Optional dependency should not be reported as MissingDependency error");
     }
 }

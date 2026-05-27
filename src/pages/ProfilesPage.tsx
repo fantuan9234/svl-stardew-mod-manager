@@ -111,6 +111,17 @@ export default function ProfilesPage() {
     return () => { if (unlisten) unlisten(); };
   }, [gamePath, loadProfiles]);
 
+  useEffect(() => {
+    if (!gamePath) return;
+    let unlisten: (() => void) | null = null;
+    listen('mod-install-progress', (event: any) => {
+      if (event.payload?.step === 'completed' || event.payload?.step === 'done') {
+        loadProfiles();
+      }
+    }).then(fn => { unlisten = fn; });
+    return () => { if (unlisten) unlisten(); };
+  }, [gamePath, loadProfiles]);
+
   const handleOpenCreateModal = async () => {
     setCreateModalOpen(true);
     setCreateLoading(true);

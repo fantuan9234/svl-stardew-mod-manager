@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>更新公告 - SVL 星露谷 MOD 管理器</title>
+    <meta name="description" content="查看 SVL 星露谷 MOD 管理器的最新版本动态、功能更新、问题修复等公告信息">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        .svg-icon { display: inline-block; vertical-align: middle; flex-shrink: 0; }
+        .svg-icon-sm { width: 1rem; height: 1rem; }
+        .svg-icon-md { width: 1.5rem; height: 1.5rem; }
+        .svg-icon-lg { width: 2rem; height: 2rem; }
+
+        :root {
+            --spring-green: #6BCB77; --deep-green: #2D6A4F; --forest: #1B4332;
+            --meadow: #95D5B2; --sun: #FFD166; --gold: #F4A261; --warm-brown: #E76F51;
+            --sky-blue: #74C0FC; --lavender: #B8A9C9; --earth-brown: #8B6914;
+            --cream: #FFF8F0; --soil: #5C4033; --bark: #3E2723; --petal-pink: #FFB6C1;
+            --berry-purple: #9B59B6; --crop-yellow: #F4D03F; --water-blue: #2980B9; --wood: #A0522D;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+            background: var(--cream); color: var(--bark); line-height: 1.7; overflow-x: hidden;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 1; } 50% { opacity: 0.3; }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); }
+        }
+
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            padding: 1rem 2.5rem; display: flex; justify-content: space-between; align-items: center;
+            transition: all 0.4s ease;
+        }
+        nav.scrolled {
+            background: rgba(255, 248, 240, 0.95); backdrop-filter: blur(15px);
+            box-shadow: 0 4px 30px rgba(43, 39, 35, 0.1); padding: 0.7rem 2.5rem;
+            border-bottom: 3px solid var(--spring-green);
+        }
+        .nav-brand {
+            display: flex; align-items: center; gap: 0.75rem;
+            font-family: 'Press Start 2P', monospace; font-size: 1.1rem;
+            color: var(--forest); text-decoration: none; letter-spacing: 2px;
+        }
+        .nav-brand-icon {
+            width: 38px; height: 38px; border-radius: 8px; object-fit: contain;
+            image-rendering: pixelated; box-shadow: 0 4px 15px rgba(45, 106, 79, 0.3);
+        }
+        .nav-links { display: flex; gap: 2rem; align-items: center; list-style: none; }
+        .nav-links a {
+            text-decoration: none; color: var(--bark); font-weight: 600; font-size: 0.9rem;
+            transition: color 0.3s ease; position: relative;
+        }
+        .nav-links a:hover { color: var(--spring-green); }
+        .nav-links a.active { color: var(--spring-green); }
+        .nav-links a.active::after {
+            content: ''; position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%);
+            width: 6px; height: 6px; border-radius: 50%; background: var(--spring-green);
+        }
+        .nav-cta {
+            background: linear-gradient(135deg, var(--sun), var(--gold)); color: var(--bark) !important;
+            padding: 0.55rem 1.3rem; border-radius: 8px; font-weight: 700; transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 209, 102, 0.3), inset 0 -3px 0 rgba(0,0,0,0.1);
+            border: 2px solid var(--gold);
+        }
+        .nav-cta:hover { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(255, 209, 102, 0.4); }
+
+        .page-hero {
+            min-height: 40vh; display: flex; align-items: center; justify-content: center;
+            position: relative; overflow: hidden;
+            background: linear-gradient(135deg, #FFF5E6, #F5E6D3);
+            padding: 8rem 2.5rem 3rem; text-align: center;
+        }
+        .page-hero::before {
+            content: ''; position: absolute; inset: 0; opacity: 0.08;
+            background-image:
+                radial-gradient(circle at 20% 70%, var(--crop-yellow) 3px, transparent 3px),
+                radial-gradient(circle at 60% 80%, var(--spring-green) 3px, transparent 3px),
+                radial-gradient(circle at 80% 60%, var(--sun) 4px, transparent 4px);
+            background-size: 100px 100px;
+        }
+        .page-hero-content { position: relative; z-index: 2; max-width: 600px; }
+        .page-hero h1 {
+            font-size: 2.8rem; font-weight: 900; color: var(--forest); margin-bottom: 0.8rem;
+            text-shadow: 2px 2px 0 rgba(255,255,255,0.5);
+        }
+        .page-hero p { color: var(--soil); font-size: 1.05rem; }
+
+        .announcement-section {
+            padding: 4rem 2.5rem; max-width: 900px; margin: 0 auto;
+        }
+
+        .announcement-board {
+            background: linear-gradient(145deg, #F5E6D3, #E8D5B7, #F0DCC8);
+            border-radius: 24px;
+            border: 4px solid var(--wood);
+            box-shadow: 0 15px 50px rgba(160, 82, 43, 0.2), inset 0 2px 0 rgba(255,255,255,0.3), 0 0 0 6px var(--gold);
+            overflow: hidden;
+        }
+        .announcement-header {
+            background: linear-gradient(135deg, var(--forest), var(--deep-green));
+            padding: 1.5rem 2rem;
+            display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+        }
+        .announcement-header-left {
+            display: flex; align-items: center; gap: 0.8rem;
+        }
+        .announcement-title {
+            font-size: 1.2rem; font-weight: 800; color: white; letter-spacing: 1px;
+        }
+        .announcement-dot {
+            width: 12px; height: 12px; background: var(--sun); border-radius: 50%;
+            animation: twinkle 2s ease-in-out infinite; box-shadow: 0 0 10px rgba(255, 209, 102, 0.5);
+        }
+        .announcement-date {
+            font-size: 0.8rem; color: rgba(255, 255, 255, 0.7); font-weight: 500;
+        }
+        .announcement-body { padding: 2rem; }
+        .announcement-item {
+            padding: 1.5rem 0;
+            border-bottom: 2px dashed rgba(160, 82, 43, 0.15);
+        }
+        .announcement-item:last-child { border-bottom: none; padding-bottom: 0; }
+        .announcement-item:first-child { padding-top: 0; }
+        .announcement-item-header {
+            display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.6rem;
+        }
+        .announcement-tag {
+            font-size: 0.6rem; font-family: 'Press Start 2P', monospace;
+            padding: 0.3rem 0.7rem; border-radius: 100px; letter-spacing: 1px; white-space: nowrap;
+        }
+        .announcement-tag.new { background: linear-gradient(135deg, var(--spring-green), var(--deep-green)); color: white; }
+        .announcement-tag.fix { background: linear-gradient(135deg, var(--sky-blue), var(--water-blue)); color: white; }
+        .announcement-tag.hot { background: linear-gradient(135deg, var(--warm-brown), var(--earth-brown)); color: white; }
+        .announcement-date-badge {
+            font-size: 0.75rem; color: rgba(92, 64, 51, 0.5); font-weight: 500;
+        }
+        .announcement-item-title {
+            font-size: 1.1rem; font-weight: 700; color: var(--bark);
+        }
+        .announcement-item-desc {
+            font-size: 0.95rem; color: var(--soil); line-height: 1.8; margin-top: 0.5rem;
+        }
+        .announcement-item-version {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            background: rgba(107, 203, 119, 0.15); border: 1px solid rgba(107, 203, 119, 0.3);
+            color: var(--deep-green); padding: 0.2rem 0.6rem; border-radius: 6px;
+            font-size: 0.75rem; font-weight: 600; margin-top: 0.8rem;
+        }
+        .announcement-footer {
+            background: rgba(160, 82, 43, 0.05); padding: 1.2rem 2rem; text-align: center;
+            border-top: 2px solid rgba(160, 82, 43, 0.1);
+        }
+
+        .download-bar {
+            padding: 4rem 2.5rem; background: linear-gradient(135deg, var(--deep-green), var(--forest));
+            text-align: center;
+        }
+        .download-bar h2 { color: white; font-size: 2rem; font-weight: 800; margin-bottom: 0.6rem; }
+        .download-bar p { color: rgba(255,255,255,0.6); font-size: 0.95rem; margin-bottom: 2rem; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 0.6rem;
+            padding: 1rem 2.5rem; border-radius: 12px; text-decoration: none;
+            font-weight: 700; font-size: 1rem; transition: all 0.3s ease;
+        }
+        .btn-sun {
+            background: linear-gradient(135deg, var(--sun), var(--gold)); color: var(--bark);
+            border: 2px solid var(--earth-brown);
+        }
+        .btn-sun:hover { transform: translateY(-4px); box-shadow: 0 12px 35px rgba(0, 0, 0, 0.3); }
+
+        footer {
+            background: var(--bark); color: rgba(255, 255, 255, 0.4);
+            padding: 2.5rem; text-align: center;
+        }
+        .footer-brand {
+            font-family: 'Press Start 2P', monospace; font-size: 1rem;
+            color: var(--spring-green); margin-bottom: 0.4rem; letter-spacing: 3px;
+        }
+        .footer-links { display: flex; gap: 1.5rem; justify-content: center; margin: 1rem 0; flex-wrap: wrap; }
+        .footer-links a { color: rgba(255, 255, 255, 0.4); text-decoration: none; font-size: 0.85rem; transition: color 0.3s ease; }
+        .footer-links a:hover { color: var(--sun); }
+        .footer-copy { font-size: 0.75rem; color: rgba(255, 255, 255, 0.25); }
+
+        .reveal { opacity: 0; transform: translateY(30px); transition: all 0.8s ease; }
+        .reveal.active { opacity: 1; transform: translateY(0); }
+
+        @media (max-width: 900px) {
+            .page-hero h1 { font-size: 2rem; }
+            .announcement-header { padding: 1.2rem 1.5rem; }
+            .announcement-body { padding: 1.5rem; }
+            .announcement-item-desc { padding-left: 0; }
+            .nav-links .hide-mobile { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <nav id="navbar">
+        <a href="index.html" class="nav-brand">
+            <img src="app-icon.png" alt="SVL Logo" class="nav-brand-icon"> SVL
+        </a>
+        <ul class="nav-links">
+            <li><a href="features.html" class="hide-mobile">功能</a></li>
+            <li><a href="ads.html" class="hide-mobile">推荐</a></li>
+            <li><a href="announcements.html" class="active">公告</a></li>
+            <li><a href="http://211.101.247.248:8866/download/SVL_1.1.5_x64-setup.exe" class="nav-cta">下载</a></li>
+        </ul>
+    </nav>
+
+    <section class="page-hero">
+        <div class="page-hero-content">
+            <h1>农场公告板</h1>
+            <p>查看最新版本动态、功能更新、问题修复</p>
+        </div>
+    </section>
+
+    <section class="announcement-section">
+        <div class="announcement-board reveal">
+            <div class="announcement-header">
+                <div class="announcement-header-left">
+                    <div class="announcement-dot"></div>
+                    <h3 class="announcement-title">更新日志</h3>
+                </div>
+                <div class="announcement-date">持续更新中</div>
+            </div>
+            <div class="announcement-body">
+                <div class="announcement-item">
+                    <div class="announcement-item-header">
+                        <span class="announcement-tag new">NEW</span>
+                        <span class="announcement-item-title">SVL v1.1.5 正式发布</span>
+                        <span class="announcement-date-badge">2026-05-19</span>
+                    </div>
+                    <div class="announcement-item-desc">全新开屏界面，优化版本检测逻辑，修复同版本误报更新问题，新增按天免打扰功能。</div>
+                    <div class="announcement-item-version">v1.1.5 稳定版</div>
+                </div>
+                <div class="announcement-item">
+                    <div class="announcement-item-header">
+                        <span class="announcement-tag new">NEW</span>
+                        <span class="announcement-item-title">SVL v1.1.4 发布</span>
+                        <span class="announcement-date-badge">2026-05</span>
+                    </div>
+                    <div class="announcement-item-desc">重设计开屏页面，优化首页布局，修复版本比较误报问题。</div>
+                    <div class="announcement-item-version">v1.1.4</div>
+                </div>
+                <div class="announcement-item">
+                    <div class="announcement-item-header">
+                        <span class="announcement-tag fix">FIX</span>
+                        <span class="announcement-item-title">修复同版本误报更新问题</span>
+                        <span class="announcement-date-badge">修复</span>
+                    </div>
+                    <div class="announcement-item-desc">修复了 Nexus 版本号带 v 前缀导致的版本比较 bug，现在不会误报相同版本的更新了。</div>
+                </div>
+            </div>
+            <div class="announcement-footer">
+                <span style="color: rgba(160, 82, 43, 0.4); font-size: 0.85rem;">更多更新记录即将发布...</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="download-bar">
+        <h2>获取最新版本</h2>
+        <p>下载 v1.1.5，体验最新功能</p>
+        <a href="http://211.101.247.248:8866/download/SVL_1.1.5_x64-setup.exe" class="btn btn-sun">Windows 版下载</a>
+    </section>
+
+    <footer>
+        <div class="footer-brand">SVL</div>
+        <div class="footer-links">
+            <a href="index.html">首页</a>
+            <a href="features.html">功能特性</a>
+            <a href="ads.html">推荐服务</a>
+            <a href="announcements.html">更新公告</a>
+        </div>
+        <p class="footer-copy"> 2025 SVL Team. MIT License.</p>
+    </footer>
+
+    <script>
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            navbar.classList.toggle('scrolled', window.scrollY > 50);
+        });
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('active'); });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+    </script>
+</body>
+</html>

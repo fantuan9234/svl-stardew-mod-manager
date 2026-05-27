@@ -59,7 +59,11 @@ export default function LogViewer() {
         uniqueId: uniqueId,
         modName: err.mod_name
       });
-      await openUrl(result.url);
+      try {
+        await invoke('open_nexus_browser', { initialUrl: result.url });
+      } catch {
+        await openUrl(result.url);
+      }
     } catch {
       message.error(t('app.modCard.openLinkFailed'));
     } finally {

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Emitter;
 
 lazy_static::lazy_static! {
@@ -16,6 +17,8 @@ lazy_static::lazy_static! {
         total_mods: 0,
     });
 }
+
+static MONITOR_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone)]
 pub struct GameMonitorState {
@@ -178,11 +181,19 @@ fn get_smapi_log_path() -> Option<String> {
 }
 
 pub fn monitor_game_loop(app: tauri::AppHandle) {
+    MONITOR_ACTIVE.store(true, Ordering::SeqCst);
+
     std::thread::spawn(move || {
-        loop {
+        while MONITOR_ACTIVE.load(Ordering::SeqCst) {
             std::thread::sleep(std::time::Duration::from_secs(2));
 
-            let monitor = GAME_MONITOR.lock().unwrap();
+            let monitor = match GAME_MONITOR.lock() {
+                Ok(m) => m,
+                Err(_) => {
+                    MONITOR_ACTIVE.store(false, Ordering::SeqCst);
+                    return;
+                }
+            };
             if !monitor.is_running {
                 continue;
             }
@@ -191,7 +202,10 @@ pub fn monitor_game_loop(app: tauri::AppHandle) {
             if let Some(log_path) = get_smapi_log_path() {
                 let (load_events, error_events, warning_events) = parse_smapi_log_for_events(&log_path);
 
-                let mut monitor = GAME_MONITOR.lock().unwrap();
+                let mut monitor = match GAME_MONITOR.lock() {
+                    Ok(m) => m,
+                    Err(_) => break,
+                };
                 monitor.mod_load_events.extend(load_events.clone());
                 monitor.error_events.extend(error_events.clone());
                 monitor.warning_events.extend(warning_events.clone());
@@ -229,7 +243,8 @@ pub fn monitor_game_loop(app: tauri::AppHandle) {
 
 #[tauri::command]
 pub fn start_game_monitor() -> Result<bool, String> {
-    let mut monitor = GAME_MONITOR.lock().unwrap();
+    let mut monitor = GAME_MONITOR.lock()
+        .map_err(|e| format!("启动游戏监控失败: {}", e))?;
     monitor.is_running = true;
     monitor.mod_load_events.clear();
     monitor.error_events.clear();
@@ -240,14 +255,20 @@ pub fn start_game_monitor() -> Result<bool, String> {
 
 #[tauri::command]
 pub fn stop_game_monitor() -> Result<bool, String> {
-    let mut monitor = GAME_MONITOR.lock().unwrap();
-    monitor.is_running = false;
-    Ok(true)
+    MONITOR_ACTIVE.store(false, Ordering::SeqCst);
+    match GAME_MONITOR.lock() {
+        Ok(mut monitor) => {
+            monitor.is_running = false;
+            Ok(true)
+        }
+        Err(_) => Ok(false),
+    }
 }
 
 #[tauri::command]
 pub fn get_monitor_status(total_mods: usize) -> Result<ModMonitorStatus, String> {
-    let monitor = GAME_MONITOR.lock().unwrap();
+    let monitor = GAME_MONITOR.lock()
+        .map_err(|e| format!("获取游戏监控状态失败: {}", e))?;
 
     let health_score = if monitor.total_mods > 0 {
         let error_ratio = monitor.error_events.len() as f64 / monitor.total_mods as f64;

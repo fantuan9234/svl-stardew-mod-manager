@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVL - 星露谷 MOD 管理器</title>
+    <meta name="description" content="专为《星露谷物语》打造的现代化 MOD 管理器。智能扫描、冲突检测、一键启动，让 MOD 管理变得简单愉悦。">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        .svg-icon {
+            display: inline-block;
+            vertical-align: middle;
+            flex-shrink: 0;
+        }
+        .svg-icon-sm { width: 1rem; height: 1rem; }
+        .svg-icon-md { width: 1.5rem; height: 1.5rem; }
+        .svg-icon-lg { width: 2rem; height: 2rem; }
+
+        :root {
+            --spring-green: #6BCB77;
+            --deep-green: #2D6A4F;
+            --forest: #1B4332;
+            --meadow: #95D5B2;
+            --sun: #FFD166;
+            --gold: #F4A261;
+            --warm-brown: #E76F51;
+            --sky-blue: #74C0FC;
+            --lavender: #B8A9C9;
+            --earth-brown: #8B6914;
+            --cream: #FFF8F0;
+            --soil: #5C4033;
+            --bark: #3E2723;
+            --petal-pink: #FFB6C1;
+            --berry-purple: #9B59B6;
+            --crop-yellow: #F4D03F;
+            --water-blue: #2980B9;
+            --wood: #A0522D;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+            background: var(--cream);
+            color: var(--bark);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-15px) rotate(2deg); }
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 1rem 2.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.4s ease;
+        }
+
+        nav.scrolled {
+            background: rgba(255, 248, 240, 0.95);
+            backdrop-filter: blur(15px);
+            box-shadow: 0 4px 30px rgba(43, 39, 35, 0.1);
+            padding: 0.7rem 2.5rem;
+            border-bottom: 3px solid var(--spring-green);
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 1.1rem;
+            color: var(--forest);
+            text-decoration: none;
+            letter-spacing: 2px;
+        }
+
+        .nav-brand-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 8px;
+            object-fit: contain;
+            image-rendering: pixelated;
+            box-shadow: 0 4px 15px rgba(45, 106, 79, 0.3);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+            list-style: none;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--bark);
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+            position: relative;
+        }
+
+        .nav-links a:hover { color: var(--spring-green); }
+
+        .nav-links a.active {
+            color: var(--spring-green);
+        }
+
+        .nav-links a.active::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--spring-green);
+        }
+
+        .nav-cta {
+            background: linear-gradient(135deg, var(--sun), var(--gold));
+            color: var(--bark) !important;
+            padding: 0.55rem 1.3rem;
+            border-radius: 8px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 209, 102, 0.3), inset 0 -3px 0 rgba(0,0,0,0.1);
+            border: 2px solid var(--gold);
+        }
+
+        .nav-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(255, 209, 102, 0.4);
+        }
+
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(180deg, #87CEEB 0%, #B8E6B8 35%, var(--spring-green) 65%, var(--meadow) 100%);
+        }
+
+        .hero-bg-dots {
+            position: absolute;
+            inset: 0;
+            opacity: 0.12;
+            background-image:
+                radial-gradient(circle at 15% 75%, var(--crop-yellow) 3px, transparent 3px),
+                radial-gradient(circle at 35% 85%, var(--petal-pink) 4px, transparent 4px),
+                radial-gradient(circle at 55% 70%, var(--spring-green) 3px, transparent 3px),
+                radial-gradient(circle at 75% 80%, var(--lavender) 4px, transparent 4px),
+                radial-gradient(circle at 85% 90%, var(--sun) 3px, transparent 3px),
+                radial-gradient(circle at 25% 92%, var(--sky-blue) 3px, transparent 3px);
+            background-size: 120px 120px;
+        }
+
+        .hero-ground {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: linear-gradient(0deg, var(--soil) 0%, #6B8E23 60%, transparent 100%);
+        }
+
+        .hero-inner {
+            position: relative;
+            z-index: 2;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 7rem 2.5rem 5rem;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 4rem;
+            align-items: center;
+        }
+
+        .hero-text {
+            animation: fadeInUp 1s ease-out;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: linear-gradient(135deg, rgba(255, 209, 102, 0.9), rgba(244, 162, 97, 0.9));
+            border: 2px solid var(--gold);
+            color: var(--bark);
+            padding: 0.4rem 1rem;
+            border-radius: 100px;
+            font-size: 0.65rem;
+            font-family: 'Press Start 2P', monospace;
+            letter-spacing: 1px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 15px rgba(255, 209, 102, 0.3);
+        }
+
+        .hero-title {
+            font-size: 3.2rem;
+            font-weight: 900;
+            color: var(--forest);
+            line-height: 1.15;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 0 rgba(255,255,255,0.5);
+        }
+
+        .hero-title span {
+            color: var(--warm-brown);
+            position: relative;
+        }
+
+        .hero-title span::after {
+            content: '';
+            position: absolute;
+            bottom: 2px;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: var(--sun);
+            opacity: 0.4;
+            border-radius: 3px;
+        }
+
+        .hero-subtitle {
+            font-size: 1.1rem;
+            color: var(--soil);
+            max-width: 460px;
+            margin-bottom: 2rem;
+            line-height: 1.8;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.9rem 2rem;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-green {
+            background: linear-gradient(135deg, var(--spring-green), var(--deep-green));
+            color: white;
+            box-shadow: 0 6px 25px rgba(45, 106, 79, 0.35), inset 0 -4px 0 rgba(0,0,0,0.15);
+            border: 2px solid var(--deep-green);
+        }
+
+        .btn-green:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 35px rgba(45, 106, 79, 0.45);
+        }
+
+        .btn-outline {
+            background: rgba(255,255,255,0.8);
+            color: var(--forest);
+            border: 2px solid var(--forest);
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-outline:hover {
+            background: var(--forest);
+            color: white;
+            transform: translateY(-3px);
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: 2.5rem;
+            margin-top: 2.5rem;
+            padding-top: 2rem;
+            border-top: 2px dashed rgba(43, 39, 35, 0.12);
+        }
+
+        .stat-val {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--warm-brown);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--soil);
+            margin-top: 0.3rem;
+        }
+
+        .hero-visual {
+            animation: fadeInUp 1s ease-out 0.3s both;
+        }
+
+        .chicken-frame {
+            width: 320px;
+            height: 320px;
+            background: linear-gradient(135deg, #FFE4B5, #FFF8DC, #FAEBD7);
+            border-radius: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 25px 60px rgba(139, 105, 20, 0.2), 0 0 0 6px var(--wood), 0 0 0 10px var(--gold);
+            animation: float 4s ease-in-out infinite;
+        }
+
+        .chicken-frame img {
+            width: 180px;
+            height: 180px;
+            object-fit: contain;
+            image-rendering: pixelated;
+        }
+
+        .hero-tag-float {
+            position: absolute;
+            background: white;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--forest);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            animation: float 5s ease-in-out infinite;
+            white-space: nowrap;
+        }
+
+        .hero-tag-float.t1 { top: -10px; right: -20px; animation-delay: 0s; border-color: var(--sun); border: 2px solid var(--sun); }
+        .hero-tag-float.t2 { bottom: 50px; left: -30px; animation-delay: 1.5s; border: 2px solid var(--spring-green); }
+        .hero-tag-float.t3 { bottom: 0; right: 10px; animation-delay: 3s; border: 2px solid var(--sky-blue); }
+
+        .page-cards {
+            padding: 5rem 2.5rem;
+            background: var(--cream);
+        }
+
+        .page-cards-inner {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .page-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            text-align: center;
+            text-decoration: none;
+            color: var(--bark);
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        }
+
+        .page-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .page-card:nth-child(1):hover { border-color: var(--spring-green); }
+        .page-card:nth-child(2):hover { border-color: var(--sun); }
+        .page-card:nth-child(3):hover { border-color: var(--sky-blue); }
+
+        .page-card-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.2rem;
+        }
+
+        .page-card:nth-child(1) .page-card-icon { background: linear-gradient(135deg, #E8F5E9, #C8E6C9); }
+        .page-card:nth-child(2) .page-card-icon { background: linear-gradient(135deg, #FFF8E1, #FFECB3); }
+        .page-card:nth-child(3) .page-card-icon { background: linear-gradient(135deg, #E3F2FD, #BBDEFB); }
+
+        .page-card-title {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--forest);
+            margin-bottom: 0.6rem;
+        }
+
+        .page-card-desc {
+            font-size: 0.85rem;
+            color: var(--soil);
+            line-height: 1.7;
+        }
+
+        .download-bar {
+            padding: 4rem 2.5rem;
+            background: linear-gradient(135deg, var(--deep-green), var(--forest));
+            text-align: center;
+        }
+
+        .download-bar h2 {
+            color: white;
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 0.6rem;
+        }
+
+        .download-bar p {
+            color: rgba(255,255,255,0.6);
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        .download-bar .btn {
+            display: inline-flex;
+        }
+
+        .download-bar .btn-sun {
+            background: linear-gradient(135deg, var(--sun), var(--gold));
+            color: var(--bark);
+            border: 2px solid var(--earth-brown);
+            padding: 1rem 2.5rem;
+            font-size: 1rem;
+        }
+
+        .download-bar .btn-sun:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.3);
+        }
+
+        .download-meta-row {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 1.5rem;
+            color: rgba(255,255,255,0.4);
+            font-size: 0.8rem;
+        }
+
+        .download-meta-row span {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        footer {
+            background: var(--bark);
+            color: rgba(255, 255, 255, 0.4);
+            padding: 2.5rem;
+            text-align: center;
+        }
+
+        .footer-brand {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 1rem;
+            color: var(--spring-green);
+            margin-bottom: 0.4rem;
+            letter-spacing: 3px;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover { color: var(--sun); }
+
+        .footer-copy { font-size: 0.75rem; color: rgba(255, 255, 255, 0.25); }
+        .footer-icp { font-size: 0.7rem; color: rgba(255, 255, 255, 0.2); margin-top: 0.5rem; }
+        .footer-icp a { color: rgba(255, 255, 255, 0.2); text-decoration: none; transition: color 0.3s ease; }
+        .footer-icp a:hover { color: var(--sun); }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s ease;
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @media (max-width: 900px) {
+            .hero-inner {
+                grid-template-columns: 1fr;
+                text-align: center;
+                gap: 3rem;
+            }
+            .hero-subtitle { margin-left: auto; margin-right: auto; }
+            .hero-buttons { justify-content: center; }
+            .hero-stats { justify-content: center; }
+            .hero-visual { max-width: 350px; margin: 0 auto; }
+            .page-cards-inner { grid-template-columns: 1fr; max-width: 400px; }
+            .chicken-frame { width: 260px; height: 260px; }
+            .hero-title { font-size: 2.4rem; }
+            .nav-links { gap: 1.2rem; }
+        }
+
+        @media (max-width: 600px) {
+            .nav-links .hide-mobile { display: none; }
+            .hero-title { font-size: 2rem; }
+            .hero-stats { flex-direction: column; gap: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav id="navbar">
+        <a href="index.html" class="nav-brand">
+            <img src="app-icon.png" alt="SVL Logo" class="nav-brand-icon">
+            SVL
+        </a>
+        <ul class="nav-links">
+            <li><a href="features.html" class="hide-mobile">功能</a></li>
+            <li><a href="ads.html" class="hide-mobile">推荐</a></li>
+            <li><a href="announcements.html" class="hide-mobile">公告</a></li>
+            <li><a href="http://211.101.247.248:8866/download/SVL_1.1.5_x64-setup.exe" class="nav-cta">下载</a></li>
+        </ul>
+    </nav>
+
+    <section class="hero">
+        <div class="hero-bg-dots"></div>
+        <div class="hero-ground"></div>
+        <div class="hero-inner">
+            <div class="hero-text">
+                <div class="hero-badge">v1.1.5 现已发布</div>
+                <h1 class="hero-title">让星露谷<br><span>MOD 管理</span><br>变得简单</h1>
+                <p class="hero-subtitle">专为《星露谷物语》打造的现代化 MOD 管理器。智能扫描、冲突检测、一键启动。</p>
+                <div class="hero-buttons">
+                    <a href="http://211.101.247.248:8866/download/SVL_1.1.5_x64-setup.exe" class="btn btn-green">免费下载</a>
+                    <a href="features.html" class="btn btn-outline">了解更多</a>
+                </div>
+                <div class="hero-stats">
+                    <div>
+                        <div class="stat-val">500+</div>
+                        <div class="stat-label">MOD 支持</div>
+                    </div>
+                    <div>
+                        <div class="stat-val">免费</div>
+                        <div class="stat-label">开源使用</div>
+                    </div>
+                    <div>
+                        <div class="stat-val">MIT</div>
+                        <div class="stat-label">许可证</div>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual" style="position:relative">
+                <div class="chicken-frame">
+                    <img src="chicken.png" alt="星露谷小鸡">
+                </div>
+                <div class="hero-tag-float t1">一键启动</div>
+                <div class="hero-tag-float t2">智能扫描</div>
+                <div class="hero-tag-float t3">冲突检测</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="page-cards">
+        <div class="page-cards-inner reveal">
+            <a href="features.html" class="page-card">
+                <div class="page-card-icon">
+                    <svg class="svg-icon-lg" viewBox="0 0 24 24" fill="none" stroke="var(--deep-green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                </div>
+                <div class="page-card-title">核心功能</div>
+                <div class="page-card-desc">智能 MOD 管理、冲突检测、SMAPI 集成、Nexus Mods 对接等 6 大功能</div>
+            </a>
+            <a href="ads.html" class="page-card">
+                <div class="page-card-icon">
+                    <svg class="svg-icon-lg" viewBox="0 0 24 24" fill="none" stroke="var(--earth-brown)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10a6 6 0 0 0-6-6 6 6 0 0 0-6 6"/><path d="M12 4v8"/><path d="M8 12h8"/><path d="M6 18h12"/></svg>
+                </div>
+                <div class="page-card-title">推荐服务</div>
+                <div class="page-card-desc">24 小时星露谷联机服务器，手机+PC+iOS 三端互通，无人数上限</div>
+            </a>
+            <a href="announcements.html" class="page-card">
+                <div class="page-card-icon">
+                    <svg class="svg-icon-lg" viewBox="0 0 24 24" fill="none" stroke="var(--water-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                </div>
+                <div class="page-card-title">更新公告</div>
+                <div class="page-card-desc">查看最新版本动态、功能更新、问题修复等公告信息</div>
+            </a>
+        </div>
+    </section>
+
+    <section class="download-bar">
+        <h2>准备好开始了吗？</h2>
+        <p>免费下载 SVL，几分钟内即可开始管理你的星露谷 MOD</p>
+        <a href="http://211.101.247.248:8866/download/SVL_1.1.5_x64-setup.exe" class="btn btn-sun">Windows 版下载</a>
+        <div class="download-meta-row">
+            <span>v1.1.5</span>
+            <span>约 15MB</span>
+            <span>MIT 许可证</span>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-brand">SVL</div>
+        <div class="footer-links">
+            <a href="features.html">功能特性</a>
+            <a href="ads.html">推荐服务</a>
+            <a href="announcements.html">更新公告</a>
+        </div>
+        <p class="footer-copy"> 2026 SVL Team. MIT License.</p>
+        <p class="footer-icp"><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">陕ICP备2026008479号-2</a></p>
+    </footer>
+
+    <script>
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            navbar.classList.toggle('scrolled', window.scrollY > 50);
+        });
+
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('active'); });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+    </script>
+</body>
+</html>

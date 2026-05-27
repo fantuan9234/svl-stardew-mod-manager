@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>核心功能 - SVL 星露谷 MOD 管理器</title>
+    <meta name="description" content="了解 SVL MOD 管理器的全部功能：智能 MOD 管理、冲突检测、SMAPI 集成、配置文件系统、Nexus Mods 对接、日志分析器">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        .svg-icon { display: inline-block; vertical-align: middle; flex-shrink: 0; }
+        .svg-icon-sm { width: 1rem; height: 1rem; }
+        .svg-icon-md { width: 1.5rem; height: 1.5rem; }
+        .svg-icon-lg { width: 2.4rem; height: 2.4rem; }
+
+        :root {
+            --spring-green: #6BCB77; --deep-green: #2D6A4F; --forest: #1B4332;
+            --meadow: #95D5B2; --sun: #FFD166; --gold: #F4A261; --warm-brown: #E76F51;
+            --sky-blue: #74C0FC; --lavender: #B8A9C9; --earth-brown: #8B6914;
+            --cream: #FFF8F0; --soil: #5C4033; --bark: #3E2723; --petal-pink: #FFB6C1;
+            --berry-purple: #9B59B6; --crop-yellow: #F4D03F; --water-blue: #2980B9; --wood: #A0522D;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+            background: var(--cream); color: var(--bark); line-height: 1.7; overflow-x: hidden;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-12px); }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes crop-grow {
+            0% { transform: scaleY(0); transform-origin: bottom; } 100% { transform: scaleY(1); transform-origin: bottom; }
+        }
+
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            padding: 1rem 2.5rem; display: flex; justify-content: space-between; align-items: center;
+            transition: all 0.4s ease;
+        }
+        nav.scrolled {
+            background: rgba(255, 248, 240, 0.95); backdrop-filter: blur(15px);
+            box-shadow: 0 4px 30px rgba(43, 39, 35, 0.1); padding: 0.7rem 2.5rem;
+            border-bottom: 3px solid var(--spring-green);
+        }
+        .nav-brand {
+            display: flex; align-items: center; gap: 0.75rem;
+            font-family: 'Press Start 2P', monospace; font-size: 1.1rem;
+            color: var(--forest); text-decoration: none; letter-spacing: 2px;
+        }
+        .nav-brand-icon {
+            width: 38px; height: 38px; border-radius: 8px; object-fit: contain;
+            image-rendering: pixelated; box-shadow: 0 4px 15px rgba(45, 106, 79, 0.3);
+        }
+        .nav-links { display: flex; gap: 2rem; align-items: center; list-style: none; }
+        .nav-links a {
+            text-decoration: none; color: var(--bark); font-weight: 600; font-size: 0.9rem;
+            transition: color 0.3s ease; position: relative;
+        }
+        .nav-links a:hover { color: var(--spring-green); }
+        .nav-links a.active { color: var(--spring-green); }
+        .nav-links a.active::after {
+            content: ''; position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%);
+            width: 6px; height: 6px; border-radius: 50%; background: var(--spring-green);
+        }
+        .nav-cta {
+            background: linear-gradient(135deg, var(--sun), var(--gold)); color: var(--bark) !important;
+            padding: 0.55rem 1.3rem; border-radius: 8px; font-weight: 700; transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 209, 102, 0.3), inset 0 -3px 0 rgba(0,0,0,0.1);
+            border: 2px solid var(--gold);
+        }
+        .nav-cta:hover { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(255, 209, 102, 0.4); }
+
+        .page-hero {
+            min-height: 50vh; display: flex; align-items: center; justify-content: center;
+            position: relative; overflow: hidden;
+            background: linear-gradient(180deg, var(--forest) 0%, var(--deep-green) 100%);
+            padding: 8rem 2.5rem 4rem; text-align: center;
+        }
+        .page-hero::before {
+            content: ''; position: absolute; inset: 0;
+            background: radial-gradient(circle at 30% 40%, rgba(107, 203, 119, 0.2), transparent 50%),
+                        radial-gradient(circle at 70% 60%, rgba(255, 209, 102, 0.15), transparent 50%);
+        }
+        .page-hero-content { position: relative; z-index: 2; max-width: 700px; }
+        .page-hero .section-eyebrow {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            background: rgba(255,209,102,0.2); border: 2px solid var(--sun);
+            color: var(--sun); font-weight: 700; font-size: 0.7rem;
+            padding: 0.4rem 1.2rem; border-radius: 100px; margin-bottom: 1.5rem;
+            font-family: 'Press Start 2P', monospace; letter-spacing: 2px;
+        }
+        .page-hero h1 {
+            font-size: 3rem; font-weight: 900; color: white; margin-bottom: 1rem;
+            text-shadow: 2px 2px 0 rgba(0,0,0,0.3); line-height: 1.2;
+        }
+        .page-hero p {
+            color: rgba(255,255,255,0.7); font-size: 1.1rem; line-height: 1.8;
+        }
+
+        .feature-section {
+            padding: 5rem 2.5rem; max-width: 1200px; margin: 0 auto;
+        }
+        .feature-block {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 4rem;
+            align-items: center; margin-bottom: 5rem;
+            padding: 3rem; background: white; border-radius: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        }
+        .feature-block:last-child { margin-bottom: 0; }
+        .feature-block.reverse { direction: rtl; }
+        .feature-block.reverse > * { direction: ltr; }
+        .feature-block-icon {
+            width: 72px; height: 72px; border-radius: 20px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+        .feature-block:nth-child(1) .feature-block-icon { background: linear-gradient(135deg, #E8F5E9, #C8E6C9); }
+        .feature-block:nth-child(2) .feature-block-icon { background: linear-gradient(135deg, #E3F2FD, #BBDEFB); }
+        .feature-block:nth-child(3) .feature-block-icon { background: linear-gradient(135deg, #FFF8E1, #FFECB3); }
+        .feature-block:nth-child(4) .feature-block-icon { background: linear-gradient(135deg, #FCE4EC, #F8BBD0); }
+        .feature-block:nth-child(5) .feature-block-icon { background: linear-gradient(135deg, #FFF3E0, #FFE0B2); }
+        .feature-block:nth-child(6) .feature-block-icon { background: linear-gradient(135deg, #F3E5F5, #E1BEE7); }
+        .feature-block-tag {
+            font-family: 'Press Start 2P', monospace; font-size: 0.6rem;
+            color: var(--spring-green); letter-spacing: 1px; margin-bottom: 0.8rem;
+        }
+        .feature-block h2 {
+            font-size: 1.8rem; font-weight: 800; color: var(--forest); margin-bottom: 0.8rem;
+        }
+        .feature-block p {
+            color: var(--soil); font-size: 1rem; line-height: 1.8; margin-bottom: 1.2rem;
+        }
+        .feature-block ul {
+            list-style: none; display: flex; flex-direction: column; gap: 0.6rem;
+        }
+        .feature-block ul li {
+            display: flex; align-items: center; gap: 0.6rem;
+            color: var(--soil); font-size: 0.9rem;
+        }
+        .feature-block ul li::before {
+            content: ''; display: inline-block; width: 18px; height: 18px; flex-shrink: 0;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%236BCB77' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E");
+            background-size: contain; background-repeat: no-repeat;
+        }
+        .feature-block-visual {
+            display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #f5f5f0, #e8e8e0);
+            border-radius: 16px; min-height: 280px;
+        }
+        .feature-mockup {
+            text-align: center; padding: 2rem;
+        }
+        .feature-mockup .emoji-big { font-size: 4rem; margin-bottom: 1rem; }
+        .feature-mockup .mock-label {
+            font-family: 'Press Start 2P', monospace; font-size: 0.6rem;
+            color: var(--deep-green); letter-spacing: 1px;
+        }
+
+        .download-bar {
+            padding: 4rem 2.5rem; background: linear-gradient(135deg, var(--deep-green), var(--forest));
+            text-align: center;
+        }
+        .download-bar h2 { color: white; font-size: 2rem; font-weight: 800; margin-bottom: 0.6rem; }
+        .download-bar p { color: rgba(255,255,255,0.6); font-size: 0.95rem; margin-bottom: 2rem; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 0.6rem;
+            padding: 1rem 2.5rem; border-radius: 12px; text-decoration: none;
+            font-weight: 700; font-size: 1rem; transition: all 0.3s ease;
+        }
+        .btn-sun {
+            background: linear-gradient(135deg, var(--sun), var(--gold)); color: var(--bark);
+            border: 2px solid var(--earth-brown);
+        }
+        .btn-sun:hover { transform: translateY(-4px); box-shadow: 0 12px 35px rgba(0, 0, 0, 0.3); }
+
+        footer {
+            background: var(--bark); color: rgba(255, 255, 255, 0.4);
+            padding: 2.5rem; text-align: center;
+        }
+        .footer-brand {
+            font-family: 'Press Start 2P', monospace; font-size: 1rem;
+            color: var(--spring-green); margin-bottom: 0.4rem; letter-spacing: 3px;
+        }
+        .footer-links { display: flex; gap: 1.5rem; justify-content: center; margin: 1rem 0; flex-wrap: wrap; }
+        .footer-links a { color: rgba(255, 255, 255, 0.4); text-decoration: none; font-size: 0.85rem; transition: color 0.3s ease; }
+        .footer-links a:hover { color: var(--sun); }
+        .footer-copy { font-size: 0.75rem; color: rgba(255, 255, 255, 0.25); }
+
+        .reveal { opacity: 0; transform: translateY(30px); transition: all 0.8s ease; }
+        .reveal.active { opacity: 1; transform: translateY(0); }
+
+        @media (max-width: 900px) {
+            .feature-block { grid-template-columns: 1fr; gap: 2rem; padding: 2rem; }
+            .feature-block.reverse { direction: ltr; }
+            .page-hero h1 { font-size: 2.2rem; }
+            .nav-links .hide-mobile { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <nav id="navbar">
+        <a href="index.html" class="nav-brand">
+            <img src="app-icon.png" alt="SVL Logo" class="nav-brand-icon"> SVL
+        </a>
+        <ul class="nav-links">
+            <li><a href="features.html" class="active">功能</a></li>
+            <li><a href="ads.html" class="hide-mobile">推荐</a></li>
+            <li><a href="announcements.html" class="hide-mobile">公告</a></li>
+            <li><a href="http://211.101.247.248:8866/download/SVL_1.1.5_x64-setup.exe" class="nav-cta">下载</a></li>
+        </ul>
+    </nav>
+
+    <section class="page-hero">
+        <div class="page-hero-content">
+            <div class="section-eyebrow">核心功能</div>
+            <h1>为星露谷玩家<br>精心打造</h1>
+            <p>从 MOD 安装到冲突解决，从配置管理到日志分析，SVL 让一切变得简单高效</p>
+        </div>
+    </section>
+
+    <div class="feature-section">
+        <div class="feature-block reveal">
+            <div>
+                <div class="feature-block-icon">
+                    <svg class="svg-icon-lg" viewBox="0 0 24 24" fill="none" stroke="var(--deep-green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+                </div>
+                <div class="feature-block-tag">FEATURE 01</div>
+                <h2>智能 MOD 管理</h2>
+                <p>自动扫描 Mods 文件夹，所有 MOD 一目了然。支持一键启用/禁用、批量操作，大型 MOD 自动分组聚合，列表不再臃肿。</p>
+                <ul>
+                    <li>自动扫描已安装的 MOD</li>
+                    <li>一键启用/禁用，批量操作</li>
+                    <li>拖拽安装 .zip / .7z 压缩包</li>
+                    <li>大型 MOD 自动分组聚合</li>
+                </ul>
+            </div>
+            <div class="feature-block-visual">
+                <div class="feature-mockup">
+                    <div class="emoji-big">📦</div>
+                    <div class="mock-label">MOD 列表卡片视图</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="feature-block reveal">
+            <div>
+                <div class="feature-block-icon">
+                    <svg class="svg-icon-lg" viewBox="0 0 24 24" fill="none" stroke="var(--water-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.5c0 1.5-1 3-3 3.5"/><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/></svg>
+                </div>
+                <div class="feature-block-tag">FEATURE 02</div>
+                <h2>冲突检测</h2>
+                <p>自动识别依赖缺失和兼容性问题，递归解析依赖关系，提供智能解决方案。红色标记冲突项，一键定位问题根源。</p>
+                <ul>
+                    <li>自动检测依赖缺失</li>
+                    <li>兼容性冲突实时提示</li>
+                    <li>递归解析依赖关系</li>
+                    <li>智能修复建议</li>
+                </ul>
+            </div>
+            <div class="feature-block-visual">
+                <div class="feature-mockup">
+                    <div class="emoji-big">🔍</div>
+                    <div class="mock-label">冲突检测面板</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="feature-block reveal">
+            <div>
+                <div class="feature-block-icon">
+                    <svg class="svg-icon-lg" viewBox="0 0 24 24" fill="none" stroke="var(--earth-brown)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4"/><path d="M14 12h4"/><circle cx="8" cy="12" r="1" fill="currentColor"/><circle cx="16" cy="12" r="1" fill="currentColor"/></svg>
+                </div>
+                <div class="feature-block-tag">FEATURE 03</div>
+                <h2>SMAPI 集成</h2>
+                <p>自动检测游戏路径和 SMAPI 状态，一键启动游戏，无需手动配置。支持 SMAPI 版本管理和自动更新检测。</p>
+                <ul>
+                    <li>自动检测游戏安装路径</li>
+                    <li>SMAPI 状态实时监控</li>
+                    <li>一键启动游戏</li>
+                    <li>自动更新检测</li>
+                </ul>
+            </div>
+            <div class="feature-block-visual">
+                <div class="feature-mockup">
+                    <div class="emoji-big">🎮</div>
+                    <div class="mock-label">一键启动游戏</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="feature-block reveal">
+            <div>
+                <div class="feature-block-icon">
+                    <svg class="svg-icon-lg" viewBox="0 0 24 24" fill="none" stroke="var(--warm-brown)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8"/><path d="M8 17h8"/></svg>
+                </div>
+                <div class="feature-block-tag">FEATURE 04</div>
+                <h2>配置文件系统</h2>
+                <p>多配置方案切换，存档绑定，导入导出。在不同场景间自由迁移配置，轻松管理多存档、多 MOD 组合。</p>
+                <ul>
+                    <li>多配置方案切换</li>
+                    <li>存档绑定配置</li>
+                    <li>一键导入导出</li>
+                    <li>配置迁移工具</li>
+                </ul>
+            </div>
+            <div class="feature-block-visual">
+                <div class="feature-mockup">
+                    <div class="emoji-big">⚙️</div>
+                    <div class="mock-label">多配置方案管理</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="feature-block reveal">
+            <div>
+                <div class="feature-block-icon">
+                    <svg class="svg-icon-lg" viewBox="0 0 24 24" fill="none" stroke="var(--berry-purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                </div>
+                <div class="feature-block-tag">FEATURE 05</div>
+                <h2>Nexus Mods 对接</h2>
+                <p>内置 MOD 字典自动关联 N 网条目，版本检查、快速搜索、更新提醒。无需离开管理器即可了解每个 MOD 的最新状态。</p>
+                <ul>
+                    <li>自动关联 Nexus Mods 条目</li>
+                    <li>版本检查与更新提醒</li>
+                    <li>一键搜索 N 网</li>
+                    <li>MOD 信息快速查看</li>
+                </ul>
+            </div>
+            <div class="feature-block-visual">
+                <div class="feature-mockup">
+                    <div class="emoji-big">🌐</div>
+                    <div class="mock-label">Nexus Mods 集成</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="feature-block reveal">
+            <div>
+                <div class="feature-block-icon">
+                    <svg class="svg-icon-lg" viewBox="0 0 24 24" fill="none" stroke="var(--sky-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-8 4 4 4-6"/></svg>
+                </div>
+                <div class="feature-block-tag">FEATURE 06</div>
+                <h2>日志分析器</h2>
+                <p>智能解读 SMAPI 日志，白话解释技术问题，快速定位错误 MOD。不再需要手动阅读几百行的日志文件。</p>
+                <ul>
+                    <li>自动解析 SMAPI 日志</li>
+                    <li>白话解释技术问题</li>
+                    <li>快速定位错误 MOD</li>
+                    <li>一键分享日志</li>
+                </ul>
+            </div>
+            <div class="feature-block-visual">
+                <div class="feature-mockup">
+                    <div class="emoji-big">📊</div>
+                    <div class="mock-label">日志分析面板</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section class="download-bar">
+        <h2>想试试这些功能？</h2>
+        <p>免费下载 SVL，几分钟内即可开始管理你的星露谷 MOD</p>
+        <a href="http://211.101.247.248:8866/download/SVL_1.1.5_x64-setup.exe" class="btn btn-sun">Windows 版下载</a>
+    </section>
+
+    <footer>
+        <div class="footer-brand">SVL</div>
+        <div class="footer-links">
+            <a href="index.html">首页</a>
+            <a href="features.html">功能特性</a>
+            <a href="ads.html">推荐服务</a>
+            <a href="announcements.html">更新公告</a>
+        </div>
+        <p class="footer-copy"> 2025 SVL Team. MIT License.</p>
+    </footer>
+
+    <script>
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            navbar.classList.toggle('scrolled', window.scrollY > 50);
+        });
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('active'); });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+    </script>
+</body>
+</html>

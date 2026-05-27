@@ -82,9 +82,10 @@ fn find_content_packs(mods: &[ModInfo]) -> HashMap<String, Vec<String>> {
     let mut packs: HashMap<String, Vec<String>> = HashMap::new();
 
     for m in mods {
-        if m.is_content_pack && m.content_pack_for.is_some() {
-            let parent = m.content_pack_for.as_ref().unwrap().clone();
-            packs.entry(parent).or_default().push(m.unique_id.clone());
+        if let Some(parent_id) = &m.content_pack_for {
+            if m.is_content_pack {
+                packs.entry(parent_id.clone()).or_default().push(m.unique_id.clone());
+            }
         }
     }
 
@@ -109,7 +110,7 @@ pub fn calculate_optimal_load_order(mods: Vec<ModInfo>) -> Result<LoadOrderRepor
         a.2.cmp(&b.2).then_with(|| a.0.name.cmp(&b.0.name))
     });
 
-    let mut installed_ids: HashSet<String> = mods.iter().map(|m| m.unique_id.clone()).collect();
+    let installed_ids: HashSet<String> = mods.iter().map(|m| m.unique_id.to_lowercase()).collect();
 
     for (i, (mod_info, layer, _priority)) in scored_mods.iter().enumerate() {
         let mut deps: Vec<String> = Vec::new();
@@ -124,7 +125,7 @@ pub fn calculate_optimal_load_order(mods: Vec<ModInfo>) -> Result<LoadOrderRepor
             deps.push(parent.to_string());
         } else {
             let missing_deps: Vec<_> = mod_info.dependencies.iter()
-                .filter(|d| !installed_ids.contains(&d.unique_id))
+                .filter(|d| !installed_ids.contains(&d.unique_id.to_lowercase()))
                 .map(|d| d.unique_id.clone())
                 .collect();
 
