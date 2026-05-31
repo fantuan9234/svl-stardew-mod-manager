@@ -57,10 +57,12 @@ jobs:
         uses: tauri-apps/tauri-action@v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI: 'false'
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'SVL ${{ github.ref_name }}'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
+          tauriScript: npm run tauri
           args: ${{ matrix.args }}
