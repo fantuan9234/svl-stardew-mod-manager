@@ -54,7 +54,6 @@ export default function SyncPage() {
         setIsDragging(false);
         
         const paths: string[] = event.payload.paths;
-        console.log('[SyncPage] Received dropped paths:', paths);
         
         for (const droppedPath of paths) {
           const isFolder = !droppedPath.match(/\.(zip|7z|rar)$/i);
@@ -179,14 +178,12 @@ export default function SyncPage() {
       });
       
       if (selected && typeof selected === 'string') {
-        console.log('[SyncPage] Selected modpack file via dialog:', selected);
         setImportModpackFile(selected);
         setImportModpackFileName(selected.split(/[/\\]/).pop() || 'file.zip');
         setNewModpackName('');
         setModpackNameModalVisible(true);
       }
     } catch (err) {
-      console.error('[SyncPage] Failed to select file:', err);
       message.error(t('app.sync.importModpack.selectFailed'));
     }
   };

@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { message, Tooltip, notification, Modal, Typography } from 'antd';
+import { message, Tooltip, notification, Modal, Typography, Dropdown } from 'antd';
 import {
   FolderOpenOutlined,
   RocketOutlined,
   LoadingOutlined,
   ClockCircleOutlined,
   QuestionCircleOutlined,
+  DownOutlined,
+  DesktopOutlined,
 } from '@ant-design/icons';
 import {
   detectGamePath,
@@ -15,6 +17,7 @@ import {
   setCustomGamePath,
   scanMods,
   launchGame,
+  launchGameVanilla,
   getGameSessionInfo,
   restoreSvlWindow,
   toggleMod,
@@ -146,9 +149,7 @@ export default function ModManager() {
 
       const unlisten = await listen('mod-install-progress', (event) => {
         const payload = event.payload as { step: string; mod_name?: string; message?: string };
-        console.log('[ModManager] mod-install-progress event received:', payload);
         if (payload.step === 'done') {
-          console.log('[ModManager] install done, scheduling debounced refresh');
           if (refreshTimerRef.current) {
             pendingRefreshRef.current = true;
             return;
@@ -241,35 +242,24 @@ export default function ModManager() {
     try {
       setDetecting(true);
       const pathInfo = await detectGamePath();
-      console.log('[handleInit] Game path info:', pathInfo);
       setGamePathInfo(pathInfo);
 
       if (pathInfo.detected_path) {
-        console.log('[handleInit] Detected path:', pathInfo.detected_path);
         const status = await checkSmapiStatus(pathInfo.detected_path);
-        console.log('[handleInit] SMAPI status:', status);
         setSmapiInfo(status);
         if (status.installed && status.game_path) {
           try {
-            console.log('[handleInit] Scanning mods with game_path:', status.game_path);
             const modList = await scanMods(status.game_path);
-            console.log('[handleInit] Found', modList.length, 'mods:', modList.map(m => m.name));
             setMods(modList);
             const activeProfile = await profileGetActive(status.game_path);
             setActiveProfileName(activeProfile);
           } catch (scanErr) {
-            console.error('scanMods failed:', scanErr);
             message.error(typeof scanErr === 'string' ? scanErr : String(scanErr));
             setMods([]);
           }
-        } else {
-          console.log('[handleInit] SMAPI not installed or no game_path');
         }
-      } else {
-        console.log('[handleInit] No detected path');
       }
     } catch (err) {
-      console.error('handleInit failed:', err);
       message.error(t('app.pages.modManager.detectFailed'));
     } finally {
       setDetecting(false);
@@ -285,6 +275,26 @@ export default function ModManager() {
 
       notification.info({
         message: t('app.launchBar.launchNotification'),
+        description: result.message,
+        duration: 3,
+        placement: 'bottomRight',
+      });
+    } catch (err) {
+      const detail = typeof err === 'string' ? err : String(err);
+      message.error(`${t('app.launchBar.launchFailed')}: ${detail}`);
+      setLaunching(false);
+    }
+  };
+
+  const handleLaunchVanilla = async () => {
+    try {
+      setLaunching(true);
+      const path = smapiInfo?.game_path || gamePathInfo?.detected_path;
+      const result = await launchGameVanilla(path || '');
+      setGameRunning(true);
+
+      notification.info({
+        message: t('app.launchBar.launchVanillaNotification'),
         description: result.message,
         duration: 3,
         placement: 'bottomRight',
@@ -336,10 +346,8 @@ export default function ModManager() {
     const gamePath = smapiInfo?.game_path || gamePathInfo?.detected_path;
     if (gamePath) {
       try {
-        console.log('[handleOpenGamePath] revealing:', gamePath);
         await revealItemInDir(gamePath);
       } catch (err) {
-        console.error('[handleOpenGamePath] failed:', err);
         message.error(t('app.smapiInstaller.openPathFailed'));
       }
     }
@@ -373,7 +381,6 @@ export default function ModManager() {
         message.error(t('app.errors.gamePathNotFound'));
       }
     } catch (err) {
-      console.error('[handleChangeGamePath] failed:', err);
       message.error(t('app.errors.gamePathNotFound'));
     } finally {
       setDetecting(false);
@@ -381,28 +388,17 @@ export default function ModManager() {
   }, [t]);
 
   const handleRefresh = useCallback(async () => {
-    console.log('[handleRefresh] Starting diagnostic refresh...');
-    console.time('handleRefresh');
     const currentSmapi = smapiInfoRef.current;
     const currentGamePath = gamePathInfoRef.current;
     const path = currentSmapi?.game_path || currentGamePath?.detected_path;
-    console.log('[handleRefresh] Resolved path from refs:', path);
-    console.log('[handleRefresh] smapiInfoRef.game_path:', currentSmapi?.game_path);
-    console.log('[handleRefresh] gamePathInfoRef.detected_path:', currentGamePath?.detected_path);
     if (path) {
       try {
         const modList = await scanMods(path);
-        console.log('[handleRefresh] scanMods returned', modList.length, 'mods:', modList.map(m => m.name));
         setMods(modList);
       } catch (err) {
-        console.error('[handleRefresh] scanMods failed:', err);
         message.error(typeof err === 'string' ? err : String(err));
       }
-    } else {
-      console.warn('[handleRefresh] no game path available');
     }
-    console.timeEnd('handleRefresh');
-    console.log('[handleRefresh] Diagnostic refresh complete.');
   }, []);
 
   useEffect(() => {
@@ -410,13 +406,9 @@ export default function ModManager() {
   });
 
   const handleInstallSuccess = useCallback(() => {
-    console.log('[handleInstallSuccess] triggered, scheduling refresh in 800ms');
     setTimeout(() => {
-      console.log('[handleInstallSuccess] timeout fired, calling handleRefreshRef.current');
       if (handleRefreshRef.current) {
         handleRefreshRef.current();
-      } else {
-        console.error('[handleInstallSuccess] handleRefreshRef.current is null!');
       }
     }, 800);
   }, []);
@@ -468,9 +460,7 @@ export default function ModManager() {
       const extraPaths = mod.is_group && mod.sub_mods.length > 0
         ? mod.sub_mods.map(sm => sm.folder_path)
         : undefined;
-      console.log('[handleToggleMod]', { modId, folder_path: mod.folder_path, enabled: mod.enabled, newEnabled: !mod.enabled, extraPaths, is_group: mod.is_group, sub_mods: mod.sub_mods });
       const result = await toggleMod(mod.folder_path, !mod.enabled, extraPaths);
-      console.log('[handleToggleMod] result:', result);
       if (result) {
         message.success(t('app.modCard.toggleSuccess'));
         handleRefresh();
@@ -479,7 +469,6 @@ export default function ModManager() {
       }
     } catch (err) {
       const detail = typeof err === 'string' ? err : String(err);
-      console.error('[handleToggleMod] error:', err);
       message.error(`${t('app.modCard.toggleFailed')}: ${detail}`);
     }
   };
@@ -603,7 +592,6 @@ export default function ModManager() {
     try {
       await revealItemInDir(mod.folder_path);
     } catch (err) {
-      console.error('[handleOpenModFolder] failed:', err);
       message.error(t('app.smapiInstaller.openPathFailed'));
     }
   };
@@ -626,7 +614,6 @@ export default function ModManager() {
         message.success(t('app.modCard.upToDate'));
       }
     } catch (err) {
-      console.error('[handleCheckUpdate] failed:', err);
       message.error(t('app.modCard.checkUpdateFailed'));
     }
   };
@@ -673,7 +660,6 @@ export default function ModManager() {
         })
       );
     } catch (err) {
-      console.error('[handleCheckAllUpdates] failed:', err);
       message.error(t('app.modList.checkUpdatesFailed'));
     } finally {
       setCheckingUpdates(false);
@@ -746,7 +732,6 @@ export default function ModManager() {
       setShowUpdatePanel(false);
       setSelectedUpdateMods(new Set());
     } catch (err) {
-      console.error('[handleBatchUpdate] failed:', err);
       message.error(t('app.modList.batchUpdateFailed'));
     }
   };
@@ -817,7 +802,6 @@ export default function ModManager() {
       handleRefresh();
       setUpdateStatuses(prev => prev.filter(u => u.nexus_mod_id !== nexusModId));
     } catch (err) {
-      console.error('[doDownloadModUpdate] failed:', err);
       message.error(typeof err === 'string' ? err : String(err));
     } finally {
       setDownloadingModIds(prev => {
@@ -845,7 +829,6 @@ export default function ModManager() {
       message.success('备份完成，正在下载更新...');
       await doDownloadModUpdate(nexusModId, uniqueId);
     } catch (err) {
-      console.error('[handleBackupConfirm] backup failed:', err);
       message.error('备份失败，但将继续下载更新');
       await doDownloadModUpdate(nexusModId, uniqueId);
     }
@@ -875,7 +858,6 @@ export default function ModManager() {
       try {
         await backupModBeforeUpdate(current.modPath, customBackupDir || undefined);
       } catch (err) {
-        console.error('[processBatchBackupQueue] backup failed:', err);
         message.warning(`备份 ${current.name} 失败，将继续更新`);
       }
     }
@@ -942,9 +924,6 @@ export default function ModManager() {
   };
 
   const filteredMods = useMemo(() => {
-    console.log('[filteredMods] Input mods count:', mods.length);
-    console.log('[filteredMods] Input mods names:', mods.map(m => m.name));
-
     const subModIds = new Set<string>();
     mods.forEach(mod => {
       if (mod.is_group && mod.sub_mods) {
@@ -954,7 +933,6 @@ export default function ModManager() {
 
     const result = mods.filter(mod => {
       if (subModIds.has(mod.unique_id)) {
-        console.log('[filteredMods] Filtered out sub_mod already in group:', mod.name);
         return false;
       }
 
@@ -967,35 +945,28 @@ export default function ModManager() {
           tag.toLowerCase().includes(lowerSearch),
         );
         if (!nameMatch && !authorMatch && !idMatch && !tagMatch) {
-          console.log('[filteredMods] Filtered out by search:', mod.name);
           return false;
         }
       }
 
       if (filterType === 'enabled' && !mod.enabled) {
-        console.log('[filteredMods] Filtered out by enabled filter:', mod.name);
         return false;
       }
       if (filterType === 'disabled' && mod.enabled) {
-        console.log('[filteredMods] Filtered out by disabled filter:', mod.name);
         return false;
       }
 
       if (categoryFilter !== 'all' && mod.category !== categoryFilter) {
-        console.log('[filteredMods] Filtered out by category:', mod.name, 'cat=', mod.category, 'filter=', categoryFilter);
         return false;
       }
 
       if (statusFilter === 'hasUpdate' && !mod.has_update) {
-        console.log('[filteredMods] Filtered out by hasUpdate:', mod.name);
         return false;
       }
       if (statusFilter === 'hasConflict' && !mod.has_conflict) {
-        console.log('[filteredMods] Filtered out by hasConflict:', mod.name);
         return false;
       }
       if (statusFilter === 'uncategorized' && mod.category !== 'other') {
-        console.log('[filteredMods] Filtered out by uncategorized:', mod.name, 'cat=', mod.category);
         return false;
       }
 
@@ -1010,8 +981,6 @@ export default function ModManager() {
       }
     });
     
-    console.log('[filteredMods] Output count:', result.length);
-    console.log('[filteredMods] Output names:', result.map(m => m.name));
     return result;
   }, [mods, searchText, filterType, categoryFilter, statusFilter, sortBy, getTags]);
 
@@ -1277,21 +1246,43 @@ export default function ModManager() {
                     <ClockCircleOutlined /> {t('app.launchBar.duration', { duration: gameDuration })}
                   </span>
                 )}
-                <button
-                  className="svl-launch-btn"
-                  onClick={handleLaunchGame}
-                  disabled={launching}
+                <Dropdown
+                  menu={{
+                    items: [
+                      {
+                        key: 'smapi',
+                        label: (
+                          <span><RocketOutlined style={{ marginRight: 6 }} />{t('app.launchBar.launchViaSmapi')}</span>
+                        ),
+                        onClick: () => handleLaunchGame(),
+                      },
+                      {
+                        key: 'vanilla',
+                        label: (
+                          <span><DesktopOutlined style={{ marginRight: 6 }} />{t('app.launchBar.launchVanilla')}</span>
+                        ),
+                        onClick: () => handleLaunchVanilla(),
+                      },
+                    ],
+                  }}
+                  trigger={['click']}
                 >
-                  {launching ? (
-                    <>
-                      <LoadingOutlined /> {t('app.launchBar.launching')}
-                    </>
-                  ) : (
-                    <>
-                      <RocketOutlined /> {t('app.launchBar.launchViaSmapi')}
-                    </>
-                  )}
-                </button>
+                  <button
+                    className="svl-launch-btn"
+                    disabled={launching}
+                    onClick={(e) => e.preventDefault()}
+                  >
+                    {launching ? (
+                      <>
+                        <LoadingOutlined /> {t('app.launchBar.launching')}
+                      </>
+                    ) : (
+                      <>
+                        <RocketOutlined /> {t('app.launchBar.launchViaSmapi')} <DownOutlined style={{ fontSize: 10, marginLeft: 4 }} />
+                      </>
+                    )}
+                  </button>
+                </Dropdown>
               </>
             ) : (
               <>

@@ -28,19 +28,19 @@ function formatNum(num: number): string {
   return num.toString();
 }
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, t: (key: string, params?: any) => string): string {
   if (!dateStr) return '';
   try {
     const d = new Date(dateStr);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return '今天';
-    if (diffDays === 1) return '昨天';
-    if (diffDays < 7) return `${diffDays}天前`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)}周前`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)}月前`;
-    return `${Math.floor(diffDays / 365)}年前`;
+    if (diffDays === 0) return t('app.nexus.dateToday');
+    if (diffDays === 1) return t('app.nexus.dateYesterday');
+    if (diffDays < 7) return t('app.nexus.dateDaysAgo', { days: diffDays });
+    if (diffDays < 30) return t('app.nexus.dateWeeksAgo', { weeks: Math.floor(diffDays / 7) });
+    if (diffDays < 365) return t('app.nexus.dateMonthsAgo', { months: Math.floor(diffDays / 30) });
+    return t('app.nexus.dateYearsAgo', { years: Math.floor(diffDays / 365) });
   } catch {
     return dateStr;
   }
@@ -157,7 +157,7 @@ function ModGridCard({ mod, onDownload, onOpenNexus, downloading, downloadProgre
           </Text>
           {mod.uploaded_time && (
             <Text type="secondary" style={{ fontSize: 11, marginLeft: 'auto' }}>
-              {formatDate(mod.uploaded_time)}
+              {formatDate(mod.uploaded_time, t)}
             </Text>
           )}
         </div>
@@ -300,18 +300,17 @@ export default function NexusModBrowser() {
       const cdnUrl = event.payload?.url;
       if (!cdnUrl) return;
 
-      console.log('[NexusModBrowser] 捕获到 CDN 链接: ' + cdnUrl);
-      message.loading({ content: '已捕获下载链接，正在下载安装...', key: 'cdn-download', duration: 0 });
+      message.loading({ content: t('app.nexus.cdnLinkCaptured'), key: 'cdn-download', duration: 0 });
 
       try {
         const result = await invoke('download_mod_from_cdn_link', { cdnLink: cdnUrl });
         if (result && (result as any).success) {
-          message.success({ content: `模组 ${(result as any).mod_name} 安装成功！`, key: 'cdn-download' });
+          message.success({ content: t('app.nexus.installSuccess', { name: (result as any).mod_name }), key: 'cdn-download' });
         } else {
-          message.error({ content: `安装失败: ${(result as any)?.message || '未知错误'}`, key: 'cdn-download' });
+          message.error({ content: t('app.nexus.installFailed', { error: (result as any)?.message || t('app.nexus.unknownError') }), key: 'cdn-download' });
         }
       } catch (err: any) {
-        message.error({ content: `下载失败: ${typeof err === 'string' ? err : '未知错误'}`, key: 'cdn-download' });
+        message.error({ content: t('app.nexus.downloadFailed', { error: typeof err === 'string' ? err : t('app.nexus.unknownError') }), key: 'cdn-download' });
       }
     });
 
@@ -328,7 +327,6 @@ export default function NexusModBrowser() {
       setTrendingMods(mods);
       setTrendingLoaded(true);
     } catch (err) {
-      console.error('Failed to load trending mods:', err);
     } finally {
       setTrendingLoading(false);
     }
@@ -341,7 +339,6 @@ export default function NexusModBrowser() {
       setRecentlyUpdatedMods(mods);
       setRecentlyUpdatedLoaded(true);
     } catch (err) {
-      console.error('Failed to load recently updated mods:', err);
     } finally {
       setRecentlyUpdatedLoading(false);
     }
@@ -354,7 +351,6 @@ export default function NexusModBrowser() {
       setMonthlyTopMods(mods);
       setMonthlyTopLoaded(true);
     } catch (err) {
-      console.error('Failed to load monthly top mods:', err);
     } finally {
       setMonthlyTopLoading(false);
     }
@@ -461,7 +457,6 @@ export default function NexusModBrowser() {
       setTotalPages(pages);
       setCurrentPage(page);
     } catch (err: any) {
-      console.error('Search failed:', err);
       message.error(typeof err === 'string' ? err : t('features.nexus.searchFailed'));
     } finally {
       setLoading(false);
@@ -487,7 +482,6 @@ export default function NexusModBrowser() {
         message.error(t('features.nexus.downloadFailed', { name: result.mod_name, error: result.message }));
       }
     } catch (err: any) {
-      console.error('Download failed:', err);
       message.error(t('features.nexus.downloadError', { name: mod.name }) + ': ' + (typeof err === 'string' ? err : ''));
     } finally {
       setDownloadingModId(null);
@@ -646,7 +640,7 @@ export default function NexusModBrowser() {
             icon={<QuestionCircleOutlined />}
             onClick={() => setShowTutorial(true)}
           >
-            {t('features.nexus.howToUse') || '使用教程'}
+            {t('features.nexus.howToUse')}
           </Button>
         </Space>
       </div>

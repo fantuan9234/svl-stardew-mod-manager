@@ -175,7 +175,6 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
       progressRef.current = [];
     }
 
-    console.log('[DropZone] install complete, calling onInstallSuccess, modsPath:', modsPath);
     onInstallSuccess();
   };
 

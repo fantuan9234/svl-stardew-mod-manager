@@ -7,12 +7,12 @@ import appIcon from '../assets/donate/app-icon.png';
 const adData = [
   {
     id: 1,
-    title: '联机卡顿不流畅？房主在线时间不固定？来试试联机服务器',
-    subtitle: '手机+PC+iOS三端互通联机',
-    tag: '星露谷专属',
+    title: 'app.homeModal.adTitle',
+    subtitle: 'app.homeModal.adSubtitle',
+    tag: 'app.homeModal.adTag',
     tagColor: '#00b894',
     link: 'https://yy.0play.cn/auth/register?ref=REF1330FA2E',
-    features: ['24小时稳定运行', '三端互通联机', '无人数上限 · 24小时无人值守', '支持模组'],
+    features: ['app.homeModal.adFeature1', 'app.homeModal.adFeature2', 'app.homeModal.adFeature3', 'app.homeModal.adFeature4'],
   },
 ];
 
@@ -169,7 +169,7 @@ export default function HomeModal() {
               fontWeight: 400,
             }}
           >
-            轻松管理你的星露谷模组
+            {t('app.homeModal.subtitle')}
           </p>
         </div>
 
@@ -209,7 +209,7 @@ export default function HomeModal() {
               e.currentTarget.style.boxShadow = '0 4px 24px rgba(139, 105, 20, 0.35), 0 0 0 1px rgba(196, 154, 59, 0.1)';
             }}
           >
-            进入管理器
+            {t('app.homeModal.enterManager')}
             <ArrowRightOutlined style={{ fontSize: 16 }} />
           </button>
           <p
@@ -220,7 +220,7 @@ export default function HomeModal() {
               textAlign: 'center',
             }}
           >
-            进入即表示您已知晓并感谢赞助商的支持
+            {t('app.homeModal.enterDisclaimer')}
           </p>
         </div>
 
@@ -256,7 +256,7 @@ export default function HomeModal() {
               }}
             />
             <span style={{ color: 'var(--svl-text-muted)', fontSize: 12, fontWeight: 600, letterSpacing: '0.5px' }}>
-              赞助商推荐
+              {t('app.homeModal.adLabel')}
             </span>
           </div>
 
@@ -307,7 +307,7 @@ export default function HomeModal() {
                   opacity: 0.9,
                 }}
               >
-                {ad.tag}
+                {t(ad.tag)}
               </div>
               <h2
                 style={{
@@ -318,7 +318,7 @@ export default function HomeModal() {
                   letterSpacing: '-0.3px',
                 }}
               >
-                {ad.title}
+                {t(ad.title)}
               </h2>
               <p
                 style={{
@@ -328,7 +328,7 @@ export default function HomeModal() {
                   fontWeight: 600,
                 }}
               >
-                {ad.subtitle}
+                {t(ad.subtitle)}
               </p>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {ad.features.map((feature, idx) => (
@@ -348,7 +348,7 @@ export default function HomeModal() {
                     }}
                   >
                     <span style={{ color: '#00ff88', fontSize: 10 }}>✓</span>
-                    {feature}
+                    {t(feature)}
                   </span>
                 ))}
               </div>

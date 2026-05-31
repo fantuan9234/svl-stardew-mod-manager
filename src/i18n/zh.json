@@ -151,7 +151,16 @@
       "colSelect": "选择",
       "colModName": "模组名称",
       "colStatus": "当前状态",
-      "colProgress": "翻译进度"
+      "colProgress": "翻译进度",
+      "providerQwen": "通义千问",
+      "providerGlm": "智谱 GLM",
+      "providerMoonshot": "月之暗面",
+      "providerCustom": "自定义",
+      "langSimplifiedChinese": "简体中文",
+      "langTraditionalChinese": "繁體中文",
+      "langJapanese": "日本語",
+      "langKorean": "한국어",
+      "noFilesToTranslate": "没有可翻译的文件"
     },
     "modNameTranslate": {
       "translateName": "翻译名称",
@@ -472,10 +481,30 @@
       "close": "关闭",
       "modCardTitle": "档案：{{name}}",
       "modCountText": "共 {{count}} 个模组",
-      "saveCardImage": "保存为图片"
+      "saveCardImage": "保存为图片",
+      "loadModsFailed": "加载模组失败",
+      "cardTitle": "我的星露谷模组清单",
+      "colModName": "模组名称",
+      "colModId": "模组尾号",
+      "cardSaved": "卡片已保存为图片: {{path}}",
+      "saveCancelled": "已取消保存",
+      "saveFailed": "保存失败: {{error}}"
     },
     "health": {
       "goToNexus": "前往Nexus"
+    },
+    "homeModal": {
+      "subtitle": "轻松管理你的星露谷模组",
+      "enterManager": "进入管理器",
+      "enterDisclaimer": "进入即表示您已知晓并感谢赞助商的支持",
+      "adLabel": "赞助商推荐",
+      "adTitle": "联机卡顿不流畅？房主在线时间不固定？来试试联机服务器",
+      "adSubtitle": "手机+PC+iOS三端互通联机",
+      "adTag": "星露谷专属",
+      "adFeature1": "24小时稳定运行",
+      "adFeature2": "三端互通联机",
+      "adFeature3": "无人数上限 · 24小时无人值守",
+      "adFeature4": "支持模组"
     },
     "logParser": {
       "title": "日志解读器",
@@ -711,6 +740,15 @@
       "openGamePath": "打开游戏目录",
       "openPathFailed": "打开游戏目录失败"
     },
+    "smapiLog": {
+      "title": "SMAPI 日志",
+      "running": "运行中",
+      "ended": "已结束",
+      "minimize": "关闭面板",
+      "waiting": "等待游戏启动...",
+      "lineCount": "共 {{count}} 行",
+      "scrollToBottom": "滚动到底部"
+    },
     "modInstaller": {
       "installMod": "安装MOD",
       "installing": "安装中...",
@@ -781,7 +819,8 @@
     },
     "common": {
       "confirm": "确定",
-      "cancel": "取消"
+      "cancel": "取消",
+      "unknownError": "未知错误"
     },
     "modDetail": {
       "title": "MOD 详情",
@@ -896,6 +935,8 @@
     },
     "launchBar": {
       "launchViaSmapi": "启动游戏 (SMAPI)",
+      "launchVanilla": "启动游戏 (原版)",
+      "launchVanillaNotification": "游戏正在以原版模式启动",
       "launching": "游戏正在启动...",
       "smapiRequired": "请先安装 SMAPI",
       "gameRunning": "游戏运行中",
@@ -1008,6 +1049,19 @@
       "proxyEnabled": "Nexus 加速已开启",
       "proxyDisabled": "Nexus 加速已关闭",
       "proxyToggleFailed": "加速设置失败"
+    },
+    "nexus": {
+      "dateToday": "今天",
+      "dateYesterday": "昨天",
+      "dateDaysAgo": "{{days}}天前",
+      "dateWeeksAgo": "{{weeks}}周前",
+      "dateMonthsAgo": "{{months}}月前",
+      "dateYearsAgo": "{{years}}年前",
+      "cdnLinkCaptured": "已捕获下载链接，正在下载安装...",
+      "installSuccess": "模组 {{name}} 安装成功！",
+      "installFailed": "安装失败: {{error}}",
+      "downloadFailed": "下载失败: {{error}}",
+      "unknownError": "未知错误"
     },
     "noDescription": "暂无描述",
     "optional": "可选",

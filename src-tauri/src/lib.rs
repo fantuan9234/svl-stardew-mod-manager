@@ -32,7 +32,7 @@ mod mod_name_translator;
 
 use smapi::{detect_game_path, check_smapi_status, set_custom_game_path, open_smapi_installer, restore_svl_window};
 use smapi_installer::{install_smapi_local, open_smapi_zip_dialog};
-use smapi_launcher::{launch_game, get_game_session_info, stop_game};
+use smapi_launcher::{launch_game, launch_game_vanilla, get_game_session_info, stop_game};
 use mod_parser::{scan_mods, toggle_mod_enabled};
 use mod_installer::{install_mod_from_archive, install_mod_from_folder, uninstall_mod, install_mod, check_mod_dependencies};
 use profiles::{profile_create, profile_list, profile_get_active, profile_switch, profile_delete, profile_update_mods, profile_toggle_mod, profile_get_mod_states, profile_clear_active, profile_copy, profile_export, profile_import, profile_scan_mods, get_profile_bindings, set_profile_binding, get_essential_mod_ids};
@@ -54,7 +54,7 @@ use mod_security::{start_game_monitor, stop_game_monitor, get_monitor_status, ch
 use app_updater::{check_app_update_from_server, check_app_update_github, download_app_update_from_server, get_update_server_url, get_current_app_version, run_installer, auto_check_app_update};
 use dep_resolver::{scan_all_missing_dependencies, auto_install_missing_dependency};
 use storage_analyzer::analyze_mod_storage;
-use app_logger::{get_app_logs, export_app_logs, clear_old_app_logs, get_log_dir_path, log_info, log_warn, log_error};
+use app_logger::{get_app_logs, export_app_logs, clear_old_app_logs, get_log_dir_path};
 use mod_translator::{scan_translatable_mods, translate_mod_file, test_ai_connection, restore_translation_backup, scan_translation_backups};
 use mod_name_translator::{get_mod_name_translations, translate_mod_name, batch_translate_mod_names, delete_mod_name_translation, clear_all_mod_name_translations};
 
@@ -95,6 +95,7 @@ pub fn run() {
             scan_mods,
             toggle_mod_enabled,
             launch_game,
+            launch_game_vanilla,
             open_smapi_installer,
             install_smapi_local,
             open_smapi_zip_dialog,

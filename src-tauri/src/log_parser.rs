@@ -535,6 +535,7 @@ fn read_log_tail(path: &PathBuf) -> Result<String, String> {
     Ok(content)
 }
 
+#[allow(dead_code)]
 fn match_rules(line: &str, rules: &[Rule]) -> Option<ParsedLogError> {
     for rule in rules {
         if let Some(caps) = rule.pattern.captures(line) {
@@ -559,6 +560,7 @@ fn match_rules(line: &str, rules: &[Rule]) -> Option<ParsedLogError> {
     None
 }
 
+#[allow(dead_code)]
 fn parse_log_errors(content: &str) -> Vec<ParsedLogError> {
     let mut errors = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
@@ -650,6 +652,7 @@ pub struct ModInfoBasic {
     pub enabled: bool,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModHealthIssue {
     pub mod_name: String,
@@ -663,6 +666,7 @@ pub struct ModHealthIssue {
     pub missing_dep_id: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModHealthCheckResult {
     pub has_issues: bool,
@@ -1276,7 +1280,7 @@ pub fn analyze_log(log_path: Option<String>) -> Result<LogAnalysis, String> {
 
     let content = read_log_tail(&log_path)?;
 
-    let mut errors = parse_errors_v2(&content);
+    let errors = parse_errors_v2(&content);
     let warnings = parse_warnings_v2(&content);
 
     let error_count = errors.len();
@@ -1380,6 +1384,7 @@ fn parse_errors_v2(content: &str) -> Vec<LogError> {
     errors
 }
 
+#[allow(dead_code)]
 fn parse_no_update_keys_section(content: &str) -> Vec<LogError> {
     let mut results = Vec::new();
     let log_prefix_re = Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+\w+\s+\w+\]\s*").expect("Invalid regex: log_prefix_nouk");

@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
@@ -73,6 +72,7 @@ const ESSENTIAL_MOD_IDS: &[&str] = &[
 ];
 
 /// 检查mod是否是必需前置mod
+#[allow(dead_code)]
 fn is_essential_mod(mod_id: &str) -> bool {
     ESSENTIAL_MOD_IDS.iter().any(|&id| id.eq_ignore_ascii_case(mod_id))
 }

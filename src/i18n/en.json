@@ -314,7 +314,14 @@
       "close": "Close",
       "modCardTitle": "Profile: {{name}}",
       "modCountText": "{{count}} mods total",
-      "saveCardImage": "Save as Image"
+      "saveCardImage": "Save as Image",
+      "loadModsFailed": "Failed to load mods",
+      "cardTitle": "My Stardew Valley Mod List",
+      "colModName": "Mod Name",
+      "colModId": "Mod ID",
+      "cardSaved": "Card saved as image: {{path}}",
+      "saveCancelled": "Save cancelled",
+      "saveFailed": "Save failed: {{error}}"
     },
     "profileCompare": {
       "title": "Compare Profiles",
@@ -343,6 +350,19 @@
     },
     "health": {
       "goToNexus": "Go to Nexus"
+    },
+    "homeModal": {
+      "subtitle": "Easily manage your Stardew Valley mods",
+      "enterManager": "Enter Manager",
+      "enterDisclaimer": "By entering, you acknowledge and appreciate the sponsor's support",
+      "adLabel": "Sponsored",
+      "adTitle": "Laggy multiplayer? Host not always online? Try a multiplayer server",
+      "adSubtitle": "Mobile+PC+iOS cross-platform multiplayer",
+      "adTag": "Stardew Valley",
+      "adFeature1": "24/7 stable uptime",
+      "adFeature2": "Cross-platform multiplayer",
+      "adFeature3": "No player limit · 24/7 unattended",
+      "adFeature4": "Mod support"
     },
     "logParser": {
       "title": "Log Parser",
@@ -578,6 +598,15 @@
       "openGamePath": "Open Game Directory",
       "openPathFailed": "Failed to open game directory"
     },
+    "smapiLog": {
+      "title": "SMAPI Log",
+      "running": "Running",
+      "ended": "Ended",
+      "minimize": "Close Panel",
+      "waiting": "Waiting for game to start...",
+      "lineCount": "{{count}} lines",
+      "scrollToBottom": "Scroll to Bottom"
+    },
     "modInstaller": {
       "installMod": "Install MOD",
       "installing": "Installing...",
@@ -649,7 +678,8 @@
     },
     "common": {
       "confirm": "Confirm",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "unknownError": "Unknown error"
     },
     "modDetail": {
       "title": "MOD Details",
@@ -739,6 +769,8 @@
     },
     "launchBar": {
       "launchViaSmapi": "Launch Game (SMAPI)",
+      "launchVanilla": "Launch Game (Vanilla)",
+      "launchVanillaNotification": "Game is launching in vanilla mode",
       "launching": "Game is launching...",
       "smapiRequired": "Please install SMAPI first",
       "gameRunning": "Game Running",
@@ -850,6 +882,19 @@
       "proxyEnabled": "Nexus acceleration enabled",
       "proxyDisabled": "Nexus acceleration disabled",
       "proxyToggleFailed": "Failed to toggle acceleration"
+    },
+    "nexus": {
+      "dateToday": "Today",
+      "dateYesterday": "Yesterday",
+      "dateDaysAgo": "{{days}} days ago",
+      "dateWeeksAgo": "{{weeks}} weeks ago",
+      "dateMonthsAgo": "{{months}} months ago",
+      "dateYearsAgo": "{{years}} years ago",
+      "cdnLinkCaptured": "Download link captured, downloading and installing...",
+      "installSuccess": "Mod {{name}} installed successfully!",
+      "installFailed": "Installation failed: {{error}}",
+      "downloadFailed": "Download failed: {{error}}",
+      "unknownError": "Unknown error"
     },
     "noDescription": "No description available",
     "optional": "Optional",
@@ -1067,7 +1112,16 @@
       "colSelect": "Select",
       "colModName": "Mod Name",
       "colStatus": "Status",
-      "colProgress": "Progress"
+      "colProgress": "Progress",
+      "providerQwen": "Qwen",
+      "providerGlm": "GLM",
+      "providerMoonshot": "Moonshot",
+      "providerCustom": "Custom",
+      "langSimplifiedChinese": "Simplified Chinese",
+      "langTraditionalChinese": "Traditional Chinese",
+      "langJapanese": "Japanese",
+      "langKorean": "Korean",
+      "noFilesToTranslate": "No translatable files found"
     },
     "modNameTranslate": {
       "translateName": "Translate Name",

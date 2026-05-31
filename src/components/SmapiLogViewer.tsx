@@ -156,22 +156,22 @@ const SmapiLogViewer: React.FC<SmapiLogViewerProps> = ({ isOpen, onClose }) => {
         <div className="svl-smapi-log-header">
           <div className="svl-smapi-log-title">
             <span className="svl-smapi-log-icon">📜</span>
-            <span>{t('app.smapiLog.title', 'SMAPI 日志')}</span>
+            <span>{t('app.smapiLog.title')}</span>
             {isRunning && (
               <span className="svl-smapi-log-status-running">
                 <span className="svl-status-dot" />
-                {t('app.smapiLog.running', '运行中')}
+                {t('app.smapiLog.running')}
               </span>
             )}
             {!isRunning && gameStarted && (
               <span className="svl-smapi-log-status-ended">
-                {t('app.smapiLog.ended', '已结束')}
+                {t('app.smapiLog.ended')}
               </span>
             )}
           </div>
           <div className="svl-smapi-log-actions">
-            <button className="svl-smapi-log-btn-minimize" onClick={handleClose} title={t('app.smapiLog.minimize', '关闭面板')}>─</button>
-            <button className="svl-smapi-log-btn-close" onClick={handleClose} title={t('app.common.close', '关闭')}>✕</button>
+            <button className="svl-smapi-log-btn-minimize" onClick={handleClose} title={t('app.smapiLog.minimize')}>─</button>
+            <button className="svl-smapi-log-btn-close" onClick={handleClose} title={t('app.common.close')}>✕</button>
           </div>
         </div>
 
@@ -179,7 +179,7 @@ const SmapiLogViewer: React.FC<SmapiLogViewerProps> = ({ isOpen, onClose }) => {
           {logLines.length === 0 && !gameStarted && (
             <div className="svl-smapi-log-empty">
               <div className="svl-smapi-log-empty-icon">⏳</div>
-              <p>{t('app.smapiLog.waiting', '等待游戏启动...')}</p>
+              <p>{t('app.smapiLog.waiting')}</p>
             </div>
           )}
 
@@ -195,13 +195,13 @@ const SmapiLogViewer: React.FC<SmapiLogViewerProps> = ({ isOpen, onClose }) => {
 
         <div className="svl-smapi-log-footer">
           <span className="svl-smapi-log-line-count">
-            {t('app.smapiLog.lineCount', '共 {{count}} 行', { count: logLines.length })}
+            {t('app.smapiLog.lineCount', { count: logLines.length })}
           </span>
           <button
             className="svl-smapi-log-btn-scroll"
             onClick={() => { autoScrollRef.current = true; scrollToBottom(); }}
           >
-            {t('app.smapiLog.scrollToBottom', '滚动到底部')}
+            {t('app.smapiLog.scrollToBottom')}
           </button>
         </div>
       </div>

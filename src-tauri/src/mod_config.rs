@@ -96,6 +96,7 @@ fn json_value_to_config_value(value: &serde_json::Value) -> ConfigValue {
     }
 }
 
+#[allow(dead_code)]
 fn config_value_to_json_value(value: &ConfigValue) -> serde_json::Value {
     match value {
         ConfigValue::Bool(b) => serde_json::Value::Bool(*b),

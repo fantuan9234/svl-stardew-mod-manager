@@ -138,7 +138,16 @@
       "colSelect": "選擇",
       "colModName": "模組名稱",
       "colStatus": "目前狀態",
-      "colProgress": "翻譯進度"
+      "colProgress": "翻譯進度",
+      "providerQwen": "通義千問",
+      "providerGlm": "智譜 GLM",
+      "providerMoonshot": "月之暗面",
+      "providerCustom": "自訂",
+      "langSimplifiedChinese": "簡體中文",
+      "langTraditionalChinese": "繁體中文",
+      "langJapanese": "日本語",
+      "langKorean": "한국어",
+      "noFilesToTranslate": "沒有可翻譯的檔案"
     },
     "modNameTranslate": {
       "translateName": "翻譯名稱",
@@ -458,10 +467,30 @@
       "close": "關閉",
       "modCardTitle": "檔案：{{name}}",
       "modCountText": "共 {{count}} 個模組",
-      "saveCardImage": "儲存為圖片"
+      "saveCardImage": "儲存為圖片",
+      "loadModsFailed": "載入模組失敗",
+      "cardTitle": "我的星露谷模組清單",
+      "colModName": "模組名稱",
+      "colModId": "模組尾號",
+      "cardSaved": "卡片已儲存為圖片: {{path}}",
+      "saveCancelled": "已取消儲存",
+      "saveFailed": "儲存失敗: {{error}}"
     },
     "health": {
       "goToNexus": "前往Nexus"
+    },
+    "homeModal": {
+      "subtitle": "輕鬆管理你的星露谷模組",
+      "enterManager": "進入管理器",
+      "enterDisclaimer": "進入即表示您已知曉並感謝贊助商的支持",
+      "adLabel": "贊助商推薦",
+      "adTitle": "連機卡頓不流暢？房主在線時間不固定？來試試連機伺服器",
+      "adSubtitle": "手機+PC+iOS三端互通連機",
+      "adTag": "星露谷專屬",
+      "adFeature1": "24小時穩定運行",
+      "adFeature2": "三端互通連機",
+      "adFeature3": "無人數上限 · 24小時無人值守",
+      "adFeature4": "支持模組"
     },
     "logParser": {
       "title": "日誌解讀器",
@@ -697,6 +726,15 @@
       "openGamePath": "開啟遊戲目錄",
       "openPathFailed": "開啟遊戲目錄失敗"
     },
+    "smapiLog": {
+      "title": "SMAPI 日誌",
+      "running": "運行中",
+      "ended": "已結束",
+      "minimize": "關閉面板",
+      "waiting": "等待遊戲啟動...",
+      "lineCount": "共 {{count}} 行",
+      "scrollToBottom": "滾動到底部"
+    },
     "modInstaller": {
       "installMod": "安裝MOD",
       "installing": "安裝中...",
@@ -767,7 +805,8 @@
     },
     "common": {
       "confirm": "確定",
-      "cancel": "取消"
+      "cancel": "取消",
+      "unknownError": "未知錯誤"
     },
     "modDetail": {
       "title": "MOD 詳情",
@@ -882,6 +921,8 @@
     },
     "launchBar": {
       "launchViaSmapi": "啟動遊戲 (SMAPI)",
+      "launchVanilla": "啟動遊戲 (原版)",
+      "launchVanillaNotification": "遊戲正在以原版模式啟動",
       "launching": "遊戲正在啟動...",
       "smapiRequired": "請先安裝 SMAPI",
       "gameRunning": "遊戲執行中",
@@ -994,6 +1035,19 @@
       "proxyEnabled": "Nexus 加速已開啟",
       "proxyDisabled": "Nexus 加速已關閉",
       "proxyToggleFailed": "加速設定失敗"
+    },
+    "nexus": {
+      "dateToday": "今天",
+      "dateYesterday": "昨天",
+      "dateDaysAgo": "{{days}}天前",
+      "dateWeeksAgo": "{{weeks}}週前",
+      "dateMonthsAgo": "{{months}}月前",
+      "dateYearsAgo": "{{years}}年前",
+      "cdnLinkCaptured": "已捕獲下載連結，正在下載安裝...",
+      "installSuccess": "模組 {{name}} 安裝成功！",
+      "installFailed": "安裝失敗: {{error}}",
+      "downloadFailed": "下載失敗: {{error}}",
+      "unknownError": "未知錯誤"
     },
     "noDescription": "暫無描述",
     "optional": "可選",

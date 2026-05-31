@@ -66,7 +66,7 @@ pub struct ModManifest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct ManifestDependency {
+pub struct ManifestDependency {
     #[serde(rename = "UniqueID", alias = "UniqueId")]
     unique_id: String,
     #[serde(rename = "MinimumVersion")]
@@ -80,7 +80,7 @@ fn default_is_required() -> bool {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct ContentPackFor {
+pub struct ContentPackFor {
     #[serde(rename = "UniqueID", alias = "UniqueId")]
     unique_id: String,
 }
@@ -942,7 +942,7 @@ fn group_content_packs(mods: Vec<ModInfo>) -> Vec<ModInfo> {
 
     let mut result: Vec<ModInfo> = Vec::new();
 
-    for mut mod_info in standalone_mods {
+    for mod_info in standalone_mods {
         if let Some(sub_mods) = parent_map.remove(&mod_info.unique_id) {
             if !sub_mods.is_empty() {
                 println!(

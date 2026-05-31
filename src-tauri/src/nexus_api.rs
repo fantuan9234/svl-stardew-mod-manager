@@ -182,6 +182,7 @@ pub async fn test_nexus_connection() -> Result<NetworkDiagnosticResult, String> 
     }
 }
 
+#[allow(dead_code)]
 pub fn build_nexus_client() -> reqwest::blocking::Client {
     reqwest::blocking::Client::builder()
         .user_agent(USER_AGENT)
@@ -217,6 +218,7 @@ fn build_download_client() -> reqwest::Client {
         .unwrap_or_else(|_| reqwest::Client::new())
 }
 
+#[allow(dead_code)]
 pub fn add_nexus_headers(request: reqwest::blocking::RequestBuilder, api_key: &str) -> reqwest::blocking::RequestBuilder {
     request
         .header("apikey", api_key)
@@ -2106,6 +2108,7 @@ async fn download_mod_via_webview(
 }
 
 /// 从页面 HTML 中提取 CDN 下载链接
+#[allow(dead_code)]
 fn extract_cdn_url_from_html(html: &str) -> Option<String> {
     // Pattern 1: data-url attribute on download buttons
     if let Some(caps) = regex::Regex::new(r#"data-url="([^"]*nexus-cdn[^"]*)""#)
@@ -2541,6 +2544,7 @@ fn extract_filename_from_url(url_str: &str) -> String {
     no_fragment.split('/').last().unwrap_or("mod_download.zip").to_string()
 }
 
+#[allow(dead_code)]
 fn sanitize_file_name(name: &str) -> String {
     name.chars()
         .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' || c == '.' { c } else { '_' })

@@ -34,7 +34,7 @@ const AI_PRESETS = [
     rechargeUrl: 'https://platform.deepseek.com/api_keys',
   },
   {
-    name: '通义千问',
+    name: 'app.translator.providerQwen',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     model: 'qwen3.6-plus',
     models: [
@@ -50,7 +50,7 @@ const AI_PRESETS = [
     rechargeUrl: 'https://dashscope.console.aliyun.com/apiKey',
   },
   {
-    name: '智谱 GLM',
+    name: 'app.translator.providerGlm',
     baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
     model: 'glm-4-flash',
     models: [
@@ -69,7 +69,7 @@ const AI_PRESETS = [
     rechargeUrl: 'https://open.bigmodel.cn/usercenter/apikeys',
   },
   {
-    name: '月之暗面',
+    name: 'app.translator.providerMoonshot',
     baseUrl: 'https://api.moonshot.cn/v1',
     model: 'kimi-latest',
     models: [
@@ -83,7 +83,7 @@ const AI_PRESETS = [
     rechargeUrl: 'https://platform.moonshot.cn/console/api-keys',
   },
   {
-    name: '自定义',
+    name: 'app.translator.providerCustom',
     baseUrl: '',
     model: '',
     models: [],
@@ -92,10 +92,10 @@ const AI_PRESETS = [
 ];
 
 const TARGET_LANGS = [
-  { value: '简体中文', label: '简体中文' },
-  { value: '繁體中文', label: '繁體中文' },
-  { value: '日本語', label: '日本語' },
-  { value: '한국어', label: '한국어' },
+  { value: '简体中文', label: 'app.translator.langSimplifiedChinese' },
+  { value: '繁體中文', label: 'app.translator.langTraditionalChinese' },
+  { value: '日本語', label: 'app.translator.langJapanese' },
+  { value: '한국어', label: 'app.translator.langKorean' },
 ];
 
 const TRANSLATE_MODES = [
@@ -299,7 +299,7 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
     }
 
     const total = allFiles.length;
-    if (total === 0) { message.warning('没有可翻译的文件'); return; }
+    if (total === 0) { message.warning(t('app.translator.noFilesToTranslate')); return; }
 
     setTranslating(true);
     setProgress({ current: 0, total });
@@ -488,7 +488,7 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
                     value={provider}
                     onChange={handleProviderChange}
                     style={{ width: '100%' }}
-                    options={AI_PRESETS.map(p => ({ value: p.name, label: p.name }))}
+                    options={AI_PRESETS.map(p => ({ value: p.name, label: t(p.name) }))}
                   />
                 </div>
                 <div style={{ flex: '1 1 300px', minWidth: 200 }}>
@@ -559,7 +559,7 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
           <div>
             <Text style={{ fontSize: 12, display: 'block', marginBottom: 4, color: '#666' }}>{t('app.translator.targetLang')}</Text>
-            <Select value={targetLang} onChange={setTargetLang} style={{ width: 140 }} options={TARGET_LANGS} />
+            <Select value={targetLang} onChange={setTargetLang} style={{ width: 140 }} options={TARGET_LANGS.map(l => ({ value: l.value, label: t(l.label) }))} />
           </div>
           <div>
             <Text style={{ fontSize: 12, display: 'block', marginBottom: 4, color: '#666' }}>{t('app.translator.translateMode')}</Text>
@@ -830,7 +830,7 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
         <div style={{ maxHeight: 200, overflowY: 'auto', borderRadius: 8, border: '1px solid var(--svl-border)', padding: 8 }}>
           {backups.length === 0 ? (
             <Text type="secondary" style={{ fontSize: 12, display: 'block', textAlign: 'center', padding: '12px 0' }}>
-              {backupsLoading ? t('app.translator.scanning') || '扫描中...' : (t('app.translator.noBackups') || '暂无备份文件')}
+              {backupsLoading ? t('app.translator.scanning') : t('app.translator.noBackups')}
             </Text>
           ) : (
             backups.map((b, i) => (

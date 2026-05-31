@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -359,7 +358,7 @@ fn check_entry_class(mod_path: &PathBuf) -> SecurityCheck {
 }
 
 fn check_content_patcher_only(mod_path: &PathBuf) -> SecurityCheck {
-    let mut has_content_patchers = 0;
+    let mut _has_content_patchers = 0;
     let mut has_other_files = 0;
 
     if let Ok(entries) = fs::read_dir(mod_path) {
@@ -369,7 +368,7 @@ fn check_content_patcher_only(mod_path: &PathBuf) -> SecurityCheck {
                 if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
                     let name_lower = name.to_lowercase();
                     if name_lower.contains("content.json") || name_lower.ends_with(".json") {
-                        has_content_patchers += 1;
+                        _has_content_patchers += 1;
                     } else if name_lower.ends_with(".png") || name_lower.ends_with(".xnb") || name_lower.ends_with(".json") {
                         // Content files are safe
                     } else {

@@ -114,7 +114,7 @@ pub fn calculate_optimal_load_order(mods: Vec<ModInfo>) -> Result<LoadOrderRepor
 
     for (i, (mod_info, layer, _priority)) in scored_mods.iter().enumerate() {
         let mut deps: Vec<String> = Vec::new();
-        let mut reason = String::new();
+        let reason;
 
         if let Some(packs) = content_packs.get(&mod_info.unique_id) {
             reason = format!("Framework/Library mod with {} content packs", packs.len());

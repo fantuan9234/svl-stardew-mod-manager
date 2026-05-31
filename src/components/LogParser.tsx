@@ -92,10 +92,8 @@ export default function LogParser({ isOpen, onClose, smapiInstalled, onFixComple
       const res = await invoke<ParseSmapiLogResult>('parse_smapi_log', {
         logPath: null,
       });
-      console.log('[LogParser] parse_smapi_log result:', res);
       setResult(res);
     } catch (err) {
-      console.error('[LogParser] parse_smapi_log failed:', err);
       setResult(null);
     } finally {
       setLoading(false);
@@ -136,7 +134,6 @@ export default function LogParser({ isOpen, onClose, smapiInstalled, onFixComple
     try {
       await revealItemInDir(result.log_path);
     } catch (err) {
-      console.error('[LogParser] revealItemInDir failed:', err);
     }
   };
 

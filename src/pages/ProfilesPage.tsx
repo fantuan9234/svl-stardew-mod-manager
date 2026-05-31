@@ -252,7 +252,7 @@ export default function ProfilesPage() {
       const enabledMods = allMods.filter((m) => states[m.unique_id] !== false);
       setCardProfileMods(enabledMods);
     } catch (err: any) {
-      message.error(err?.toString() || '加载模组失败');
+      message.error(err?.toString() || t('app.profilesPage.loadModsFailed'));
     } finally {
       setCardLoading(false);
     }
@@ -382,7 +382,7 @@ export default function ProfilesPage() {
     ctx.fillStyle = colors.text;
     ctx.font = 'bold 32px "SimHei", "Microsoft YaHei", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('我的星露谷模组清单', cardWidth / 2, titleY + titleHeight - 20);
+    ctx.fillText(t('app.profilesPage.cardTitle'), cardWidth / 2, titleY + titleHeight - 20);
 
     const drawLeaf = (lx: number, ly: number, angle: number) => {
       ctx.save();
@@ -559,12 +559,12 @@ export default function ProfilesPage() {
         const bytes = new Uint8Array(len);
         for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
         await writeFile(filePath, bytes);
-        message.success('卡片已保存为图片: ' + filePath);
+        message.success(t('app.profilesPage.cardSaved', { path: filePath }));
       } else {
-        message.info('已取消保存');
+        message.info(t('app.profilesPage.saveCancelled'));
       }
     } catch (err: any) {
-      message.error('保存失败: ' + (err?.toString() || '未知错误'));
+      message.error(t('app.profilesPage.saveFailed', { error: err?.toString() || t('app.common.unknownError') }));
     }
   };
 

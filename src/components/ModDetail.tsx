@@ -54,7 +54,6 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
   const detailImageUrl = useImageUrl(mod.thumbnail_path || mod.screenshot_path);
   useEffect(() => {
     const validModUrl = mod.url && !mod.url.includes('/search?');
-    console.log('[ModDetail] mod:', mod.name, 'url:', mod.url, 'nexus_mod_id:', mod.nexus_mod_id, 'valid:', validModUrl);
     if (validModUrl) {
       return;
     }
@@ -73,7 +72,6 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
     try {
       await revealItemInDir(mod.folder_path);
     } catch (err) {
-      console.error('[handleOpenFolder] failed:', err);
       message.error(t('app.smapiInstaller.openPathFailed'));
     }
   };
@@ -89,7 +87,6 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
       message.success(t('app.modDetail.endorseSuccess'));
       onEndorse?.(mod.unique_id);
     } catch (err) {
-      console.error('[handleEndorse] failed:', err);
       message.error(t('app.modDetail.endorseFailed'));
     } finally {
       setEndorseLoading(false);
@@ -107,7 +104,6 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
       }
       onCheckUpdate?.(mod.unique_id);
     } catch (err) {
-      console.error('[handleCheckUpdate] failed:', err);
       message.error(t('app.modCard.checkUpdateFailed'));
     } finally {
       setUpdateLoading(false);

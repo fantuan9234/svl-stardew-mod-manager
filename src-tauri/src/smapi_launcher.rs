@@ -145,6 +145,101 @@ pub fn launch_game(game_path: String, app: tauri::AppHandle) -> Result<LaunchRes
     })
 }
 
+fn find_vanilla_exe(game_path: &str) -> Result<PathBuf, String> {
+    let game_dir = PathBuf::from(game_path);
+
+    #[cfg(target_os = "windows")]
+    let vanilla_paths = vec![
+        game_dir.join("Stardew Valley.exe"),
+    ];
+
+    #[cfg(target_os = "macos")]
+    let vanilla_paths = vec![
+        game_dir.join("Contents/MacOS/Stardew Valleys"),
+        game_dir.join("Stardew Valley"),
+    ];
+
+    #[cfg(target_os = "linux")]
+    let vanilla_paths = vec![
+        game_dir.join("Stardew Valley"),
+        game_dir.join("StardewValley"),
+    ];
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    let vanilla_paths: Vec<PathBuf> = vec![];
+
+    for path in &vanilla_paths {
+        if path.exists() {
+            return Ok(path.clone());
+        }
+    }
+
+    Err("Vanilla game executable not found".to_string())
+}
+
+#[tauri::command]
+pub fn launch_game_vanilla(game_path: String, app: tauri::AppHandle) -> Result<LaunchResult, String> {
+    let vanilla_path = find_vanilla_exe(&game_path)?;
+    let app_handle = app.clone();
+
+    #[cfg(target_os = "windows")]
+    let mut child = {
+        Command::new(&vanilla_path)
+            .current_dir(&game_path)
+            .creation_flags(0x08000000)
+            .spawn()
+            .map_err(|e| format!("Failed to launch vanilla game: {}", e))?
+    };
+
+    #[cfg(not(target_os = "windows"))]
+    let mut child = {
+        Command::new(&vanilla_path)
+            .current_dir(&game_path)
+            .spawn()
+            .map_err(|e| format!("Failed to launch vanilla game: {}", e))?
+    };
+
+    let pid = child.id();
+
+    #[cfg(windows)]
+    {
+        if let Ok(mut handle_store) = GAME_PROCESS_HANDLE.lock() {
+            *handle_store = Some(pid);
+        }
+    }
+
+    std::thread::spawn(move || {
+        let _ = child.wait();
+        if let Ok(mut start) = GAME_START_TIME.lock() {
+            *start = None;
+        }
+        #[cfg(windows)]
+        {
+            if let Ok(mut handle_store) = GAME_PROCESS_HANDLE.lock() {
+                *handle_store = None;
+            }
+        }
+        if let Ok(result) = check_smapi_log() {
+            if result.has_error {
+                let _ = app_handle.emit("game-exit-errors", serde_json::json!({
+                    "has_errors": true,
+                    "error_count": result.errors.len(),
+                    "errors": result.errors,
+                }));
+            }
+        }
+    });
+
+    if let Ok(mut start) = GAME_START_TIME.lock() {
+        *start = Some(Instant::now());
+    }
+
+    Ok(LaunchResult {
+        success: true,
+        message: format!("Vanilla game launched successfully (PID: {})", pid),
+    })
+}
+
 #[cfg(windows)]
 fn is_process_running(pid: u32) -> bool {
     unsafe {

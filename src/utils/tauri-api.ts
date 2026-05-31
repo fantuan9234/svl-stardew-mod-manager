@@ -144,6 +144,10 @@ export async function launchGame(gamePath: string): Promise<LaunchResult> {
   return invoke<LaunchResult>('launch_game', { gamePath });
 }
 
+export async function launchGameVanilla(gamePath: string): Promise<LaunchResult> {
+  return invoke<LaunchResult>('launch_game_vanilla', { gamePath });
+}
+
 export interface SmapiInstallResult {
   success: boolean;
   message: string;

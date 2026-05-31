@@ -83,7 +83,6 @@ export default function SavesManager() {
       const required = allMods.filter((mod: ProfileModInfo) => mod.is_required);
       setRequiredMods(required);
     } catch {
-      console.error('Failed to load required mods');
     }
   };
 
@@ -185,25 +184,17 @@ export default function SavesManager() {
   };
 
   const handleProfileChange = async (save: SaveInfo, profileName: string) => {
-    console.log('[SVL Debug] handleProfileChange called:', {
-      saveName: save.name,
-      savePath: save.save_path,
-      profileName,
-    });
     setChangingProfile(save.save_path);
     try {
       if (profileName === '__none__') {
-        console.log('[SVL Debug] Unlinking save from profile');
         await unlinkSaveFromProfile(save.save_path);
         message.success(t('app.saves.unlinkSuccess'));
       } else {
-        console.log('[SVL Debug] Linking save to profile:', profileName);
         await linkSaveToProfile(save.save_path, profileName);
         message.success(t('app.saves.linkSuccess'));
       }
       loadSaves();
     } catch (err: any) {
-      console.error('[SVL Debug] Profile change failed:', err);
       message.error(err?.toString() || t('app.saves.linkFailed'));
     } finally {
       setChangingProfile(null);
@@ -226,24 +217,15 @@ export default function SavesManager() {
       return;
     }
 
-    console.log('[SVL Debug] handleLaunchWithProfile called:', {
-      gamePath,
-      saveName: save.name,
-      savePath: save.save_path,
-      linkedProfile: save.linked_profile,
-    });
-
     setLaunchingSave(save.save_path);
     try {
       const result = await launchGameWithSaveProfile(gamePath, save.save_path);
-      console.log('[SVL Debug] Launch result:', result);
       if (result.success) {
         message.success(result.message);
       } else {
         message.error(result.message);
       }
     } catch (err: any) {
-      console.error('[SVL Debug] Launch failed:', err);
       message.error(err?.toString() || t('app.saves.launchFailed'));
     } finally {
       setLaunchingSave(null);
