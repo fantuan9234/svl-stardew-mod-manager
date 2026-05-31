@@ -10,6 +10,8 @@ $now = date('c');
 $pages = [
     ['loc' => $baseUrl . '/', 'lastmod' => $now, 'changefreq' => 'daily', 'priority' => '1.0'],
     ['loc' => $baseUrl . '/announcements.php', 'lastmod' => $now, 'changefreq' => 'daily', 'priority' => '0.8'],
+    ['loc' => $baseUrl . '/faq.php', 'lastmod' => $now, 'changefreq' => 'weekly', 'priority' => '0.9'],
+    ['loc' => $baseUrl . '/changelog.php', 'lastmod' => $now, 'changefreq' => 'weekly', 'priority' => '0.7'],
     ['loc' => $baseUrl . '/contact.php', 'lastmod' => $now, 'changefreq' => 'monthly', 'priority' => '0.5'],
 ];
 

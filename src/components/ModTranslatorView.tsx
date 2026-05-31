@@ -6,13 +6,15 @@ import {
 import {
   ArrowLeftOutlined, TranslationOutlined, ApiOutlined, ScanOutlined,
   PlayCircleOutlined, ExperimentOutlined, LinkOutlined,
-  WarningFilled, CloseCircleFilled, CheckCircleFilled, UndoOutlined
+  WarningFilled, CloseCircleFilled, CheckCircleFilled, UndoOutlined,
+  HistoryOutlined, ReloadOutlined
 } from '@ant-design/icons';
 import { listen } from '@tauri-apps/api/event';
 import {
   scanTranslatableMods, translateModFile, testAiConnection, restoreTranslationBackup,
+  scanTranslationBackups,
   detectGamePath, checkSmapiStatus,
-  type AiConfig, type ModTranslationStatus
+  type AiConfig, type ModTranslationStatus, type BackupEntry
 } from '../utils/tauri-api';
 import { openUrl } from '../utils/openUrl';
 
@@ -137,6 +139,8 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
     currentKeys: string[];
     firstKey: string;
   } | null>(null);
+  const [backups, setBackups] = useState<BackupEntry[]>([]);
+  const [backupsLoading, setBackupsLoading] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('svl-ai-provider', provider);
@@ -352,6 +356,37 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
       await restoreTranslationBackup(filePath);
       message.success(t('app.translator.restored'));
       setResults(prev => prev.map(r => r.filePath === filePath ? { ...r, success: false, message: 'Restored' } : r));
+      loadBackups();
+    } catch (e: any) {
+      message.error(t('app.translator.restoreFailed') + ': ' + (e?.toString() || ''));
+    }
+  };
+
+  const loadBackups = useCallback(async () => {
+    try {
+      const pathInfo = await detectGamePath();
+      const gp = pathInfo?.detected_path;
+      if (!gp) return;
+      setBackupsLoading(true);
+      const modsDir = gp + '/Mods';
+      const list = await scanTranslationBackups(modsDir);
+      setBackups(list);
+    } catch {
+      setBackups([]);
+    } finally {
+      setBackupsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBackups();
+  }, [loadBackups]);
+
+  const handleRestoreBackup = async (originalPath: string) => {
+    try {
+      await restoreTranslationBackup(originalPath);
+      message.success(t('app.translator.restored'));
+      loadBackups();
     } catch (e: any) {
       message.error(t('app.translator.restoreFailed') + ': ' + (e?.toString() || ''));
     }
@@ -782,6 +817,42 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
           ))}
         </div>
       )}
+
+      <div style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <HistoryOutlined style={{ color: 'var(--svl-primary)' }} />
+          <Text strong style={{ fontSize: 13 }}>{t('app.translator.backupHistory')}</Text>
+          {backups.length > 0 && (
+            <Text type="secondary" style={{ fontSize: 11 }}>({backups.length})</Text>
+          )}
+          <Button type="link" size="small" icon={<ReloadOutlined />} onClick={loadBackups} loading={backupsLoading} />
+        </div>
+        <div style={{ maxHeight: 200, overflowY: 'auto', borderRadius: 8, border: '1px solid var(--svl-border)', padding: 8 }}>
+          {backups.length === 0 ? (
+            <Text type="secondary" style={{ fontSize: 12, display: 'block', textAlign: 'center', padding: '12px 0' }}>
+              {backupsLoading ? t('app.translator.scanning') || '扫描中...' : (t('app.translator.noBackups') || '暂无备份文件')}
+            </Text>
+          ) : (
+            backups.map((b, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderBottom: i < backups.length - 1 ? '1px solid var(--svl-border-light)' : 'none' }}>
+                <UndoOutlined style={{ color: 'var(--svl-primary)', fontSize: 12 }} />
+                <Text style={{ flex: 1, fontSize: 12 }} ellipsis>{b.relative_path}</Text>
+                <Text type="secondary" style={{ fontSize: 10, flexShrink: 0 }}>
+                  {new Date(b.backup_time * 1000).toLocaleDateString()}
+                </Text>
+                <Button
+                  type="link"
+                  size="small"
+                  style={{ fontSize: 11, padding: '0 4px' }}
+                  onClick={() => handleRestoreBackup(b.original_path)}
+                >
+                  {t('app.translator.restoreBackup')}
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }

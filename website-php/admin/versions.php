@@ -23,13 +23,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $changelog = trim($_POST['changelog'] ?? '');
                 $download_url = trim($_POST['download_url'] ?? '');
+                $download_url_alt = trim($_POST['download_url_alt'] ?? '');
+                $download_label_alt = trim($_POST['download_label_alt'] ?? '');
                 $platform = trim($_POST['platform'] ?? 'windows');
                 $is_latest = isset($_POST['is_latest']) ? 1 : 0;
                 if ($is_latest) {
                     $db->prepare("UPDATE versions SET is_latest=0 WHERE platform=?")->execute([$platform]);
                 }
-                $stmt = $db->prepare("INSERT INTO versions (version, changelog, download_url, platform, is_latest) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([$version, $changelog, $download_url, $platform, $is_latest]);
+                $stmt = $db->prepare("INSERT INTO versions (version, changelog, download_url, download_url_alt, download_label_alt, platform, is_latest) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$version, $changelog, $download_url, $download_url_alt, $download_label_alt, $platform, $is_latest]);
                 $message = '版本已创建';
                 $action = 'list';
             }
@@ -41,13 +43,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $changelog = trim($_POST['changelog'] ?? '');
                 $download_url = trim($_POST['download_url'] ?? '');
+                $download_url_alt = trim($_POST['download_url_alt'] ?? '');
+                $download_label_alt = trim($_POST['download_label_alt'] ?? '');
                 $platform = trim($_POST['platform'] ?? 'windows');
                 $is_latest = isset($_POST['is_latest']) ? 1 : 0;
                 if ($is_latest) {
                     $db->prepare("UPDATE versions SET is_latest=0 WHERE platform=?")->execute([$platform]);
                 }
-                $stmt = $db->prepare("UPDATE versions SET version=?, changelog=?, download_url=?, platform=?, is_latest=? WHERE id=?");
-                $stmt->execute([$version, $changelog, $download_url, $platform, $is_latest, $updateId]);
+                $stmt = $db->prepare("UPDATE versions SET version=?, changelog=?, download_url=?, download_url_alt=?, download_label_alt=?, platform=?, is_latest=? WHERE id=?");
+                $stmt->execute([$version, $changelog, $download_url, $download_url_alt, $download_label_alt, $platform, $is_latest, $updateId]);
                 $message = '版本已更新';
                 $action = 'list';
             }
@@ -137,8 +141,18 @@ $items = $db->query("SELECT * FROM versions ORDER BY is_latest DESC, created_at 
                 </div>
             </div>
             <div class="mb-4">
-                <label class="label">下载链接</label>
-                <input type="text" name="download_url" class="input-field" value="<?php echo h($editItem['download_url'] ?? ''); ?>" placeholder="https://...">
+                <label class="label">下载链接（主）</label>
+                <input type="text" name="download_url" class="input-field" value="<?php echo h($editItem['download_url'] ?? ''); ?>" placeholder="例如 .dmg / .msi / .deb 下载地址">
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="label">附加下载链接</label>
+                    <input type="text" name="download_url_alt" class="input-field" value="<?php echo h($editItem['download_url_alt'] ?? ''); ?>" placeholder="例如 .AppImage / .exe 下载地址">
+                </div>
+                <div>
+                    <label class="label">附加下载标签</label>
+                    <input type="text" name="download_label_alt" class="input-field" value="<?php echo h($editItem['download_label_alt'] ?? ''); ?>" placeholder="例如：AppImage 版 / 便携版">
+                </div>
             </div>
             <div class="mb-4">
                 <label class="label">更新日志</label>

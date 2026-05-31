@@ -1,169 +1,49 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
-    exit;
-}
+// ========== 发版时修改这里 ==========
+$latest_version = '1.2.5';
+$release_notes  = "更新内容：\n- 跨平台适配：支持 Linux 和 macOS\n- 自动更新支持多平台\n- 翻译字典优化\n- 修复取消翻译无效等问题";
+$release_date   = '2026-05-31';
+// ===================================
 
-require_once __DIR__ . '/../backend/db.php';
-require_once __DIR__ . '/../backend/security.php';
-require_once __DIR__ . '/../backend/config.php';
+$current_version = $_GET['version'] ?? '0.0.0';
+$os   = $_GET['os']   ?? 'windows';
+$arch = $_GET['arch'] ?? 'x86_64';
+$has_update = version_compare($latest_version, $current_version, '>');
 
-initDatabase();
-$db = getDB();
+// 云盘下载链接，格式：https://wp.svlmod.cn/d/SVL/SVL/{系统}/SVL_{版本号}_{架构}.{后缀}
+$base_url = 'https://wp.svlmod.cn/d/SVL/SVL';
 
-$action = $_GET['action'] ?? '';
-$method = $_SERVER['REQUEST_METHOD'];
-
-try {
-    switch ($action) {
-        case 'announcements':
-            $limit = min((int)($_GET['limit'] ?? 10), 50);
-            $offset = max((int)($_GET['offset'] ?? 0), 0);
-            $stmt = $db->prepare("SELECT id, title, category, content, is_pinned, created_at, updated_at FROM announcements ORDER BY is_pinned DESC, created_at DESC LIMIT ? OFFSET ?");
-            $stmt->execute([$limit, $offset]);
-            $items = $stmt->fetchAll();
-            $total = $db->query("SELECT COUNT(*) FROM announcements")->fetchColumn();
-            echo json_encode(['success' => true, 'data' => $items, 'total' => (int)$total]);
-            break;
-
-        case 'latest_version':
-            $platform = in_array($_GET['platform'] ?? '', ['windows', 'macos', 'linux']) ? $_GET['platform'] : null;
-            if ($platform) {
-                $stmt = $db->prepare("SELECT version, changelog, download_url, platform, created_at FROM versions WHERE is_latest = 1 AND platform = ? ORDER BY created_at DESC LIMIT 1");
-                $stmt->execute([$platform]);
-            } else {
-                $stmt = $db->query("SELECT version, changelog, download_url, platform, created_at FROM versions WHERE is_latest = 1 ORDER BY created_at DESC");
-            }
-            $rows = $stmt->fetchAll();
-            if (empty($rows)) {
-                $rows = [['version' => '1.0.0', 'changelog' => '', 'download_url' => '', 'platform' => 'windows', 'created_at' => date('Y-m-d H:i:s')]];
-            }
-            if ($platform) {
-                echo json_encode(['success' => true, 'data' => $rows[0]]);
-            } else {
-                $result = [];
-                foreach ($rows as $r) {
-                    $result[$r['platform']] = $r;
-                }
-                echo json_encode(['success' => true, 'data' => $result]);
-            }
-            break;
-
-        case 'check_update':
-            if ($method !== 'GET') {
-                http_response_code(405);
-                echo json_encode(['success' => false, 'error' => 'Method not allowed']);
-                break;
-            }
-            $currentVersion = trim($_GET['current'] ?? '');
-            $platform = in_array($_GET['platform'] ?? '', ['windows', 'macos', 'linux']) ? $_GET['platform'] : 'windows';
-            if ($currentVersion === '') {
-                echo json_encode(['success' => false, 'error' => 'Missing current version']);
-                break;
-            }
-            $stmt = $db->prepare("SELECT version, changelog, download_url, platform, created_at FROM versions WHERE is_latest = 1 AND platform = ? ORDER BY created_at DESC LIMIT 1");
-            $stmt->execute([$platform]);
-            $latest = $stmt->fetch();
-            if (!$latest) {
-                echo json_encode(['success' => true, 'data' => ['has_update' => false]]);
-                break;
-            }
-            $hasUpdate = version_compare($latest['version'], $currentVersion, '>');
-            echo json_encode(['success' => true, 'data' => ['has_update' => $hasUpdate, 'latest' => $latest]]);
-            break;
-
-        case 'download':
-            if ($method !== 'POST') {
-                http_response_code(405);
-                echo json_encode(['success' => false, 'error' => 'Method not allowed']);
-                break;
-            }
-            if (!checkRateLimit('download', 10, 60)) {
-                http_response_code(429);
-                echo json_encode(['success' => false, 'error' => 'Too many requests']);
-                break;
-            }
-            $input = json_decode(file_get_contents('php://input'), true);
-            $platform = in_array($input['platform'] ?? '', ['windows', 'macos', 'linux']) ? $input['platform'] : 'unknown';
-            $ipHash = hash('sha256', getClientIp() . 'svl_salt_2026');
-
-            $stmt = $db->prepare("INSERT INTO downloads (ip_hash, platform) VALUES (?, ?)");
-            $stmt->execute([$ipHash, $platform]);
-
-            $stmt = $db->prepare("SELECT version, download_url FROM versions WHERE is_latest = 1 AND platform = ? ORDER BY created_at DESC LIMIT 1");
-            $stmt->execute([$platform]);
-            $versionInfo = $stmt->fetch();
-
-            echo json_encode([
-                'success' => true,
-                'data' => [
-                    'download_url' => $versionInfo ? $versionInfo['download_url'] : '#',
-                    'version' => $versionInfo ? $versionInfo['version'] : '1.0.0'
-                ]
-            ]);
-            break;
-
-        case 'track':
-            if ($method !== 'POST') {
-                http_response_code(405);
-                echo json_encode(['success' => false, 'error' => 'Method not allowed']);
-                break;
-            }
-            if (!checkRateLimit('track', 30, 60)) {
-                http_response_code(429);
-                echo json_encode(['success' => false, 'error' => 'Too many requests']);
-                break;
-            }
-            $input = json_decode(file_get_contents('php://input'), true);
-            $page = trim($input['page'] ?? '');
-            $ipHash = hash('sha256', getClientIp() . 'svl_salt_2026');
-            $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 500);
-            $referer = substr($_SERVER['HTTP_REFERER'] ?? '', 0, 500);
-
-            $stmt = $db->prepare("INSERT INTO visitors (ip_hash, page, user_agent, referer) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$ipHash, $page, $ua, $referer]);
-            echo json_encode(['success' => true]);
-            break;
-
-        case 'stats':
-            if ($method !== 'GET') {
-                http_response_code(405);
-                echo json_encode(['success' => false, 'error' => 'Method not allowed']);
-                break;
-            }
-            $days = min((int)($_GET['days'] ?? 7), 30);
-            $stats = [];
-
-            for ($i = $days - 1; $i >= 0; $i--) {
-                $date = date('Y-m-d', strtotime("-{$i} days"));
-                $stmt = $db->prepare("SELECT COUNT(*) as pv, COUNT(DISTINCT ip_hash) as uv FROM visitors WHERE date(created_at) = ?");
-                $stmt->execute([$date]);
-                $row = $stmt->fetch();
-                $stats[] = ['date' => $date, 'pv' => (int)$row['pv'], 'uv' => (int)$row['uv']];
-            }
-
-            $totalDownloads = $db->query("SELECT COUNT(*) FROM downloads")->fetchColumn();
-
-            echo json_encode([
-                'success' => true,
-                'data' => [
-                    'daily' => $stats,
-                    'total_downloads' => (int)$totalDownloads
-                ]
-            ]);
-            break;
-
-        default:
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Unknown action']);
-            break;
+if ($os === 'linux') {
+    // https://wp.svlmod.cn/d/SVL/SVL/linux/SVL_1.2.5_amd64.AppImage
+    $download_url = $base_url . '/linux/SVL_' . $latest_version . '_amd64.AppImage';
+} elseif ($os === 'macos') {
+    if ($arch === 'aarch64') {
+        // https://wp.svlmod.cn/d/SVL/SVL/macos/SVL_1.2.5_aarch64.dmg
+        $download_url = $base_url . '/macos/SVL_' . $latest_version . '_aarch64.dmg';
+    } else {
+        // https://wp.svlmod.cn/d/SVL/SVL/macos/SVL_1.2.5_x64.dmg
+        $download_url = $base_url . '/macos/SVL_' . $latest_version . '_x64.dmg';
     }
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Internal server error']);
+} else {
+    // https://wp.svlmod.cn/d/SVL/SVL/windows/SVL_1.2.5_x64-setup.exe
+    $download_url = $base_url . '/windows/SVL_' . $latest_version . '_x64-setup.exe';
 }
+
+$download_url_alt = null;
+$download_label_alt = null;
+
+echo json_encode([
+    'has_update'      => $has_update,
+    'current_version' => $current_version,
+    'latest_version'  => $latest_version,
+    'download_url'      => $download_url,
+    'download_url_alt'  => $download_url_alt ?? null,
+    'download_label_alt' => $download_label_alt ?? null,
+    'release_notes'     => $release_notes,
+    'release_date'    => $release_date,
+    'file_size'       => null,
+    'sha256'          => null,
+    'force_update'    => true,
+], JSON_UNESCAPED_UNICODE);

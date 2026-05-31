@@ -876,6 +876,63 @@ pub async fn restore_translation_backup(file_path: String) -> Result<bool, Strin
     Ok(true)
 }
 
+#[derive(Serialize)]
+pub struct BackupEntry {
+    backup_path: String,
+    original_path: String,
+    mod_name: String,
+    relative_path: String,
+    backup_time: u64,
+}
+
+#[tauri::command]
+pub async fn scan_translation_backups(mods_dir: String) -> Result<Vec<BackupEntry>, String> {
+    let mods_path = PathBuf::from(&mods_dir);
+    if !mods_path.exists() {
+        return Ok(vec![]);
+    }
+    let mut entries = Vec::new();
+    scan_backups_recursive(&mods_path, &mods_path, &mut entries)?;
+    entries.sort_by(|a, b| b.backup_time.cmp(&a.backup_time));
+    Ok(entries)
+}
+
+fn scan_backups_recursive(dir: &Path, mods_root: &Path, entries: &mut Vec<BackupEntry>) -> Result<(), String> {
+    if !dir.is_dir() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(dir).map_err(|e| format!("Read dir failed: {}", e))? {
+        let entry = entry.map_err(|e| format!("Entry failed: {}", e))?;
+        let path = entry.path();
+        if path.is_dir() {
+            scan_backups_recursive(&path, mods_root, entries)?;
+        } else {
+            let file_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+            if file_name.ends_with(".svlbak") {
+                let original_path = path.to_string_lossy().to_string().replace(".svlbak", "");
+                let original = PathBuf::from(&original_path);
+                if !original.exists() {
+                    continue;
+                }
+                let rel = original.parent().and_then(|p| p.file_name()).unwrap_or_default().to_string_lossy().to_string();
+                let file_rel = original.strip_prefix(mods_root).unwrap_or(&original).to_string_lossy().to_string();
+                let metadata = fs::metadata(&path).ok();
+                let backup_time = metadata.and_then(|m| m.modified().ok())
+                    .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs())
+                    .unwrap_or(0);
+                entries.push(BackupEntry {
+                    backup_path: path.to_string_lossy().to_string(),
+                    original_path,
+                    mod_name: rel,
+                    relative_path: file_rel,
+                    backup_time,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 async fn call_ai_translate(
     content: &str,
     file_type: &str,

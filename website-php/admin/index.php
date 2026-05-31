@@ -4,6 +4,11 @@ require_once __DIR__ . '/../backend/db.php';
 requireLogin();
 initDatabase();
 
+if (!defined('ADMIN_LAYOUT') && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
+    header('Location: ' . SITE_URL . '/admin/layout.php');
+    exit;
+}
+
 $db = getDB();
 $announcementCount = $db->query("SELECT COUNT(*) FROM announcements")->fetchColumn();
 $contactCount = $db->query("SELECT COUNT(*) FROM contacts")->fetchColumn();

@@ -2,9 +2,10 @@
 require_once __DIR__ . '/../backend/auth.php';
 
 $error = '';
+$loginSuccess = false;
 
 if (isLoggedIn()) {
-    header('Location: ' . SITE_URL . '/admin/index.php');
+    echo '<script>window.location.href="' . SITE_URL . '/admin/layout.php";</script>';
     exit;
 }
 
@@ -17,15 +18,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
         if (login($username, $password)) {
-            session_write_close();
-            header('Location: ' . SITE_URL . '/admin/index.php');
-            exit;
-        }
-
-        if (isLoginBlocked()) {
-            $error = getLoginBlockedMessage();
+            $loginSuccess = true;
         } else {
-            $error = '用户名或密码错误';
+            if (isLoginBlocked()) {
+                $error = getLoginBlockedMessage();
+            } else {
+                $error = '用户名或密码错误';
+            }
         }
     }
 }
@@ -105,6 +104,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
+    <?php if ($loginSuccess): ?>
+    <script>
+    setTimeout(function(){ window.location.href = '<?php echo SITE_URL; ?>/admin/layout.php'; }, 300);
+    </script>
+    <?php endif; ?>
     <div class="login-card">
         <div class="text-center mb-8">
             <h1 class="text-xl font-bold mb-2">管理后台</h1>

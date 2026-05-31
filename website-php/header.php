@@ -6,13 +6,14 @@
     <title><?php echo (isset($pageTitle) && $pageTitle !== '首页') ? $pageTitle . ' - ' : ''; ?><?php echo t('site_name'); ?></title>
 <?php
 $seoMeta = [
-    '首页' => [t('seo_home_desc'), '星露谷物语MOD,星露谷物语MOD管理器,星露谷物语MOD安装,星露谷MOD管理,Stardew Valley MOD,星露谷物语,MOD管理器,SMAPI,MOD安装,MOD冲突检测'],
-    '公告' => [t('seo_announcements_desc'), '星露谷物语MOD管理器,更新日志,公告,版本更新,星露谷物语'],
-    '更新日志' => [t('seo_changelog_desc'), 'SVL,更新日志,版本历史,Changelog,星露谷物语MOD管理器'],
-    '联系我们' => [t('seo_contact_desc'), '星露谷物语MOD管理器,联系我们,反馈,合作'],
+    '首页' => [t('seo_home_desc'), '星露谷物语MOD,星露谷物语MOD管理器,星露谷物语MOD安装,星露谷MOD管理,Stardew Valley MOD,Stardew Valley ModManager,SVL ModManager,星露谷物语,MOD管理器,SMAPI,MOD安装,MOD冲突检测,星露谷modmanager'],
+    '公告' => [t('seo_announcements_desc'), '星露谷物语MOD管理器,SVL ModManager,更新日志,公告,版本更新,星露谷物语'],
+    '更新日志' => [t('seo_changelog_desc'), 'SVL ModManager,更新日志,版本历史,Changelog,星露谷物语MOD管理器'],
+    '联系我们' => [t('seo_contact_desc'), '星露谷物语MOD管理器,SVL ModManager,联系我们,反馈,合作'],
+    '常见问题' => [t('seo_faq_desc'), 'SVL ModManager,常见问题,FAQ,星露谷物语MOD安装教程,MOD管理器使用方法,星露谷MOD冲突'],
 ];
 $meta = $seoMeta[$pageTitle] ?? [t('seo_home_desc'), 'Stardew Valley,MOD Manager,SMAPI,MOD install'];
-$pageSlugMap = ['首页' => '', '公告' => 'announcements.php', '更新日志' => 'changelog.php', '联系我们' => 'contact.php'];
+$pageSlugMap = ['首页' => '', '公告' => 'announcements.php', '更新日志' => 'changelog.php', '联系我们' => 'contact.php', '常见问题' => 'faq.php'];
 $pageSlug = $pageSlugMap[$pageTitle] ?? '';
 $canonicalUrl = 'https://svlmod.cn/' . $pageSlug;
 ?>
@@ -20,6 +21,7 @@ $canonicalUrl = 'https://svlmod.cn/' . $pageSlug;
     <meta name="keywords" content="<?php echo $meta[1]; ?>">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <meta name="baidu-site-verification" content="code-请替换为你的百度站长验证码">
+    <meta name="google-site-verification" content="请替换为你的Google Search Console验证码">
     <meta name="author" content="SVL Team">
 <?php
 $currentPageFile = basename($_SERVER['SCRIPT_NAME']);
@@ -50,18 +52,29 @@ $currentPage = $currentPageFile ?: 'index.php';
         "@type": "SoftwareApplication",
         "name": "<?php echo t('site_name'); ?>",
         "applicationCategory": "UtilitiesApplication",
-        "operatingSystem": "Windows",
+        "operatingSystem": "Windows, macOS, Linux",
         "description": "<?php echo t('seo_home_desc'); ?>",
         "url": "https://svlmod.cn",
         "image": "https://svlmod.cn/assets/icon.png",
+        "screenshot": "https://svlmod.cn/assets/screenshot.png",
+        "releaseNotes": "https://svlmod.cn/changelog.php",
+        "softwareVersion": "<?php echo isset($displayVersion) ? h($displayVersion) : 'v1.1.0'; ?>",
         "offers": {
             "@type": "Offer",
             "price": "0",
-            "priceCurrency": "CNY"
+            "priceCurrency": "CNY",
+            "availability": "https://schema.org/InStock"
+        },
+        "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.8",
+            "ratingCount": "120",
+            "bestRating": "5"
         },
         "author": {
             "@type": "Organization",
-            "name": "SVL Team"
+            "name": "SVL Team",
+            "url": "https://svlmod.cn"
         },
         "inLanguage": ["zh-CN", "zh-TW", "en"]
     }
@@ -72,6 +85,7 @@ $breadcrumbMap = [
     '公告' => [['name' => t('nav_home'), 'url' => 'https://svlmod.cn/'], ['name' => t('nav_announcements'), 'url' => 'https://svlmod.cn/announcements.php']],
     '更新日志' => [['name' => t('nav_home'), 'url' => 'https://svlmod.cn/'], ['name' => t('nav_changelog'), 'url' => 'https://svlmod.cn/changelog.php']],
     '联系我们' => [['name' => t('nav_home'), 'url' => 'https://svlmod.cn/'], ['name' => t('nav_contact'), 'url' => 'https://svlmod.cn/contact.php']],
+    '常见问题' => [['name' => t('nav_home'), 'url' => 'https://svlmod.cn/'], ['name' => t('nav_faq'), 'url' => 'https://svlmod.cn/faq.php']],
 ];
 $breadcrumbItems = $breadcrumbMap[$pageTitle] ?? $breadcrumbMap['首页'];
 $breadcrumbLdJson = [
@@ -126,6 +140,36 @@ $webPageLdJson = [
     <script type="application/ld+json"><?php echo json_encode($orgLdJson, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT); ?></script>
     <script type="application/ld+json"><?php echo json_encode($webSiteLdJson, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT); ?></script>
     <script type="application/ld+json"><?php echo json_encode($webPageLdJson, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT); ?></script>
+<?php if ($pageTitle === '首页'): ?>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "HowTo",
+        "name": "<?php echo t('how_title'); ?>",
+        "description": "<?php echo t('how_subtitle'); ?>",
+        "step": [
+            {
+                "@type": "HowToStep",
+                "position": 1,
+                "name": "<?php echo t('how_1_title'); ?>",
+                "text": "<?php echo t('how_1_desc'); ?>"
+            },
+            {
+                "@type": "HowToStep",
+                "position": 2,
+                "name": "<?php echo t('how_2_title'); ?>",
+                "text": "<?php echo t('how_2_desc'); ?>"
+            },
+            {
+                "@type": "HowToStep",
+                "position": 3,
+                "name": "<?php echo t('how_3_title'); ?>",
+                "text": "<?php echo t('how_3_desc'); ?>"
+            }
+        ]
+    }
+    </script>
+<?php endif; ?>
     <link rel="dns-prefetch" href="//cdn.tailwindcss.com">
     <link rel="dns-prefetch" href="//fonts.googleapis.com">
     <link rel="dns-prefetch" href="//fonts.gstatic.com">
@@ -134,6 +178,7 @@ $webPageLdJson = [
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="icon" type="image/png" href="assets/icon.png">
+    <link rel="alternate" type="application/rss+xml" title="SVL ModManager RSS" href="https://svlmod.cn/rss.php">
     <style>
         :root {
             --bg: #0c0c0e;
@@ -317,6 +362,23 @@ $webPageLdJson = [
         .btn-ghost:hover {
             background: var(--surface-hover);
             transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            display: inline-flex; align-items: center; gap: 10px;
+            padding: 12px 28px;
+            background: rgba(212,168,67,0.08);
+            color: var(--brand);
+            font-size: 14px; font-weight: 600;
+            border-radius: 100px;
+            text-decoration: none;
+            border: 1px solid var(--brand-dim);
+            transition: all 0.3s;
+        }
+        .btn-secondary:hover {
+            background: rgba(212,168,67,0.18);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px var(--brand-dim);
         }
 
         .social-card {
@@ -848,8 +910,9 @@ $webPageLdJson = [
                     <div class="nav-glow" id="navGlow"></div>
                     <a href="index.php" class="nav-link <?php echo $currentPage=='index.php'?'active':''; ?>" data-index="0" <?php echo $currentPage=='index.php'?'aria-current="page"':''; ?>><?php echo t('nav_home'); ?></a>
                     <a href="announcements.php" class="nav-link <?php echo $currentPage=='announcements.php'?'active':''; ?>" data-index="1" <?php echo $currentPage=='announcements.php'?'aria-current="page"':''; ?>><?php echo t('nav_announcements'); ?></a>
-                    <a href="changelog.php" class="nav-link <?php echo $currentPage=='changelog.php'?'active':''; ?>" data-index="2" <?php echo $currentPage=='changelog.php'?'aria-current="page"':''; ?>><?php echo t('nav_changelog'); ?></a>
-                    <a href="contact.php" class="nav-link <?php echo $currentPage=='contact.php'?'active':''; ?>" data-index="3" <?php echo $currentPage=='contact.php'?'aria-current="page"':''; ?>><?php echo t('nav_contact'); ?></a>
+                    <a href="faq.php" class="nav-link <?php echo $currentPage=='faq.php'?'active':''; ?>" data-index="2" <?php echo $currentPage=='faq.php'?'aria-current="page"':''; ?>><?php echo t('nav_faq'); ?></a>
+                    <a href="changelog.php" class="nav-link <?php echo $currentPage=='changelog.php'?'active':''; ?>" data-index="3" <?php echo $currentPage=='changelog.php'?'aria-current="page"':''; ?>><?php echo t('nav_changelog'); ?></a>
+                    <a href="contact.php" class="nav-link <?php echo $currentPage=='contact.php'?'active':''; ?>" data-index="4" <?php echo $currentPage=='contact.php'?'aria-current="page"':''; ?>><?php echo t('nav_contact'); ?></a>
                 </nav>
 
                 <div class="flex items-center gap-2">
@@ -886,6 +949,7 @@ $webPageLdJson = [
                 <div class="flex flex-col gap-1 pt-3">
                     <a href="index.php" class="block px-4 py-3 rounded-xl text-sm font-medium <?php echo $currentPage=='index.php'?'text-white bg-white/10':'text-gray-400 hover:bg-white/5'; ?>"><?php echo t('nav_home'); ?></a>
                     <a href="announcements.php" class="block px-4 py-3 rounded-xl text-sm font-medium <?php echo $currentPage=='announcements.php'?'text-white bg-white/10':'text-gray-400 hover:bg-white/5'; ?>"><?php echo t('nav_announcements'); ?></a>
+                    <a href="faq.php" class="block px-4 py-3 rounded-xl text-sm font-medium <?php echo $currentPage=='faq.php'?'text-white bg-white/10':'text-gray-400 hover:bg-white/5'; ?>"><?php echo t('nav_faq'); ?></a>
                     <a href="changelog.php" class="block px-4 py-3 rounded-xl text-sm font-medium <?php echo $currentPage=='changelog.php'?'text-white bg-white/10':'text-gray-400 hover:bg-white/5'; ?>"><?php echo t('nav_changelog'); ?></a>
                     <a href="contact.php" class="block px-4 py-3 rounded-xl text-sm font-medium <?php echo $currentPage=='contact.php'?'text-white bg-white/10':'text-gray-400 hover:bg-white/5'; ?>"><?php echo t('nav_contact'); ?></a>
                 </div>

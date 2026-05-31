@@ -1,10 +1,9 @@
 # Apache .htaccess SEO 优化配置
-# 如果服务器使用 Apache 而非 Nginx，将此文件放在网站根目录
 
 # 1. 默认首页
 DirectoryIndex index.php
 
-# 2. 强制 HTTPS（如果已配置 SSL）
+# 2. 强制 HTTPS
 # RewriteEngine On
 # RewriteCond %{HTTPS} off
 # RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
@@ -17,9 +16,18 @@ DirectoryIndex index.php
 # 4. 自定义 404 页面
 ErrorDocument 404 /404.php
 
-# 5. sitemap.xml 伪静态
+# 5. URL 重写
 RewriteEngine On
+
+# SEO 友好 URL 重写
+RewriteRule ^announcements$ announcements.php [L,QSA]
+RewriteRule ^faq$ faq.php [L,QSA]
+RewriteRule ^changelog$ changelog.php [L,QSA]
+RewriteRule ^contact$ contact.php [L,QSA]
+
+# sitemap 和 RSS
 RewriteRule ^sitemap\.xml$ sitemap.php [L]
+RewriteRule ^rss\.xml$ rss.php [L]
 
 # 6. 阻止访问敏感文件
 <FilesMatch "\.(sql|db|sqlite|ini|log)$">
@@ -42,12 +50,14 @@ RewriteRule ^sitemap\.xml$ sitemap.php [L]
     ExpiresByType text/css "access plus 1 year"
     ExpiresByType application/javascript "access plus 1 year"
     ExpiresByType text/html "access plus 60 seconds"
+    ExpiresByType application/xml "access plus 1 hour"
+    ExpiresByType application/rss+xml "access plus 1 hour"
 </IfModule>
 
 # 9. Gzip 压缩
 <IfModule mod_deflate.c>
     AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript text/xml
-    AddOutputFilterByType DEFLATE application/json application/javascript application/xml
+    AddOutputFilterByType DEFLATE application/json application/javascript application/xml application/rss+xml
 </IfModule>
 
 # 10. 安全头

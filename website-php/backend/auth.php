@@ -78,11 +78,9 @@ function login(string $username, string $password): bool
     if ($username === ADMIN_USERNAME && password_verify($password, getAdminPasswordHash())) {
         clearLoginAttempts();
         recordLoginAttempt(true);
-        session_regenerate_id(true);
         $_SESSION['admin_logged_in'] = true;
         $_SESSION['admin_username'] = $username;
         $_SESSION['login_time'] = time();
-        session_write_close();
         return true;
     }
 

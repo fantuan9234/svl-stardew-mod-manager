@@ -15,6 +15,7 @@
                     <div class="space-y-3">
                         <a href="index.php" class="block text-sm transition-colors duration-300 hover:text-white" style="color: var(--text-secondary); text-decoration: none;" title="<?php echo t('footer_home_title'); ?>"><?php echo t('footer_home_link'); ?></a>
                         <a href="announcements.php" class="block text-sm transition-colors duration-300 hover:text-white" style="color: var(--text-secondary); text-decoration: none;" title="<?php echo t('footer_announcements_title'); ?>"><?php echo t('footer_announcements_link'); ?></a>
+                        <a href="faq.php" class="block text-sm transition-colors duration-300 hover:text-white" style="color: var(--text-secondary); text-decoration: none;" title="<?php echo t('nav_faq'); ?>"><?php echo t('nav_faq'); ?></a>
                         <a href="changelog.php" class="block text-sm transition-colors duration-300 hover:text-white" style="color: var(--text-secondary); text-decoration: none;" title="<?php echo t('nav_changelog'); ?>"><?php echo t('nav_changelog'); ?></a>
                         <a href="contact.php" class="block text-sm transition-colors duration-300 hover:text-white" style="color: var(--text-secondary); text-decoration: none;" title="<?php echo t('footer_contact_title'); ?>"><?php echo t('footer_contact_link'); ?></a>
                     </div>
@@ -44,6 +45,7 @@
         </div>
     </footer>
     <script>
+    if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
     (function(){
         var bp = document.createElement('script');
         var curProtocol = window.location.protocol.split(':')[0];

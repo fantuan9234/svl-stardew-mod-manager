@@ -1,4 +1,5 @@
 <?php
+define('ADMIN_LAYOUT', true);
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
 requireLogin();

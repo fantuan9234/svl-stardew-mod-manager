@@ -158,6 +158,19 @@ function initDatabase(): void
         $db->exec("ALTER TABLE contacts ADD COLUMN device_id TEXT NOT NULL DEFAULT ''");
     }
 
+    // Migration for versions: add alt download fields
+    $versionCols = [];
+    $result = $db->query("PRAGMA table_info(versions)");
+    while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
+        $versionCols[] = $row['name'];
+    }
+    if (!in_array('download_url_alt', $versionCols)) {
+        $db->exec("ALTER TABLE versions ADD COLUMN download_url_alt TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('download_label_alt', $versionCols)) {
+        $db->exec("ALTER TABLE versions ADD COLUMN download_label_alt TEXT NOT NULL DEFAULT ''");
+    }
+
     // Only insert seed data once using settings flag
     $seeded = $db->prepare("SELECT value FROM settings WHERE key = ?");
     $seeded->execute(['seed_data_v2']);

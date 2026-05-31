@@ -1156,6 +1156,18 @@ export async function restoreTranslationBackup(filePath: string): Promise<boolea
   return invoke<boolean>('restore_translation_backup', { filePath });
 }
 
+export interface BackupEntry {
+  backup_path: string;
+  original_path: string;
+  mod_name: string;
+  relative_path: string;
+  backup_time: number;
+}
+
+export async function scanTranslationBackups(modsDir: string): Promise<BackupEntry[]> {
+  return invoke<BackupEntry[]>('scan_translation_backups', { modsDir });
+}
+
 export interface ModNameTranslation {
   unique_id: string;
   original_name: string;
