@@ -20,6 +20,8 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:allow-write-file",
-    "fs:allow-create"
+    "fs:allow-create",
+    "process:allow-restart",
+    "process:allow-exit"
   ]
 }
