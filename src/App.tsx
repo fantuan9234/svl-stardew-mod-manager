@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { ConfigProvider, theme } from 'antd';
-import { useTheme } from './hooks/useTheme';
+import { useTheme, ThemeProvider } from './hooks/useTheme';
 import { getNexusStatus, setNexusStatus, verifyNexusConnection } from './hooks/useNexusStatus';
 import AppLayout from './components/AppLayout';
 import appIcon from './assets/donate/app-icon.png';
@@ -8,7 +8,15 @@ import appIcon from './assets/donate/app-icon.png';
 type SplashPhase = 'showing' | 'hiding' | 'done';
 
 function App() {
-  const { theme: currentTheme, getAntdThemeConfig } = useTheme();
+  return (
+    <ThemeProvider>
+      <AppInner />
+    </ThemeProvider>
+  );
+}
+
+function AppInner() {
+  const { getAntdThemeConfig } = useTheme();
   const [splashPhase, setSplashPhase] = useState<SplashPhase>('showing');
   const [mainAnimated, setMainAnimated] = useState(false);
   const splashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -49,7 +57,6 @@ function App() {
 
   return (
     <ConfigProvider
-      key={currentTheme}
       theme={{
         algorithm: theme.darkAlgorithm,
         token: {

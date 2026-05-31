@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Typography, Button, Space, Divider, Progress, Tag, message } from 'antd';
+import { Typography, Button, Space, Divider, Progress, Tag, message, Slider } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { CloudDownloadOutlined, CheckCircleOutlined, SyncOutlined, LinkOutlined } from '@ant-design/icons';
+import { CloudDownloadOutlined, CheckCircleOutlined, SyncOutlined, LinkOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons';
 import { listen } from '@tauri-apps/api/event';
 import i18n from '../i18n';
 import { useTheme } from '../hooks/useTheme';
@@ -20,9 +20,12 @@ const { Title, Text, Paragraph } = Typography;
 
 export default function Settings() {
   const { t } = useTranslation();
-  const { theme, switchTheme, customColors, updateCustomColors } = useTheme();
+  const { theme, switchTheme, customColors, updateCustomColors, setBackgroundImage, clearBackgroundImage, setCustomChickenImage, clearCustomChickenImage } = useTheme();
+  const bgInputRef = useRef<HTMLInputElement>(null);
+  const chickenInputRef = useRef<HTMLInputElement>(null);
 
   const [appVersion, setAppVersion] = useState('');
+  const [pendingColor, setPendingColor] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -139,8 +142,8 @@ export default function Settings() {
         </Text>
         <div className="svl-theme-grid">
           {([
-            { key: 'colorful', color: '#8b6914', label: t('app.theme.colorful') },
-            { key: 'eyeCare', color: '#5b8a72', label: t('app.theme.eyeCare') },
+            { key: 'oceanBlue', color: '#2563EB', label: t('app.theme.oceanBlue') },
+            { key: 'mintGreen', color: '#10B981', label: t('app.theme.mintGreen') },
             { key: 'custom', color: customColors.primary, label: t('app.theme.custom') },
           ] as const).map(item => (
             <div
@@ -158,24 +161,186 @@ export default function Settings() {
         </div>
         {theme === 'custom' && (
           <div className="svl-theme-custom-panel">
-            {([
-              { key: 'primary', label: t('app.theme.customPrimary') },
-              { key: 'accent', label: t('app.theme.customAccent') },
-              { key: 'bgPrimary', label: t('app.theme.customBgPrimary') },
-              { key: 'bgCard', label: t('app.theme.customBgCard') },
-              { key: 'textPrimary', label: t('app.theme.customTextPrimary') },
-              { key: 'textSecondary', label: t('app.theme.customTextSecondary') },
-            ] as const).map(item => (
-              <div key={item.key} className="svl-theme-color-row">
-                <span className="svl-theme-color-label">{item.label}</span>
-                <input
-                  type="color"
-                  className="svl-theme-color-picker"
-                  value={(customColors as any)[item.key]}
-                  onChange={(e) => updateCustomColors({ [item.key]: e.target.value })}
+            <div className="svl-theme-color-row">
+              <span className="svl-theme-color-label">{t('app.theme.customPrimary')}</span>
+              <input
+                type="color"
+                className="svl-theme-color-picker"
+                value={pendingColor ?? customColors.primary}
+                onChange={(e) => setPendingColor(e.target.value)}
+                onPointerUp={() => {
+                  if (pendingColor) {
+                    updateCustomColors({ primary: pendingColor });
+                    setPendingColor(null);
+                  }
+                }}
+                onBlur={() => {
+                  if (pendingColor) {
+                    updateCustomColors({ primary: pendingColor });
+                    setPendingColor(null);
+                  }
+                }}
+              />
+            </div>
+
+            <div className="svl-theme-section-title" style={{ marginTop: 16 }}>
+              {t('app.theme.backgroundImage')}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <Button
+                size="small"
+                icon={<UploadOutlined />}
+                onClick={() => bgInputRef.current?.click()}
+              >
+                {t('app.theme.uploadImage')}
+              </Button>
+              {customColors.backgroundImage && (
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={clearBackgroundImage}
+                >
+                  {t('app.theme.removeImage')}
+                </Button>
+              )}
+            </div>
+            <input
+              ref={bgInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                if (file.size > 5 * 1024 * 1024) {
+                  message.warning(t('app.theme.imageTooLarge'));
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  const dataUrl = ev.target?.result as string;
+                  if (dataUrl) setBackgroundImage(dataUrl);
+                };
+                reader.readAsDataURL(file);
+                e.target.value = '';
+              }}
+            />
+            {customColors.backgroundImage && (
+              <div style={{ marginTop: 8 }}>
+                <div className="svl-theme-slider-row">
+                  <span className="svl-theme-color-label">{t('app.theme.blur')}</span>
+                  <Slider
+                    min={0}
+                    max={50}
+                    value={customColors.backgroundBlur}
+                    onChange={(v) => updateCustomColors({ backgroundBlur: v })}
+                    style={{ flex: 1, margin: '0 12px' }}
+                  />
+                  <span style={{ fontSize: 12, color: 'var(--svl-text-secondary)', minWidth: 32, textAlign: 'right' }}>
+                    {customColors.backgroundBlur}px
+                  </span>
+                </div>
+                <div className="svl-theme-slider-row">
+                  <span className="svl-theme-color-label">{t('app.theme.opacity')}</span>
+                  <Slider
+                    min={5}
+                    max={100}
+                    value={customColors.backgroundOpacity}
+                    onChange={(v) => updateCustomColors({ backgroundOpacity: v })}
+                    style={{ flex: 1, margin: '0 12px' }}
+                  />
+                  <span style={{ fontSize: 12, color: 'var(--svl-text-secondary)', minWidth: 32, textAlign: 'right' }}>
+                    {customColors.backgroundOpacity}%
+                  </span>
+                </div>
+              </div>
+            )}
+            {customColors.backgroundImage && (
+              <div style={{
+                marginTop: 12,
+                borderRadius: 8,
+                overflow: 'hidden',
+                height: 100,
+                position: 'relative',
+                border: '1px solid var(--svl-border)',
+              }}>
+                <img
+                  src={customColors.backgroundImage}
+                  alt="bg preview"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    filter: `blur(${customColors.backgroundBlur}px)`,
+                    opacity: customColors.backgroundOpacity / 100,
+                  }}
                 />
               </div>
-            ))}
+            )}
+
+            <div className="svl-theme-section-title" style={{ marginTop: 16 }}>
+              {t('app.theme.customImages')}
+            </div>
+
+            <div className="svl-theme-color-row" style={{ alignItems: 'center' }}>
+              <span className="svl-theme-color-label">{t('app.theme.chickenImage')}</span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {customColors.customChickenImage && (
+                  <img
+                    src={customColors.customChickenImage}
+                    alt="chicken preview"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      objectFit: 'contain',
+                      imageRendering: 'pixelated',
+                      borderRadius: 4,
+                      border: '1px solid var(--svl-border)',
+                    }}
+                  />
+                )}
+                <Button
+                  size="small"
+                  icon={<UploadOutlined />}
+                  onClick={() => chickenInputRef.current?.click()}
+                >
+                  {t('app.theme.uploadImage')}
+                </Button>
+                {customColors.customChickenImage && (
+                  <Button
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={clearCustomChickenImage}
+                  >
+                    {t('app.theme.removeImage')}
+                  </Button>
+                )}
+              </div>
+            </div>
+            <input
+              ref={chickenInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                if (file.size > 5 * 1024 * 1024) {
+                  message.warning(t('app.theme.imageTooLarge'));
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  const dataUrl = ev.target?.result as string;
+                  if (dataUrl) setCustomChickenImage(dataUrl);
+                };
+                reader.readAsDataURL(file);
+                e.target.value = '';
+              }}
+            />
+
           </div>
         )}
       </div>

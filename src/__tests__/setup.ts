@@ -60,7 +60,7 @@ vi.mock('react-i18next', () => ({
 // Mock theme hook
 vi.mock('../hooks/useTheme', () => ({
   useTheme: () => ({
-    theme: 'colorful',
+    theme: 'oceanBlue',
     switchTheme: vi.fn(),
   }),
 }));

@@ -6,6 +6,47 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
 use log::info;
 
+fn get_saves_bindings_path() -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("APPDATA").ok().map(|appdata| {
+            PathBuf::from(appdata)
+                .join("StardewValley")
+                .join("Saves")
+                .join("svl-profile-bindings.json")
+        })
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::env::var("HOME").ok().map(|home| {
+            PathBuf::from(home)
+                .join(".local")
+                .join("share")
+                .join("StardewValley")
+                .join("Saves")
+                .join("svl-profile-bindings.json")
+        })
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::env::var("HOME").ok().map(|home| {
+            PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join("StardewValley")
+                .join("Saves")
+                .join("svl-profile-bindings.json")
+        })
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        None::<PathBuf>
+    }
+}
+
 /// SMAPI必需前置mod列表（这些mod是运行大多数mod的基础框架，不能被禁用）
 /// 参考：https://www.nexusmods.com/stardewvalley/mods/ 和 SMAPI官方文档
 const ESSENTIAL_MOD_IDS: &[&str] = &[
@@ -88,8 +129,18 @@ pub fn get_profiles_dir(game_path: &str) -> Result<PathBuf, String> {
 fn get_profile_file_path(profile_name: &str, profiles_dir: &PathBuf) -> PathBuf {
     let safe_name: String = profile_name
         .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else if c == ' ' || c == '(' || c == ')' {
+                '_'
+            } else {
+                '\0'
+            }
+        })
+        .filter(|c| *c != '\0')
         .collect();
+    let safe_name = safe_name.replace("__", "_").trim_matches('_').to_string();
     if safe_name.is_empty() {
         return profiles_dir.join("default.json");
     }
@@ -668,6 +719,36 @@ pub fn profile_delete(
     Ok(true)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_profile_file_path_no_collision_with_imported_suffix() {
+        let dir = PathBuf::from("/tmp/profiles");
+        let path1 = get_profile_file_path("MyProfile", &dir);
+        let path2 = get_profile_file_path("MyProfile (imported)", &dir);
+        assert_ne!(path1, path2, "Different profile names should not map to same file. 'MyProfile' and 'MyProfile (imported)' must produce different filenames.");
+    }
+
+    #[test]
+    fn test_get_profile_file_path_preserves_distinguishing_info() {
+        let dir = PathBuf::from("/tmp/profiles");
+        let path = get_profile_file_path("My Profile (imported)", &dir);
+        let filename = path.file_stem().unwrap().to_str().unwrap();
+        assert_ne!(filename, "MyProfile", "Imported profile should have a different filename than the original, not just strip all special chars");
+    }
+
+    #[test]
+    fn test_get_profile_file_path_valid_filename() {
+        let dir = PathBuf::from("/tmp/profiles");
+        let path = get_profile_file_path("Test Profile", &dir);
+        let filename = path.file_name().unwrap().to_str().unwrap();
+        assert!(filename.ends_with(".json"), "Filename should end with .json");
+        assert!(!filename.contains(' '), "Filename should not contain spaces");
+    }
+}
+
 #[tauri::command]
 pub fn profile_update_mods(
     game_path: String,
@@ -736,7 +817,10 @@ pub fn profile_get_mod_states(
 }
 
 #[tauri::command]
-pub fn profile_clear_active(game_path: String) -> Result<bool, String> {
+pub fn profile_clear_active(
+    app: AppHandle,
+    game_path: String,
+) -> Result<bool, String> {
     // 读取保存的前置状态
     let states_dir = PathBuf::from(&game_path).join("SVL_Data");
     let pre_profile_path = states_dir.join("pre_profile_state.json");
@@ -804,7 +888,9 @@ pub fn profile_clear_active(game_path: String) -> Result<bool, String> {
     if pre_profile_path.exists() {
         let _ = fs::remove_file(&pre_profile_path);
     }
-    
+
+    let _ = app.emit("profile-changed", "");
+
     Ok(true)
 }
 
@@ -905,13 +991,10 @@ pub fn profile_scan_mods(game_path: String) -> Result<Vec<ModInfo>, String> {
 
 #[tauri::command]
 pub fn get_profile_bindings() -> Result<HashMap<String, String>, String> {
-    if let Some(appdata) = std::env::var("APPDATA").ok() {
-        let bindings_path = PathBuf::from(appdata)
-            .join("StardewValley")
-            .join("Saves")
-            .join("svl-profile-bindings.json");
-        if bindings_path.exists() {
-            let content = fs::read_to_string(&bindings_path)
+    let bindings_path = get_saves_bindings_path();
+    if let Some(path) = bindings_path {
+        if path.exists() {
+            let content = fs::read_to_string(&path)
                 .map_err(|e| format!("Failed to read bindings: {}", e))?;
             let map: HashMap<String, String> = serde_json::from_str(&content)
                 .map_err(|e| format!("Failed to parse bindings: {}", e))?;
@@ -923,16 +1006,15 @@ pub fn get_profile_bindings() -> Result<HashMap<String, String>, String> {
 
 #[tauri::command]
 pub fn set_profile_binding(save_folder_name: String, profile_name: Option<String>) -> Result<bool, String> {
-    let bindings_path = if let Some(appdata) = std::env::var("APPDATA").ok() {
-        let saves_dir = PathBuf::from(appdata).join("StardewValley").join("Saves");
-        if !saves_dir.exists() {
-            fs::create_dir_all(&saves_dir)
-                .map_err(|e| format!("Failed to create saves directory: {}", e))?;
-        }
-        saves_dir.join("svl-profile-bindings.json")
-    } else {
-        return Err("Cannot determine APPDATA path".to_string());
-    };
+    let bindings_path = get_saves_bindings_path()
+        .ok_or("Cannot determine saves directory path")?;
+
+    let saves_dir = bindings_path.parent()
+        .ok_or("Cannot determine saves directory")?;
+    if !saves_dir.exists() {
+        fs::create_dir_all(saves_dir)
+            .map_err(|e| format!("Failed to create saves directory: {}", e))?;
+    }
 
     let mut bindings: HashMap<String, String> = if bindings_path.exists() {
         let content = fs::read_to_string(&bindings_path)

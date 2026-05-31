@@ -126,6 +126,9 @@ function initDatabase(): void
     if (!in_array('updated_at', $cols)) {
         $db->exec("ALTER TABLE announcements ADD COLUMN updated_at DATETIME NOT NULL DEFAULT (datetime('now','localtime'))");
     }
+    if (!in_array('image_url', $cols)) {
+        $db->exec("ALTER TABLE announcements ADD COLUMN image_url TEXT NOT NULL DEFAULT ''");
+    }
 
     // Migration for contacts: add is_read column if missing
     $contactCols = [];

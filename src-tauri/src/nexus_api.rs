@@ -1,4 +1,4 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 use tauri::Emitter;
 
 use crate::mod_name_resolver::resolve_mod_name;
-use crate::app_logger::log_info;
+use crate::app_logger::{log_info, get_svl_data_dir};
 
 pub const NEXUS_API_BASE: &str = "https://api.nexusmods.com/v1";
 pub const STARDEW_GAME_ID: &str = "stardewvalley";
@@ -1731,24 +1731,9 @@ pub async fn open_nexus_browser(
         if let Some((detected_path, _method)) = crate::smapi::find_game_path() {
             detected_path.join("Mods").to_string_lossy().to_string()
         } else {
-            let default_paths = [
-                r"C:\Program Files (x86)\Steam\steamapps\common\Stardew Valley",
-                r"C:\Program Files\Steam\steamapps\common\Stardew Valley",
-                r"D:\steam\steamapps\common\Stardew Valley",
-                r"C:\GOG Games\Stardew Valley",
-            ];
-            let mut found = None;
-            for default in &default_paths {
-                let path = PathBuf::from(default);
-                if path.exists() {
-                    found = Some(path);
-                    break;
-                }
-            }
-            match found {
-                Some(p) => p.join("Mods").to_string_lossy().to_string(),
-                None => "C:\\Mods".to_string(),
-            }
+            let fallback = get_svl_data_dir().join("Mods");
+            let _ = fs::create_dir_all(&fallback);
+            fallback.to_string_lossy().to_string()
         }
     };
 

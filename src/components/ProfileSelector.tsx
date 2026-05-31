@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { listen } from '@tauri-apps/api/event';
 import {
   profileList,
   profileGetActive,
@@ -36,6 +37,15 @@ export default function ProfileSelector({ onProfileChange, onProfileExit, onMana
     if (gamePath) {
       loadProfiles();
     }
+  }, [gamePath]);
+
+  useEffect(() => {
+    if (!gamePath) return;
+    let unlisten: (() => void) | null = null;
+    listen('profile-changed', () => {
+      loadProfiles();
+    }).then(fn => { unlisten = fn; });
+    return () => { if (unlisten) unlisten(); };
   }, [gamePath]);
 
   const loadProfiles = async () => {

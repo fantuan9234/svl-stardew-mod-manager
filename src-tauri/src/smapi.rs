@@ -20,6 +20,7 @@ pub struct GamePathInfo {
     pub detection_method: Option<String>,
 }
 
+#[cfg(target_os = "windows")]
 const STEAM_DEFAULT_PATHS: &[&str] = &[
     r"C:\Program Files (x86)\Steam\steamapps\common\Stardew Valley",
     r"C:\Program Files\Steam\steamapps\common\Stardew Valley",
@@ -31,6 +32,20 @@ const STEAM_DEFAULT_PATHS: &[&str] = &[
     r"F:\steam\steamapps\common\Stardew Valley",
 ];
 
+#[cfg(target_os = "macos")]
+const STEAM_DEFAULT_PATHS: &[&str] = &[
+    "/Applications/Stardew Valley.app/Contents/MacOS",
+    "~/Library/Application Support/Steam/steamapps/common/Stardew Valley",
+];
+
+#[cfg(target_os = "linux")]
+const STEAM_DEFAULT_PATHS: &[&str] = &[
+    "~/.steam/steam/steamapps/common/Stardew Valley",
+    "~/.local/share/Steam/steamapps/common/Stardew Valley",
+    "/usr/share/steam/steamapps/common/Stardew Valley",
+];
+
+#[cfg(target_os = "windows")]
 const GOG_DEFAULT_PATHS: &[&str] = &[
     r"C:\GOG Games\Stardew Valley",
     r"C:\Program Files (x86)\GOG Galaxy\Games\Stardew Valley",
@@ -38,11 +53,18 @@ const GOG_DEFAULT_PATHS: &[&str] = &[
     r"E:\GOG Games\Stardew Valley",
 ];
 
+#[cfg(not(target_os = "windows"))]
+const GOG_DEFAULT_PATHS: &[&str] = &[];
+
+#[cfg(target_os = "windows")]
 const XBOX_DEFAULT_PATHS: &[&str] = &[
     r"C:\XboxGames\Stardew Valley\Content",
     r"C:\Program Files\WindowsApps\Stardew Valley\Content",
     r"D:\XboxGames\Stardew Valley\Content",
 ];
+
+#[cfg(not(target_os = "windows"))]
+const XBOX_DEFAULT_PATHS: &[&str] = &[];
 
 pub(crate) fn find_game_path() -> Option<(PathBuf, String)> {
     println!("[smapi] Detecting game path...");
@@ -58,7 +80,7 @@ pub(crate) fn find_game_path() -> Option<(PathBuf, String)> {
     }
 
     for path in STEAM_DEFAULT_PATHS {
-        let p = PathBuf::from(path);
+        let p = expand_tilde(PathBuf::from(path));
         println!("[smapi] Checking default path: {} (exists: {})", path, p.exists());
         if p.exists() && is_valid_game_path(&p) {
             println!("[smapi] Found via Steam Default: {}", path);
@@ -67,7 +89,7 @@ pub(crate) fn find_game_path() -> Option<(PathBuf, String)> {
     }
 
     for path in GOG_DEFAULT_PATHS {
-        let p = PathBuf::from(path);
+        let p = expand_tilde(PathBuf::from(path));
         if p.exists() && is_valid_game_path(&p) {
             println!("[smapi] Found via GOG Default: {}", path);
             return Some((p, "GOG Default".to_string()));
@@ -75,7 +97,7 @@ pub(crate) fn find_game_path() -> Option<(PathBuf, String)> {
     }
 
     for path in XBOX_DEFAULT_PATHS {
-        let p = PathBuf::from(path);
+        let p = expand_tilde(PathBuf::from(path));
         if p.exists() && is_valid_game_path(&p) {
             println!("[smapi] Found via Xbox Default: {}", path);
             return Some((p, "Xbox Game Pass".to_string()));
@@ -195,6 +217,7 @@ fn find_steam_install_dir() -> Option<PathBuf> {
         return Some(path);
     }
 
+    #[cfg(target_os = "windows")]
     let steam_candidates = [
         r"C:\Program Files (x86)\Steam",
         r"C:\Program Files\Steam",
@@ -206,8 +229,26 @@ fn find_steam_install_dir() -> Option<PathBuf> {
         r"F:\steam",
     ];
 
+    #[cfg(target_os = "linux")]
+    let steam_candidates = [
+        "~/.steam/steam",
+        "~/.local/share/Steam",
+        "~/.steam",
+        "/usr/share/steam",
+    ];
+
+    #[cfg(target_os = "macos")]
+    let steam_candidates = [
+        "~/Library/Application Support/Steam",
+        "/Applications/Steam.app/Contents/MacOS",
+    ];
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    let steam_candidates: [&str; 0] = [];
+
     for candidate in &steam_candidates {
         let p = PathBuf::from(candidate);
+        let p = expand_tilde(p);
         if p.exists() && p.join("steamapps").exists() {
             return Some(p);
         }
@@ -283,49 +324,122 @@ fn parse_all_library_folders(vdf_path: &PathBuf) -> Option<Vec<PathBuf>> {
 }
 
 fn find_via_disk_scan() -> Option<PathBuf> {
-    let drives = ['C', 'D', 'E', 'F', 'G', 'H'];
+    #[cfg(target_os = "windows")]
+    {
+        let drives = ['C', 'D', 'E', 'F', 'G', 'H'];
 
-    for drive in &drives {
-        let steam_path = PathBuf::from(format!("{}:\\Steam\\steamapps\\common\\Stardew Valley", drive));
-        if steam_path.exists() && is_valid_game_path(&steam_path) {
-            return Some(steam_path);
+        for drive in &drives {
+            let steam_path = PathBuf::from(format!("{}:\\Steam\\steamapps\\common\\Stardew Valley", drive));
+            if steam_path.exists() && is_valid_game_path(&steam_path) {
+                return Some(steam_path);
+            }
+
+            let steam_path_lower = PathBuf::from(format!("{}:\\steam\\steamapps\\common\\Stardew Valley", drive));
+            if steam_path_lower.exists() && is_valid_game_path(&steam_path_lower) {
+                return Some(steam_path_lower);
+            }
+
+            let gog_path = PathBuf::from(format!("{}:\\GOG Games\\Stardew Valley", drive));
+            if gog_path.exists() && is_valid_game_path(&gog_path) {
+                return Some(gog_path);
+            }
+
+            let xbox_path = PathBuf::from(format!("{}:\\XboxGames\\Stardew Valley\\Content", drive));
+            if xbox_path.exists() && is_valid_game_path(&xbox_path) {
+                return Some(xbox_path);
+            }
+
+            let game_path = PathBuf::from(format!("{}:\\Stardew Valley", drive));
+            if game_path.exists() && is_valid_game_path(&game_path) {
+                return Some(game_path);
+            }
+
+            let games_path = PathBuf::from(format!("{}:\\Games\\Stardew Valley", drive));
+            if games_path.exists() && is_valid_game_path(&games_path) {
+                return Some(games_path);
+            }
         }
+    }
 
-        let steam_path_lower = PathBuf::from(format!("{}:\\steam\\steamapps\\common\\Stardew Valley", drive));
-        if steam_path_lower.exists() && is_valid_game_path(&steam_path_lower) {
-            return Some(steam_path_lower);
+    #[cfg(target_os = "linux")]
+    {
+        let linux_paths = [
+            "~/Games/Stardew Valley",
+            "~/stardew-valley",
+            "/opt/stardew-valley",
+            "/usr/share/stardew-valley",
+        ];
+        for path_str in &linux_paths {
+            let p = expand_tilde(PathBuf::from(path_str));
+            if p.exists() && is_valid_game_path(&p) {
+                return Some(p);
+            }
         }
+    }
 
-        let gog_path = PathBuf::from(format!("{}:\\GOG Games\\Stardew Valley", drive));
-        if gog_path.exists() && is_valid_game_path(&gog_path) {
-            return Some(gog_path);
-        }
-
-        let xbox_path = PathBuf::from(format!("{}:\\XboxGames\\Stardew Valley\\Content", drive));
-        if xbox_path.exists() && is_valid_game_path(&xbox_path) {
-            return Some(xbox_path);
-        }
-
-        let game_path = PathBuf::from(format!("{}:\\Stardew Valley", drive));
-        if game_path.exists() && is_valid_game_path(&game_path) {
-            return Some(game_path);
-        }
-
-        let games_path = PathBuf::from(format!("{}:\\Games\\Stardew Valley", drive));
-        if games_path.exists() && is_valid_game_path(&games_path) {
-            return Some(games_path);
+    #[cfg(target_os = "macos")]
+    {
+        let macos_paths = [
+            "~/Games/Stardew Valley",
+            "/Applications/Stardew Valley.app/Contents/MacOS",
+        ];
+        for path_str in &macos_paths {
+            let p = expand_tilde(PathBuf::from(path_str));
+            if p.exists() && is_valid_game_path(&p) {
+                return Some(p);
+            }
         }
     }
 
     None
 }
 
+fn expand_tilde(path: PathBuf) -> PathBuf {
+    if let Ok(home) = std::env::var("HOME") {
+        let path_str = path.to_string_lossy().to_string();
+        if path_str.starts_with("~/") {
+            let rest = &path_str[2..];
+            return PathBuf::from(home).join(rest);
+        }
+        if path_str.starts_with("~") {
+            let rest = &path_str[1..];
+            return PathBuf::from(home).join(rest);
+        }
+    }
+    path
+}
+
 fn is_valid_game_path(path: &PathBuf) -> bool {
-    path.join("Stardew Valley.exe").exists()
-        || path.join("StardewModdingAPI.exe").exists()
-        || path.join("StardewModdingAPI.dll").exists()
-        || path.join("Content").join("Stardew Valley.exe").exists()
-        || (path.join("Content").is_dir() && path.join("Content").join("XNA").is_dir())
+    #[cfg(target_os = "windows")]
+    {
+        path.join("Stardew Valley.exe").exists()
+            || path.join("StardewModdingAPI.exe").exists()
+            || path.join("StardewModdingAPI.dll").exists()
+            || path.join("Content").join("Stardew Valley.exe").exists()
+            || (path.join("Content").is_dir() && path.join("Content").join("XNA").is_dir())
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        path.join("Stardew Valley").exists()
+            || path.join("StardewModdingAPI").exists()
+            || path.join("StardewModdingAPI.dll").exists()
+            || (path.join("Content").is_dir() && path.join("Content").join("Linux").is_dir())
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        path.join("Stardew Valley").exists()
+            || path.join("StardewModdingAPI").exists()
+            || path.join("StardewModdingAPI.dll").exists()
+            || (path.join("Content").is_dir() && path.join("Content").join("MacOS").is_dir())
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        path.join("Stardew Valley.exe").exists()
+            || path.join("StardewModdingAPI.dll").exists()
+    }
 }
 
 fn detect_smapi_version(game_path: &PathBuf) -> Option<String> {
@@ -346,9 +460,20 @@ fn detect_smapi_version(game_path: &PathBuf) -> Option<String> {
         return Some("Installed".to_string());
     }
 
-    let api_exe = game_path.join("StardewModdingAPI.exe");
-    if api_exe.exists() {
-        return Some("Installed".to_string());
+    #[cfg(target_os = "windows")]
+    {
+        let api_exe = game_path.join("StardewModdingAPI.exe");
+        if api_exe.exists() {
+            return Some("Installed".to_string());
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let api_bin = game_path.join("StardewModdingAPI");
+        if api_bin.exists() {
+            return Some("Installed".to_string());
+        }
     }
 
     None
@@ -362,19 +487,19 @@ pub fn detect_game_path() -> Result<GamePathInfo, String> {
 
     let steam_path = STEAM_DEFAULT_PATHS
         .iter()
-        .map(PathBuf::from)
+        .map(|p| expand_tilde(PathBuf::from(p)))
         .find(|p| p.exists() && is_valid_game_path(p))
         .map(|p| p.to_string_lossy().to_string());
 
     let gog_path = GOG_DEFAULT_PATHS
         .iter()
-        .map(PathBuf::from)
+        .map(|p| expand_tilde(PathBuf::from(p)))
         .find(|p| p.exists() && is_valid_game_path(p))
         .map(|p| p.to_string_lossy().to_string());
 
     let xbox_path = XBOX_DEFAULT_PATHS
         .iter()
-        .map(PathBuf::from)
+        .map(|p| expand_tilde(PathBuf::from(p)))
         .find(|p| p.exists() && is_valid_game_path(p))
         .map(|p| p.to_string_lossy().to_string());
 

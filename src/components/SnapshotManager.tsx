@@ -64,7 +64,7 @@ export default function SnapshotManager({ onBack }: { onBack: () => void }) {
         message.warning(t('app.toolbox.snapshotNeedGamePath'));
         return;
       }
-      await createSnapshot(gamePath + '\\Mods', name);
+      await createSnapshot(gamePath + '/Mods', name);
       message.success(t('app.toolbox.snapshotCreateSuccess'));
       setSnapshotName('');
       await loadSnapshots();
@@ -98,7 +98,7 @@ export default function SnapshotManager({ onBack }: { onBack: () => void }) {
             message.warning(t('app.toolbox.snapshotNeedGamePath'));
             return;
           }
-          await restoreSnapshot(gamePath + '\\Mods', snapshot.snapshot_name);
+          await restoreSnapshot(snapshot.snapshot_name, gamePath + '/Mods');
           message.success(t('app.toolbox.snapshotRestoreSuccess'));
         } catch (e: any) {
           message.error(e?.toString() || t('app.toolbox.snapshotRestoreFailed'));

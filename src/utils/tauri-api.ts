@@ -1104,3 +1104,86 @@ export async function clearOldAppLogs(keepDays?: number): Promise<string> {
 export async function getLogDirPath(): Promise<string> {
   return invoke<string>('get_log_dir_path');
 }
+
+export interface AiConfig {
+  base_url: string;
+  api_key: string;
+  model: string;
+}
+
+export interface ModTranslationStatus {
+  mod_name: string;
+  mod_path: string;
+  status: string;
+  total_entries: number;
+  translated_entries: number;
+  remaining_entries: number;
+  has_i18n: boolean;
+  has_target_lang: boolean;
+  default_file: string | null;
+  target_file: string | null;
+  file_type: string;
+}
+
+export interface TranslateFileResult {
+  success: boolean;
+  file_path: string;
+  message: string;
+  backup_path: string | null;
+}
+
+export async function scanTranslatableMods(
+  gamePath: string,
+  targetLang: string
+): Promise<ModTranslationStatus[]> {
+  return invoke<ModTranslationStatus[]>('scan_translatable_mods', { gamePath, targetLang });
+}
+
+export async function translateModFile(
+  filePath: string,
+  fileType: string,
+  aiConfig: AiConfig,
+  targetLang: string
+): Promise<TranslateFileResult> {
+  return invoke<TranslateFileResult>('translate_mod_file', { filePath, fileType, aiConfig, targetLang });
+}
+
+export async function testAiConnection(aiConfig: AiConfig): Promise<string> {
+  return invoke<string>('test_ai_connection', { aiConfig });
+}
+
+export async function restoreTranslationBackup(filePath: string): Promise<boolean> {
+  return invoke<boolean>('restore_translation_backup', { filePath });
+}
+
+export interface ModNameTranslation {
+  unique_id: string;
+  original_name: string;
+  translated_name: string;
+}
+
+export async function getModNameTranslations(): Promise<ModNameTranslation[]> {
+  return invoke<ModNameTranslation[]>('get_mod_name_translations');
+}
+
+export async function translateModName(
+  uniqueId: string,
+  originalName: string,
+  folderPath: string
+): Promise<ModNameTranslation> {
+  return invoke<ModNameTranslation>('translate_mod_name', { uniqueId, originalName, folderPath });
+}
+
+export async function batchTranslateModNames(
+  mods: Array<[string, string, string]>
+): Promise<ModNameTranslation[]> {
+  return invoke<ModNameTranslation[]>('batch_translate_mod_names', { mods });
+}
+
+export async function deleteModNameTranslation(uniqueId: string, folderPath: string): Promise<boolean> {
+  return invoke<boolean>('delete_mod_name_translation', { uniqueId, folderPath });
+}
+
+export async function clearAllModNameTranslations(mods: Array<[string, string]>): Promise<boolean> {
+  return invoke<boolean>('clear_all_mod_name_translations', { mods });
+}

@@ -40,25 +40,96 @@ pub struct SaveRestoreResult {
 }
 
 fn get_saves_directory() -> Option<PathBuf> {
-    if let Some(appdata) = std::env::var("APPDATA").ok() {
-        let saves = PathBuf::from(appdata).join("StardewValley").join("Saves");
-        if saves.exists() {
-            return Some(saves);
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(appdata) = std::env::var("APPDATA").ok() {
+            let saves = PathBuf::from(appdata).join("StardewValley").join("Saves");
+            if saves.exists() {
+                return Some(saves);
+            }
         }
     }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            let saves = PathBuf::from(home)
+                .join(".local")
+                .join("share")
+                .join("StardewValley")
+                .join("Saves");
+            if saves.exists() {
+                return Some(saves);
+            }
+        }
+        if let Ok(xdg_data) = std::env::var("XDG_DATA_HOME") {
+            let saves = PathBuf::from(xdg_data)
+                .join("StardewValley")
+                .join("Saves");
+            if saves.exists() {
+                return Some(saves);
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            let saves = PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join("StardewValley")
+                .join("Saves");
+            if saves.exists() {
+                return Some(saves);
+            }
+        }
+    }
+
     None
 }
 
 fn get_bindings_path() -> Option<PathBuf> {
-    if let Some(appdata) = std::env::var("APPDATA").ok() {
-        let saves_dir = PathBuf::from(appdata).join("StardewValley").join("Saves");
-        if !saves_dir.exists() {
-            let _ = fs::create_dir_all(&saves_dir);
+    let saves_dir = get_saves_directory().or_else(|| {
+        #[cfg(target_os = "windows")]
+        {
+            std::env::var("APPDATA").ok().map(|appdata| {
+                PathBuf::from(appdata).join("StardewValley").join("Saves")
+            })
         }
-        Some(saves_dir.join("svl-profile-bindings.json"))
-    } else {
-        None
+
+        #[cfg(target_os = "linux")]
+        {
+            std::env::var("HOME").ok().map(|home| {
+                PathBuf::from(home)
+                    .join(".local")
+                    .join("share")
+                    .join("StardewValley")
+                    .join("Saves")
+            })
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            std::env::var("HOME").ok().map(|home| {
+                PathBuf::from(home)
+                    .join("Library")
+                    .join("Application Support")
+                    .join("StardewValley")
+                    .join("Saves")
+            })
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+        {
+            None::<PathBuf>
+        }
+    })?;
+
+    if !saves_dir.exists() {
+        let _ = fs::create_dir_all(&saves_dir);
     }
+    Some(saves_dir.join("svl-profile-bindings.json"))
 }
 
 fn load_bindings() -> HashMap<String, String> {

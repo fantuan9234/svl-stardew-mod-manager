@@ -119,11 +119,35 @@ async fn check_update_from_github(current_version: &str) -> Result<AppUpdateInfo
         });
     }
 
+    #[cfg(target_os = "windows")]
     let setup_asset = release
         .assets
         .iter()
         .find(|a| a.name.to_lowercase().ends_with(".exe"))
         .or_else(|| release.assets.first());
+
+    #[cfg(target_os = "linux")]
+    let setup_asset = release
+        .assets
+        .iter()
+        .find(|a| {
+            let name = a.name.to_lowercase();
+            name.ends_with(".appimage") || name.ends_with(".deb") || name.ends_with(".tar.gz")
+        })
+        .or_else(|| release.assets.first());
+
+    #[cfg(target_os = "macos")]
+    let setup_asset = release
+        .assets
+        .iter()
+        .find(|a| {
+            let name = a.name.to_lowercase();
+            name.ends_with(".dmg") || name.ends_with(".app.tar.gz")
+        })
+        .or_else(|| release.assets.first());
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    let setup_asset = release.assets.first();
 
     let (download_url, file_size) = match setup_asset {
         Some(asset) => (asset.browser_download_url.clone(), Some(asset.size)),
@@ -156,9 +180,27 @@ async fn check_update_from_primary(current_version: &str) -> Result<AppUpdateInf
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
+    let os_name = if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "unknown"
+    };
+
+    let arch = if cfg!(target_arch = "x86_64") {
+        "x86_64"
+    } else if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        "unknown"
+    };
+
     let url = format!(
-        "{}/api/update/check?version={}",
-        UPDATE_SERVER_BASE_URL, current_version
+        "{}/api/update/check?version={}&os={}&arch={}",
+        UPDATE_SERVER_BASE_URL, current_version, os_name, arch
     );
 
     let response = client
@@ -242,7 +284,7 @@ pub async fn download_app_update_from_server(
     let file_name = download_url
         .split('/')
         .last()
-        .unwrap_or("svl-update.exe");
+        .unwrap_or("svl-update");
     let temp_file_path = temp_dir.join(format!("svl_update_{}", file_name));
     let mut file = std::fs::File::create(&temp_file_path)
         .map_err(|e| format!("创建临时文件失败: {}", e))?;
@@ -290,10 +332,58 @@ pub fn get_current_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
-fn open_update_installer(exe_path: &std::path::Path) -> Result<(), String> {
-    std::process::Command::new(exe_path)
-        .spawn()
-        .map_err(|e| format!("启动更新程序失败: {}", e))?;
+fn open_update_installer(installer_path: &std::path::Path) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new(installer_path)
+            .spawn()
+            .map_err(|e| format!("启动更新程序失败: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let name = installer_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+        if name.ends_with(".AppImage") || name.ends_with(".appimage") {
+            use std::os::unix::fs::PermissionsExt;
+            let current_exe = std::env::current_exe()
+                .map_err(|e| format!("获取当前程序路径失败: {}", e))?;
+            let _ = std::fs::set_permissions(installer_path, std::fs::Permissions::from_mode(0o755));
+            let _ = std::fs::copy(installer_path, &current_exe);
+            std::process::Command::new(&current_exe)
+                .spawn()
+                .map_err(|e| format!("启动更新程序失败: {}", e))?;
+        } else if name.ends_with(".deb") {
+            std::process::Command::new("sudo")
+                .args(["dpkg", "-i"])
+                .arg(installer_path)
+                .spawn()
+                .map_err(|e| format!("启动更新程序失败: {}", e))?;
+        } else {
+            std::process::Command::new("xdg-open")
+                .arg(installer_path)
+                .spawn()
+                .map_err(|e| format!("启动更新程序失败: {}", e))?;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(installer_path)
+            .spawn()
+            .map_err(|e| format!("启动更新程序失败: {}", e))?;
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        std::process::Command::new(installer_path)
+            .spawn()
+            .map_err(|e| format!("启动更新程序失败: {}", e))?;
+    }
+
     Ok(())
 }
 

@@ -55,7 +55,7 @@ export default function ConfigManager({ onBack }: { onBack: () => void }) {
         message.warning(t('app.toolbox.configNeedGamePath'));
         return;
       }
-      const result = await listModConfigs(gamePath + '\\Mods');
+      const result = await listModConfigs(gamePath + '/Mods');
       setConfigs(result.configs);
       setScanResult(result);
     } catch (e: any) {
@@ -130,7 +130,7 @@ export default function ConfigManager({ onBack }: { onBack: () => void }) {
           <InputNumber
             value={typeof currentValue === 'number' ? currentValue : 0}
             onChange={(val) => handleValueChange(field.key, val ?? 0)}
-            style={{ width: 200 }}
+            style={{ width: '100%', maxWidth: 200 }}
           />
         );
       case 'String':
@@ -138,7 +138,7 @@ export default function ConfigManager({ onBack }: { onBack: () => void }) {
           <Input
             value={typeof currentValue === 'string' ? currentValue : ''}
             onChange={(e) => handleValueChange(field.key, e.target.value)}
-            style={{ width: 300 }}
+            style={{ width: '100%', maxWidth: 300 }}
           />
         );
       default:
@@ -153,7 +153,7 @@ export default function ConfigManager({ onBack }: { onBack: () => void }) {
               }
             }}
             rows={3}
-            style={{ width: 400, fontFamily: 'monospace', fontSize: 12 }}
+            style={{ width: '100%', maxWidth: 400, fontFamily: 'monospace', fontSize: 12 }}
           />
         );
     }
@@ -162,7 +162,7 @@ export default function ConfigManager({ onBack }: { onBack: () => void }) {
   const hasChanges = Object.keys(editedValues).length > 0;
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '24px 28px', maxWidth: 1200, margin: '0 auto', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '24px 28px', maxWidth: 1200, margin: '0 auto', overflow: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20, flexShrink: 0 }}>
         <button
           onClick={onBack}
@@ -222,8 +222,8 @@ export default function ConfigManager({ onBack }: { onBack: () => void }) {
       )}
 
       {!loading && scanResult && (
-        <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>
-          <div style={{ flex: '0 0 320px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, flex: 1, minHeight: 0 }}>
+          <div style={{ flex: '0 0 auto', width: 280, minWidth: 200, maxWidth: 340, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <div style={{
               borderRadius: 12,
               padding: '12px 16px',
@@ -281,7 +281,7 @@ export default function ConfigManager({ onBack }: { onBack: () => void }) {
             </div>
           </div>
 
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, minWidth: 280, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             {!selectedMod && !loadingDetail && (
               <Empty description={t('app.toolbox.configSelectHint')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
             )}
@@ -349,9 +349,10 @@ export default function ConfigManager({ onBack }: { onBack: () => void }) {
                         key={field.key}
                         style={{
                           display: 'flex',
+                          flexWrap: 'wrap',
                           alignItems: 'flex-start',
-                          gap: 16,
-                          padding: '12px 20px',
+                          gap: 12,
+                          padding: '12px 16px',
                           borderBottom: '1px solid rgba(139,115,85,0.08)',
                           transition: 'background 0.15s',
                         }}
@@ -362,7 +363,7 @@ export default function ConfigManager({ onBack }: { onBack: () => void }) {
                           e.currentTarget.style.background = 'transparent';
                         }}
                       >
-                        <div style={{ flex: '0 0 160px', minWidth: 0, paddingTop: 4 }}>
+                        <div style={{ flex: '0 0 auto', width: 140, minWidth: 100, maxWidth: 180, paddingTop: 4 }}>
                           <Text strong style={{ fontSize: 13, wordBreak: 'break-all' }}>{field.key}</Text>
                           <br />
                           <Tag style={{ fontSize: 10, borderRadius: 6, background: 'rgba(139,115,85,0.12)', color: 'var(--svl-text-muted)', border: 'none' }}>

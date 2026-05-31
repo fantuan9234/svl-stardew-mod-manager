@@ -536,7 +536,7 @@ export default function NexusModBrowser() {
         setDownloadingModId(mod.mod_id);
         setDownloadProgress(0);
         setDownloadStatus(`${t('features.nexus.downloading')} (${successCount + failCount + 1}/${toDownload.length}): ${mod.name}`);
-        const result = await downloadModFromNexus(mod.mod_id, currentApiKey, null);
+        const result = await downloadModFromNexus(mod.mod_id, currentApiKey, null, undefined);
         if (result.success) {
           successCount++;
           setSelectedModIds(prev => {

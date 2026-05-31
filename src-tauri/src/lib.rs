@@ -27,6 +27,8 @@ mod app_updater;
 mod dep_resolver;
 mod storage_analyzer;
 mod app_logger;
+mod mod_translator;
+mod mod_name_translator;
 
 use smapi::{detect_game_path, check_smapi_status, set_custom_game_path, open_smapi_installer, restore_svl_window};
 use smapi_installer::{install_smapi_local, open_smapi_zip_dialog};
@@ -53,6 +55,8 @@ use app_updater::{check_app_update_from_server, check_app_update_github, downloa
 use dep_resolver::{scan_all_missing_dependencies, auto_install_missing_dependency};
 use storage_analyzer::analyze_mod_storage;
 use app_logger::{get_app_logs, export_app_logs, clear_old_app_logs, get_log_dir_path, log_info, log_warn, log_error};
+use mod_translator::{scan_translatable_mods, translate_mod_file, test_ai_connection, restore_translation_backup};
+use mod_name_translator::{get_mod_name_translations, translate_mod_name, batch_translate_mod_names, delete_mod_name_translation, clear_all_mod_name_translations};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -64,6 +68,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
 
         .setup(|app| {
             let handle = app.handle().clone();
@@ -210,6 +215,15 @@ pub fn run() {
             export_app_logs,
             clear_old_app_logs,
             get_log_dir_path,
+            scan_translatable_mods,
+            translate_mod_file,
+            test_ai_connection,
+            restore_translation_backup,
+            get_mod_name_translations,
+            translate_mod_name,
+            batch_translate_mod_names,
+            delete_mod_name_translation,
+            clear_all_mod_name_translations,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -9,6 +9,33 @@ initDatabase();
 
 require_once __DIR__ . '/backend/language.php';
 
+function renderAnnouncementContent(string $content): string
+{
+    $content = h($content);
+    $content = preg_replace(
+        '#\[img\](.+?)\[/img\]#i',
+        '<img src="$1" alt="公告图片" class="announce-img" loading="lazy">',
+        $content
+    );
+    $content = preg_replace(
+        '#\[url=(.+?)\](.+?)\[/url\]#i',
+        '<a href="$1" target="_blank" rel="noopener noreferrer" class="announce-link">$2</a>',
+        $content
+    );
+    $content = preg_replace(
+        '#\[url\](.+?)\[/url\]#i',
+        '<a href="$1" target="_blank" rel="noopener noreferrer" class="announce-link">$1</a>',
+        $content
+    );
+    $content = preg_replace(
+        '#(?<!href=["\'])(?<!src=["\'])https?://[^\s<\)]+#i',
+        '<a href="$0" target="_blank" rel="noopener noreferrer" class="announce-link">$0</a>',
+        $content
+    );
+    $content = nl2br($content);
+    return $content;
+}
+
 $db = getDB();
 $items = $db->query("SELECT * FROM announcements ORDER BY is_pinned DESC, created_at DESC")->fetchAll();
 
@@ -61,7 +88,10 @@ include 'header.php';
                             <span class="text-xs ml-auto" style="color: var(--text-tertiary);"><?php echo h($item['created_at']); ?></span>
                         </div>
                         <h3 class="font-semibold text-base mb-2" style="color: var(--text);"><?php echo h($item['title']); ?></h3>
-                        <p class="text-sm leading-relaxed" style="color: var(--text-secondary);"><?php echo nl2br(h($item['content'])); ?></p>
+                        <?php if (!empty($item['image_url'])): ?>
+                        <img src="<?php echo h($item['image_url']); ?>" alt="<?php echo h($item['title']); ?>" class="announce-img" loading="lazy">
+                        <?php endif; ?>
+                        <div class="text-sm leading-relaxed announce-content" style="color: var(--text-secondary);"><?php echo renderAnnouncementContent($item['content']); ?></div>
                     </div>
                 </div>
             </div>
@@ -93,6 +123,29 @@ body.light-theme .announce-card:hover {
 .announce-card:hover .announce-icon {
     transform: scale(1.08);
     background: rgba(212,168,67,0.2);
+}
+.announce-link {
+    color: var(--brand);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(212,168,67,0.3);
+    transition: border-color 0.2s, opacity 0.2s;
+}
+.announce-link:hover {
+    border-bottom-color: var(--brand);
+    opacity: 0.85;
+}
+.announce-img {
+    max-width: 100%;
+    max-height: 280px;
+    width: auto;
+    object-fit: contain;
+    border-radius: 12px;
+    margin: 12px 0;
+    border: 1px solid var(--border);
+}
+.announce-content {
+    word-break: break-word;
+    overflow-wrap: break-word;
 }
 </style>
 

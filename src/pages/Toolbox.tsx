@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PieChartOutlined, ControlOutlined, SaveOutlined, FileTextOutlined } from '@ant-design/icons';
+import { PieChartOutlined, ControlOutlined, SaveOutlined, FileTextOutlined, TranslationOutlined } from '@ant-design/icons';
 import StorageAnalyzerView from '../components/StorageAnalyzerView';
 import ConfigManager from '../components/ConfigManager';
 import SnapshotManager from '../components/SnapshotManager';
 import AppLogViewer from '../components/AppLogViewer';
+import ModTranslatorView from '../components/ModTranslatorView';
 
-type ToolView = 'home' | 'storage' | 'config' | 'snapshot' | 'logs';
+type ToolView = 'home' | 'storage' | 'config' | 'snapshot' | 'logs' | 'translate';
 
 const tools: {
   key: ToolView;
@@ -16,6 +17,7 @@ const tools: {
   { key: 'storage', icon: <PieChartOutlined />, color: '#52c41a' },
   { key: 'config', icon: <ControlOutlined />, color: '#faad14' },
   { key: 'snapshot', icon: <SaveOutlined />, color: '#1890ff' },
+  { key: 'translate', icon: <TranslationOutlined />, color: '#722ed1' },
   { key: 'logs', icon: <FileTextOutlined />, color: '#ff4d4f' },
 ];
 
@@ -27,6 +29,7 @@ export default function Toolbox() {
   if (view === 'config') return <ConfigManager onBack={() => setView('home')} />;
   if (view === 'snapshot') return <SnapshotManager onBack={() => setView('home')} />;
   if (view === 'logs') return <AppLogViewer onBack={() => setView('home')} />;
+  if (view === 'translate') return <ModTranslatorView onBack={() => setView('home')} />;
 
   return (
     <div className="svl-toolbox-home">

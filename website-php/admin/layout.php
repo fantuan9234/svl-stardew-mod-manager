@@ -365,6 +365,8 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'
                         }
                         oldScript.parentNode.replaceChild(newScript, oldScript);
                     });
+                } else if (xhr.status === 401) {
+                    window.location.href = '<?php echo SITE_URL; ?>/admin/login.php';
                 } else {
                     alert('加载失败，请刷新页面重试');
                 }

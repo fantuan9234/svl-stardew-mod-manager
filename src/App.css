@@ -6,67 +6,67 @@ img {
 }
 
 :root {
-  --svl-bg-primary: #1f140d;
-  --svl-bg-secondary: #2a1d14;
-  --svl-bg-card: #2a1d14;
-  --svl-bg-card-hover: #342618;
-  --svl-bg-footer: #24170f;
-  --svl-bg-hover: rgba(139, 115, 85, 0.15);
-  --svl-primary: #8b6914;
-  --svl-primary-hover: #a67c1a;
-  --svl-primary-light: #c49a3b;
-  --svl-primary-glow: rgba(139, 105, 20, 0.4);
-  --svl-accent: #6b9e3a;
-  --svl-accent-hover: #7db84a;
-  --svl-accent-light: #8fd45a;
-  --svl-accent-glow: rgba(107, 158, 58, 0.4);
-  --svl-accent-bg-subtle: rgba(107, 158, 58, 0.03);
-  --svl-accent-bg-light: rgba(107, 158, 58, 0.05);
-  --svl-accent-bg: rgba(107, 158, 58, 0.1);
-  --svl-accent-bg-medium: rgba(107, 158, 58, 0.15);
-  --svl-accent-bg-strong: rgba(107, 158, 58, 0.2);
-  --svl-accent-border-subtle: rgba(107, 158, 58, 0.1);
-  --svl-accent-border-light: rgba(107, 158, 58, 0.15);
-  --svl-accent-border: rgba(107, 158, 58, 0.2);
-  --svl-accent-border-medium: rgba(107, 158, 58, 0.25);
-  --svl-accent-border-strong: rgba(107, 158, 58, 0.3);
-  --svl-error-bg: rgba(199, 80, 80, 0.1);
-  --svl-error-bg-strong: rgba(199, 80, 80, 0.2);
-  --svl-error-border: rgba(199, 80, 80, 0.3);
-  --svl-error-glow: rgba(199, 80, 80, 0.5);
-  --svl-warning-bg: rgba(212, 168, 83, 0.1);
-  --svl-warning-border: rgba(212, 168, 83, 0.3);
-  --svl-warning-border-strong: rgba(212, 168, 83, 0.5);
-  --svl-nexus-border: #6b4fc7;
-  --svl-nexus-border-light: #9d7bf7;
-  --svl-nexus-text: #8a70d0;
-  --svl-nexus-bg: rgba(107, 79, 199, 0.1);
-  --svl-nexus-gradient-from: #5a3da8;
-  --svl-nexus-gradient-to: #7b5cc8;
-  --svl-nexus-gradient-hover-from: #6a4db8;
-  --svl-nexus-gradient-hover-to: #8b6cd8;
-  --svl-nexus-glow: rgba(107, 79, 199, 0.4);
-  --svl-nexus-focus-glow: rgba(139, 92, 246, 0.2);
-  --svl-text-primary: #f0e6d3;
-  --svl-text-secondary: #c4b89a;
-  --svl-text-muted: #8a7d6b;
-  --svl-text-accent: #c49a3b;
-  --svl-border: rgba(255, 190, 90, 0.12);
-  --svl-border-light: rgba(255, 210, 120, 0.25);
-  --svl-success: #5a9e3a;
-  --svl-success-bg: rgba(82, 196, 26, 0.1);
-  --svl-success-border: rgba(82, 196, 26, 0.3);
-  --svl-warning: #d4a853;
-  --svl-error: #c75050;
-  --svl-info: #6b9ec4;
-  --svl-info-bg: rgba(107, 158, 196, 0.1);
-  --svl-info-border: rgba(107, 158, 196, 0.3);
-  --svl-good: #84cc16;
-  --svl-good-dark: #65a30d;
-  --svl-fair-dark: #d97706;
-  --svl-poor: #f97316;
-  --svl-poor-dark: #ea580c;
-  --svl-critical-dark: #dc2626;
+  --svl-bg-primary: #0f172a;
+  --svl-bg-secondary: #1e293b;
+  --svl-bg-card: #1e293b;
+  --svl-bg-card-hover: #334155;
+  --svl-bg-footer: #0b1221;
+  --svl-bg-hover: rgba(37, 99, 235, 0.15);
+  --svl-primary: #2563EB;
+  --svl-primary-hover: #3B82F6;
+  --svl-primary-light: #60A5FA;
+  --svl-primary-glow: rgba(37, 99, 235, 0.4);
+  --svl-accent: #3B82F6;
+  --svl-accent-hover: #60A5FA;
+  --svl-accent-light: #93C5FD;
+  --svl-accent-glow: rgba(59, 130, 246, 0.4);
+  --svl-accent-bg-subtle: rgba(59, 130, 246, 0.03);
+  --svl-accent-bg-light: rgba(59, 130, 246, 0.05);
+  --svl-accent-bg: rgba(59, 130, 246, 0.1);
+  --svl-accent-bg-medium: rgba(59, 130, 246, 0.15);
+  --svl-accent-bg-strong: rgba(59, 130, 246, 0.2);
+  --svl-accent-border-subtle: rgba(59, 130, 246, 0.1);
+  --svl-accent-border-light: rgba(59, 130, 246, 0.15);
+  --svl-accent-border: rgba(59, 130, 246, 0.2);
+  --svl-accent-border-medium: rgba(59, 130, 246, 0.25);
+  --svl-accent-border-strong: rgba(59, 130, 246, 0.3);
+  --svl-error-bg: rgba(239, 68, 68, 0.1);
+  --svl-error-bg-strong: rgba(239, 68, 68, 0.2);
+  --svl-error-border: rgba(239, 68, 68, 0.3);
+  --svl-error-glow: rgba(239, 68, 68, 0.5);
+  --svl-warning-bg: rgba(245, 158, 11, 0.1);
+  --svl-warning-border: rgba(245, 158, 11, 0.3);
+  --svl-warning-border-strong: rgba(245, 158, 11, 0.5);
+  --svl-nexus-border: #6366f1;
+  --svl-nexus-border-light: #818cf8;
+  --svl-nexus-text: #a5b4fc;
+  --svl-nexus-bg: rgba(99, 102, 241, 0.1);
+  --svl-nexus-gradient-from: #4f46e5;
+  --svl-nexus-gradient-to: #6366f1;
+  --svl-nexus-gradient-hover-from: #4338ca;
+  --svl-nexus-gradient-hover-to: #4f46e5;
+  --svl-nexus-glow: rgba(99, 102, 241, 0.4);
+  --svl-nexus-focus-glow: rgba(99, 102, 241, 0.2);
+  --svl-text-primary: #f1f5f9;
+  --svl-text-secondary: #94a3b8;
+  --svl-text-muted: #64748b;
+  --svl-text-accent: #60A5FA;
+  --svl-border: rgba(59, 130, 246, 0.12);
+  --svl-border-light: rgba(96, 165, 250, 0.25);
+  --svl-success: #22c55e;
+  --svl-success-bg: rgba(34, 197, 94, 0.1);
+  --svl-success-border: rgba(34, 197, 94, 0.3);
+  --svl-warning: #f59e0b;
+  --svl-error: #ef4444;
+  --svl-info: #38bdf8;
+  --svl-info-bg: rgba(56, 189, 248, 0.1);
+  --svl-info-border: rgba(56, 189, 248, 0.3);
+  --svl-good: #4ade80;
+  --svl-good-dark: #22c55e;
+  --svl-fair-dark: #f59e0b;
+  --svl-poor: #fb923c;
+  --svl-poor-dark: #f97316;
+  --svl-critical-dark: #ef4444;
   --svl-surface-hover: rgba(255, 255, 255, 0.1);
   --svl-surface-subtle: rgba(255, 255, 255, 0.05);
   --svl-surface-faint: rgba(255, 255, 255, 0.04);
@@ -79,74 +79,74 @@ img {
   --svl-transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
-html.eye-care {
-  --svl-bg-primary: #111816;
-  --svl-bg-secondary: #182220;
-  --svl-bg-card: #1c2825;
-  --svl-bg-card-hover: #243230;
-  --svl-bg-footer: #141e1c;
-  --svl-bg-hover: rgba(91, 138, 114, 0.15);
-  --svl-primary: #5b8a72;
-  --svl-primary-hover: #6b9b82;
-  --svl-primary-light: #7db89a;
-  --svl-primary-glow: rgba(91, 138, 114, 0.4);
-  --svl-accent: #5b8a72;
-  --svl-accent-hover: #6b9b82;
-  --svl-accent-light: #7db89a;
-  --svl-accent-glow: rgba(91, 138, 114, 0.4);
-  --svl-accent-bg-subtle: rgba(91, 138, 114, 0.03);
-  --svl-accent-bg-light: rgba(91, 138, 114, 0.05);
-  --svl-accent-bg: rgba(91, 138, 114, 0.1);
-  --svl-accent-bg-medium: rgba(91, 138, 114, 0.15);
-  --svl-accent-bg-strong: rgba(91, 138, 114, 0.2);
-  --svl-accent-border-subtle: rgba(91, 138, 114, 0.1);
-  --svl-accent-border-light: rgba(91, 138, 114, 0.15);
-  --svl-accent-border: rgba(91, 138, 114, 0.2);
-  --svl-accent-border-medium: rgba(91, 138, 114, 0.25);
-  --svl-accent-border-strong: rgba(91, 138, 114, 0.3);
-  --svl-error-bg: rgba(199, 80, 80, 0.1);
-  --svl-error-bg-strong: rgba(199, 80, 80, 0.2);
-  --svl-error-border: rgba(199, 80, 80, 0.3);
-  --svl-error-glow: rgba(199, 80, 80, 0.5);
-  --svl-warning-bg: rgba(212, 168, 83, 0.1);
-  --svl-warning-border: rgba(212, 168, 83, 0.3);
-  --svl-warning-border-strong: rgba(212, 168, 83, 0.5);
-  --svl-nexus-border: #5b8a72;
-  --svl-nexus-border-light: #7db89a;
-  --svl-nexus-text: #6b9b82;
-  --svl-nexus-bg: rgba(91, 138, 114, 0.1);
-  --svl-nexus-gradient-from: #3d6b55;
-  --svl-nexus-gradient-to: #5b8a72;
-  --svl-nexus-gradient-hover-from: #4d7b65;
-  --svl-nexus-gradient-hover-to: #6b9b82;
-  --svl-nexus-glow: rgba(91, 138, 114, 0.4);
-  --svl-nexus-focus-glow: rgba(91, 138, 114, 0.2);
-  --svl-text-primary: #d4ddd8;
-  --svl-text-secondary: #a3b5aa;
-  --svl-text-muted: #7a8f82;
-  --svl-text-accent: #7db89a;
-  --svl-text-purple: #7db89a;
-  --svl-border: rgba(140, 210, 170, 0.12);
-  --svl-border-light: rgba(160, 220, 185, 0.25);
-  --svl-success: #5cb87a;
-  --svl-success-bg: rgba(91, 138, 114, 0.1);
-  --svl-success-border: rgba(91, 138, 114, 0.3);
-  --svl-warning: #d4a853;
-  --svl-error: #c75050;
-  --svl-info: #6b9ec4;
-  --svl-info-bg: rgba(107, 158, 196, 0.1);
-  --svl-info-border: rgba(107, 158, 196, 0.3);
-  --svl-good: #7db89a;
-  --svl-good-dark: #5b8a72;
-  --svl-fair-dark: #b8903f;
-  --svl-poor: #c77050;
-  --svl-poor-dark: #a85a3a;
-  --svl-critical-dark: #a83a3a;
-  --svl-surface-hover: rgba(91, 138, 114, 0.1);
-  --svl-surface-subtle: rgba(91, 138, 114, 0.05);
-  --svl-surface-faint: rgba(91, 138, 114, 0.04);
-  --svl-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-  --svl-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.3);
+html.mint-green {
+  --svl-bg-primary: #0d2b1f;
+  --svl-bg-secondary: #153d2c;
+  --svl-bg-card: #1a4a36;
+  --svl-bg-card-hover: #225c44;
+  --svl-bg-footer: #0a1f16;
+  --svl-bg-hover: rgba(16, 185, 129, 0.15);
+  --svl-primary: #10B981;
+  --svl-primary-hover: #34D399;
+  --svl-primary-light: #6EE7B7;
+  --svl-primary-glow: rgba(16, 185, 129, 0.4);
+  --svl-accent: #34D399;
+  --svl-accent-hover: #6EE7B7;
+  --svl-accent-light: #a7f3d0;
+  --svl-accent-glow: rgba(52, 211, 153, 0.45);
+  --svl-accent-bg-subtle: rgba(16, 185, 129, 0.08);
+  --svl-accent-bg-light: rgba(16, 185, 129, 0.12);
+  --svl-accent-bg: rgba(16, 185, 129, 0.18);
+  --svl-accent-bg-medium: rgba(16, 185, 129, 0.25);
+  --svl-accent-bg-strong: rgba(16, 185, 129, 0.35);
+  --svl-accent-border-subtle: rgba(16, 185, 129, 0.2);
+  --svl-accent-border-light: rgba(16, 185, 129, 0.3);
+  --svl-accent-border: rgba(16, 185, 129, 0.4);
+  --svl-accent-border-medium: rgba(16, 185, 129, 0.5);
+  --svl-accent-border-strong: rgba(16, 185, 129, 0.6);
+  --svl-error-bg: rgba(239, 68, 68, 0.08);
+  --svl-error-bg-strong: rgba(239, 68, 68, 0.15);
+  --svl-error-border: rgba(239, 68, 68, 0.3);
+  --svl-error-glow: rgba(239, 68, 68, 0.4);
+  --svl-warning-bg: rgba(245, 158, 11, 0.08);
+  --svl-warning-border: rgba(245, 158, 11, 0.3);
+  --svl-warning-border-strong: rgba(245, 158, 11, 0.45);
+  --svl-nexus-border: #34d399;
+  --svl-nexus-border-light: #6EE7B7;
+  --svl-nexus-text: #34d399;
+  --svl-nexus-bg: rgba(16, 185, 129, 0.12);
+  --svl-nexus-gradient-from: #059669;
+  --svl-nexus-gradient-to: #34d399;
+  --svl-nexus-gradient-hover-from: #10b981;
+  --svl-nexus-gradient-hover-to: #6EE7B7;
+  --svl-nexus-glow: rgba(16, 185, 129, 0.45);
+  --svl-nexus-focus-glow: rgba(16, 185, 129, 0.25);
+  --svl-text-primary: #ecfdf5;
+  --svl-text-secondary: #a7f3d0;
+  --svl-text-muted: #059669;
+  --svl-text-accent: #34D399;
+  --svl-text-purple: #34D399;
+  --svl-border: rgba(16, 185, 129, 0.25);
+  --svl-border-light: rgba(52, 211, 153, 0.4);
+  --svl-success: #34d399;
+  --svl-success-bg: rgba(16, 185, 129, 0.12);
+  --svl-success-border: rgba(16, 185, 129, 0.35);
+  --svl-warning: #fbbf24;
+  --svl-error: #f87171;
+  --svl-info: #38bdf8;
+  --svl-info-bg: rgba(14, 165, 233, 0.08);
+  --svl-info-border: rgba(14, 165, 233, 0.25);
+  --svl-good: #34d399;
+  --svl-good-dark: #10b981;
+  --svl-fair-dark: #f59e0b;
+  --svl-poor: #f97316;
+  --svl-poor-dark: #ea580c;
+  --svl-critical-dark: #dc2626;
+  --svl-surface-hover: rgba(16, 185, 129, 0.08);
+  --svl-surface-subtle: rgba(16, 185, 129, 0.05);
+  --svl-surface-faint: rgba(16, 185, 129, 0.03);
+  --svl-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --svl-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.1);
   --svl-shadow-glow: 0 0 12px var(--svl-primary-glow);
 }
 
@@ -202,946 +202,936 @@ html.eye-care {
   left: calc(100% - 14px);
 }
 
-html.eye-care .svl-logo-icon {
-  color: var(--svl-primary);
-  text-shadow: 2px 2px 0 var(--svl-accent-glow), -1px -1px 0 var(--svl-primary-light);
-}
-
-html.eye-care .svl-logo-icon::before {
-  background: var(--svl-success);
-  box-shadow: 0 0 6px var(--svl-accent-glow);
-}
-
-html.eye-care .svl-filter-btn.active,
-html.eye-care .svl-view-btn.active,
-html.eye-care .svl-launch-btn,
-html.eye-care .svl-detect-btn,
-html.eye-care .svl-health-scan-btn,
-html.eye-care .svl-log-parser-btn.primary,
-html.eye-care .svl-profile-btn-primary,
-html.eye-care .svl-health-solution-btn:hover {
+html.mint-green .svl-filter-btn.active,
+html.mint-green .svl-view-btn.active,
+html.mint-green .svl-launch-btn,
+html.mint-green .svl-detect-btn,
+html.mint-green .svl-health-scan-btn,
+html.mint-green .svl-log-parser-btn.primary,
+html.mint-green .svl-profile-btn-primary,
+html.mint-green .svl-health-solution-btn:hover {
   color: #fff;
 }
 
-html.eye-care .svl-switch-thumb {
+html.mint-green .svl-switch-thumb {
   background-color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-mod-group {
+html.mint-green .svl-mod-group {
   border-left-color: var(--svl-primary-light);
   background: linear-gradient(135deg, var(--svl-accent-bg-light) 0%, var(--svl-bg-card) 100%);
 }
 
-html.eye-care .svl-mod-group:hover {
+html.mint-green .svl-mod-group:hover {
   border-color: var(--svl-primary-hover);
   background: linear-gradient(135deg, var(--svl-accent-bg) 0%, var(--svl-bg-card) 100%);
 }
 
-html.eye-care .svl-download-smapi-btn {
+html.mint-green .svl-download-smapi-btn {
   background: var(--svl-primary);
   color: #fff;
 }
 
-html.eye-care .svl-download-smapi-btn:hover {
+html.mint-green .svl-download-smapi-btn:hover {
   background: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-health-score-circle {
+html.mint-green .svl-health-score-circle {
   color: #fff;
 }
 
-html.eye-care .svl-health-score-circle.excellent {
+html.mint-green .svl-health-score-circle.excellent {
   background: linear-gradient(135deg, var(--svl-success), var(--svl-accent));
 }
 
-html.eye-care .svl-health-score-circle.good {
+html.mint-green .svl-health-score-circle.good {
   background: linear-gradient(135deg, var(--svl-primary-light), var(--svl-primary));
 }
 
-html.eye-care .svl-health-score-circle.fair { background: linear-gradient(135deg, var(--svl-warning), var(--svl-fair-dark)); }
+html.mint-green .svl-health-score-circle.fair { background: linear-gradient(135deg, var(--svl-warning), var(--svl-fair-dark)); }
 
-html.eye-care .svl-health-score-circle.poor { background: linear-gradient(135deg, var(--svl-poor), var(--svl-poor-dark)); }
+html.mint-green .svl-health-score-circle.poor { background: linear-gradient(135deg, var(--svl-poor), var(--svl-poor-dark)); }
 
-html.eye-care .svl-health-score-circle.critical { background: linear-gradient(135deg, var(--svl-error), var(--svl-critical-dark)); }
+html.mint-green .svl-health-score-circle.critical { background: linear-gradient(135deg, var(--svl-error), var(--svl-critical-dark)); }
 
-html.eye-care .svl-install-progress {
+html.mint-green .svl-install-progress {
   background-color: var(--svl-accent-bg);
   border-color: var(--svl-accent-border-strong);
 }
 
-html.eye-care .svl-install-progress-text {
+html.mint-green .svl-install-progress-text {
   color: var(--svl-primary-light);
 }
 
-html.eye-care .svl-install-spinner {
+html.mint-green .svl-install-spinner {
   border-color: var(--svl-accent-border);
   border-top-color: var(--svl-primary);
 }
 
-html.eye-care .svl-install-progress--large .svl-install-spinner {
+html.mint-green .svl-install-progress--large .svl-install-spinner {
   border-color: var(--svl-accent-border);
   border-top-color: var(--svl-primary);
 }
 
-html.eye-care .svl-dropzone-wrapper--dragover .svl-dropzone .ant-upload-drag {
+html.mint-green .svl-dropzone-wrapper--dragover .svl-dropzone .ant-upload-drag {
   border-color: var(--svl-primary) !important;
   background-color: var(--svl-accent-bg) !important;
   box-shadow: 0 0 16px var(--svl-accent-border-medium) !important;
 }
 
-html.eye-care .svl-dropzone--dragover .ant-upload-drag-icon .anticon {
+html.mint-green .svl-dropzone--dragover .ant-upload-drag-icon .anticon {
   color: var(--svl-primary-light) !important;
 }
 
-html.eye-care .svl-dropzone .ant-upload-drag:hover {
+html.mint-green .svl-dropzone .ant-upload-drag:hover {
   border-color: var(--svl-primary) !important;
   background-color: var(--svl-accent-bg-light) !important;
 }
 
-html.eye-care .svl-dropzone .ant-upload-drag-icon .anticon {
+html.mint-green .svl-dropzone .ant-upload-drag-icon .anticon {
   color: var(--svl-primary) !important;
 }
 
-html.eye-care .svl-nav-item.active {
+html.mint-green .svl-nav-item.active {
   background-color: var(--svl-accent-bg-strong);
   border-color: var(--svl-accent-border-strong);
 }
 
-html.eye-care .svl-nav-item.active::before {
+html.mint-green .svl-nav-item.active::before {
   background: linear-gradient(180deg, var(--svl-primary), var(--svl-primary-light));
 }
 
-html.eye-care .svl-install-smapi-wrapper:hover .svl-smapi-link-hint {
+html.mint-green .svl-install-smapi-wrapper:hover .svl-smapi-link-hint {
   color: var(--svl-primary-light);
 }
 
-html.eye-care .svl-install-error-link:hover {
+html.mint-green .svl-install-error-link:hover {
   color: var(--svl-primary-light);
 }
 
-html.eye-care .svl-install-smapi-btn:hover {
+html.mint-green .svl-install-smapi-btn:hover {
   background-color: var(--svl-error-bg-strong);
   box-shadow: 0 2px 8px var(--svl-error-border);
 }
 
-html.eye-care .svl-launch-btn:hover {
-  box-shadow: 0 4px 16px rgba(91, 138, 114, 0.5), 0 0 24px rgba(91, 138, 114, 0.2);
+html.mint-green .svl-launch-btn:hover {
+  box-shadow: 0 4px 16px var(--svl-primary-glow), 0 0 24px var(--svl-primary-glow);
 }
 
-html.eye-care .svl-health-scan-btn:hover {
+html.mint-green .svl-health-scan-btn:hover {
   box-shadow: 0 4px 12px var(--svl-accent-glow);
 }
 
-html.eye-care .svl-log-parser-btn.primary:hover {
+html.mint-green .svl-log-parser-btn.primary:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-profile-btn-primary:hover {
+html.mint-green .svl-profile-btn-primary:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-profile-btn-secondary:hover {
+html.mint-green .svl-profile-btn-secondary:hover {
   border-color: var(--svl-primary);
   background-color: var(--svl-bg-card-hover);
 }
 
-html.eye-care .svl-profile-create-form input:focus {
+html.mint-green .svl-profile-create-form input:focus {
   border-color: var(--svl-primary);
 }
 
-html.eye-care .svl-profile-list-item:hover {
+html.mint-green .svl-profile-list-item:hover {
   border-color: var(--svl-border-light);
 }
 
-html.eye-care .svl-sort select:hover {
+html.mint-green .svl-sort select:hover {
   border-color: var(--svl-primary);
 }
 
-html.eye-care .svl-view-btn:hover {
+html.mint-green .svl-view-btn:hover {
   border-color: var(--svl-border-light);
 }
 
-html.eye-care .svl-change-btn:hover {
+html.mint-green .svl-change-btn:hover {
   border-color: var(--svl-primary);
   color: var(--svl-primary-light);
 }
 
-html.eye-care .svl-open-game-dir-btn:hover {
+html.mint-green .svl-open-game-dir-btn:hover {
   border-color: var(--svl-primary);
   color: var(--svl-primary);
   background-color: var(--svl-accent-bg);
 }
 
-html.eye-care .svl-log-btn:hover {
+html.mint-green .svl-log-btn:hover {
   border-color: var(--svl-primary);
   color: var(--svl-primary-light);
 }
 
-html.eye-care .svl-mod-link:hover {
+html.mint-green .svl-mod-link:hover {
   color: var(--svl-primary);
 }
 
-html.eye-care .svl-mod-card.has-conflict {
+html.mint-green .svl-mod-card.has-conflict {
   border-color: var(--svl-warning-border);
 }
 
-html.eye-care .svl-mod-card.has-conflict:hover {
+html.mint-green .svl-mod-card.has-conflict:hover {
   border-color: var(--svl-warning-border-strong);
 }
 
-html.eye-care .svl-status-dot {
+html.mint-green .svl-status-dot {
   background-color: var(--svl-success);
   box-shadow: 0 0 6px var(--svl-accent-glow);
 }
 
-html.eye-care .svl-status-dot.disconnected {
+html.mint-green .svl-status-dot.disconnected {
   background-color: var(--svl-error);
   box-shadow: 0 0 6px var(--svl-error-glow);
 }
 
-html.eye-care .svl-empty-title--error {
+html.mint-green .svl-empty-title--error {
   color: var(--svl-error) !important;
 }
 
-html.eye-care .svl-install-smapi-btn {
+html.mint-green .svl-install-smapi-btn {
   border-color: var(--svl-error);
   background-color: var(--svl-error-bg);
   color: var(--svl-error);
 }
 
-html.eye-care .svl-game-status--found {
+html.mint-green .svl-game-status--found {
   color: var(--svl-success);
 }
 
-html.eye-care .svl-game-status--not-found {
+html.mint-green .svl-game-status--not-found {
   color: var(--svl-error);
 }
 
-html.eye-care .svl-health-issue-item {
+html.mint-green .svl-health-issue-item {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-health-issue-item:hover {
+html.mint-green .svl-health-issue-item:hover {
   border-color: var(--svl-border-light);
 }
 
-html.eye-care .svl-health-issue-type {
+html.mint-green .svl-health-issue-type {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-health-issue-desc {
+html.mint-green .svl-health-issue-desc {
   color: var(--svl-text-secondary);
 }
 
-html.eye-care .svl-health-solution {
+html.mint-green .svl-health-solution {
   background-color: var(--svl-bg-secondary);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-health-solution-title {
+html.mint-green .svl-health-solution-title {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-health-solution-desc {
+html.mint-green .svl-health-solution-desc {
   color: var(--svl-text-secondary);
 }
 
-html.eye-care .svl-health-solution-btn {
+html.mint-green .svl-health-solution-btn {
   border-color: var(--svl-primary);
   color: var(--svl-primary-light);
 }
 
-html.eye-care .svl-log-parser-result {
+html.mint-green .svl-log-parser-result {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-log-parser-result:hover {
+html.mint-green .svl-log-parser-result:hover {
   border-color: var(--svl-border-light);
 }
 
-html.eye-care .svl-log-parser-result-type {
+html.mint-green .svl-log-parser-result-type {
   color: #fff;
 }
 
-html.eye-care .svl-log-parser-result-type.error {
+html.mint-green .svl-log-parser-result-type.error {
   background-color: var(--svl-error);
 }
 
-html.eye-care .svl-log-parser-result-type.warning {
+html.mint-green .svl-log-parser-result-type.warning {
   background-color: var(--svl-warning);
 }
 
-html.eye-care .svl-log-parser-result-type.info {
+html.mint-green .svl-log-parser-result-type.info {
   background-color: var(--svl-primary);
 }
 
-html.eye-care .svl-log-parser-result-header {
+html.mint-green .svl-log-parser-result-header {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-log-parser-result-desc {
+html.mint-green .svl-log-parser-result-desc {
   color: var(--svl-text-secondary);
 }
 
-html.eye-care .svl-log-parser-result-solution {
+html.mint-green .svl-log-parser-result-solution {
   background-color: var(--svl-bg-secondary);
   border-color: var(--svl-border);
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-sync-tab {
+html.mint-green .svl-sync-tab {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-sync-tab:hover {
+html.mint-green .svl-sync-tab:hover {
   border-color: var(--svl-primary);
 }
 
-html.eye-care .svl-sync-tab.active {
+html.mint-green .svl-sync-tab.active {
   border-color: var(--svl-primary);
   background-color: var(--svl-accent-bg);
 }
 
-html.eye-care .svl-sync-tab-name {
+html.mint-green .svl-sync-tab-name {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-sync-tab-desc {
+html.mint-green .svl-sync-tab-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-sync-content {
+html.mint-green .svl-sync-content {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-sync-header {
+html.mint-green .svl-sync-header {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-sync-header-title {
+html.mint-green .svl-sync-header-title {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-sync-header-desc {
+html.mint-green .svl-sync-header-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-sync-actions {
+html.mint-green .svl-sync-actions {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-sync-btn {
+html.mint-green .svl-sync-btn {
   border-color: var(--svl-primary);
   background-color: var(--svl-primary);
   color: #fff;
 }
 
-html.eye-care .svl-sync-btn:hover {
+html.mint-green .svl-sync-btn:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-sync-btn:disabled {
+html.mint-green .svl-sync-btn:disabled {
   background-color: var(--svl-border);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-sync-btn-secondary {
+html.mint-green .svl-sync-btn-secondary {
   border-color: var(--svl-border);
   background-color: var(--svl-bg-secondary);
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-sync-btn-secondary:hover {
+html.mint-green .svl-sync-btn-secondary:hover {
   border-color: var(--svl-primary);
   background-color: var(--svl-bg-card-hover);
 }
 
-html.eye-care .svl-sync-list-item {
+html.mint-green .svl-sync-list-item {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-sync-list-item:hover {
+html.mint-green .svl-sync-list-item:hover {
   border-color: var(--svl-border-light);
 }
 
-html.eye-care .svl-sync-list-item-name {
+html.mint-green .svl-sync-list-item-name {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-sync-list-item-desc {
+html.mint-green .svl-sync-list-item-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-sync-diff-table {
+html.mint-green .svl-sync-diff-table {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-sync-diff-table th {
+html.mint-green .svl-sync-diff-table th {
   background-color: var(--svl-bg-secondary);
   color: var(--svl-text-primary);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-sync-diff-table td {
+html.mint-green .svl-sync-diff-table td {
   color: var(--svl-text-primary);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-sync-diff-table tr:hover td {
+html.mint-green .svl-sync-diff-table tr:hover td {
   background-color: var(--svl-bg-card-hover);
 }
 
-html.eye-care .svl-sync-diff-table .missing {
+html.mint-green .svl-sync-diff-table .missing {
   color: var(--svl-error);
 }
 
-html.eye-care .svl-sync-diff-table .mismatch {
+html.mint-green .svl-sync-diff-table .mismatch {
   color: var(--svl-warning);
 }
 
-html.eye-care .svl-sync-diff-table .match {
+html.mint-green .svl-sync-diff-table .match {
   color: var(--svl-success);
 }
 
-html.eye-care .svl-sync-apply-btn {
+html.mint-green .svl-sync-apply-btn {
   border-color: var(--svl-primary);
   background-color: var(--svl-primary);
   color: #fff;
 }
 
-html.eye-care .svl-sync-apply-btn:hover {
+html.mint-green .svl-sync-apply-btn:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-sync-apply-btn:disabled {
+html.mint-green .svl-sync-apply-btn:disabled {
   background-color: var(--svl-border);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-sync-apply-list {
+html.mint-green .svl-sync-apply-list {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-sync-apply-item {
+html.mint-green .svl-sync-apply-item {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-sync-apply-item:hover {
+html.mint-green .svl-sync-apply-item:hover {
   border-color: var(--svl-border-light);
 }
 
-html.eye-care .svl-sync-apply-item-name {
+html.mint-green .svl-sync-apply-item-name {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-sync-apply-item-desc {
+html.mint-green .svl-sync-apply-item-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-sync-apply-item-status {
+html.mint-green .svl-sync-apply-item-status {
   color: var(--svl-success);
 }
 
-html.eye-care .svl-sync-apply-item-status.missing {
+html.mint-green .svl-sync-apply-item-status.missing {
   color: var(--svl-error);
 }
 
-html.eye-care .svl-sync-apply-item-status.mismatch {
+html.mint-green .svl-sync-apply-item-status.mismatch {
   color: var(--svl-warning);
 }
 
-html.eye-care .svl-sync-page-card {
+html.mint-green .svl-sync-page-card {
   background-color: var(--svl-bg-card);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-sync-page-icon {
+html.mint-green .svl-sync-page-icon {
   color: var(--svl-primary);
 }
 
-html.eye-care .svl-saves-title {
+html.mint-green .svl-saves-title {
   color: var(--svl-primary);
 }
 
-html.eye-care .svl-profiles-page-card {
+html.mint-green .svl-profiles-page-card {
   background-color: var(--svl-bg-card);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-profiles-page-icon {
+html.mint-green .svl-profiles-page-icon {
   color: var(--svl-primary);
 }
 
-html.eye-care .svl-create-profile-btn {
+html.mint-green .svl-create-profile-btn {
   background-color: var(--svl-primary);
   color: #fff;
 }
 
-html.eye-care .svl-create-profile-btn:hover {
+html.mint-green .svl-create-profile-btn:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-donate-card {
+html.mint-green .svl-donate-card {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-donate-card:hover {
+html.mint-green .svl-donate-card:hover {
   border-color: var(--svl-primary);
 }
 
-html.eye-care .svl-donate-card-title {
+html.mint-green .svl-donate-card-title {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-donate-card-desc {
+html.mint-green .svl-donate-card-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-donate-card-amount {
+html.mint-green .svl-donate-card-amount {
   color: var(--svl-primary-light);
 }
 
-html.eye-care .svl-donate-card-btn {
+html.mint-green .svl-donate-card-btn {
   border-color: var(--svl-primary);
   background-color: var(--svl-primary);
   color: #fff;
 }
 
-html.eye-care .svl-donate-card-btn:hover {
+html.mint-green .svl-donate-card-btn:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-donate-qr-code {
+html.mint-green .svl-donate-qr-code {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-donate-qr-code:hover {
+html.mint-green .svl-donate-qr-code:hover {
   border-color: var(--svl-primary);
 }
 
-html.eye-care .svl-donate-qr-title {
+html.mint-green .svl-donate-qr-title {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-nexus-api-status {
+html.mint-green .svl-nexus-api-status {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-nexus-api-status.connected {
+html.mint-green .svl-nexus-api-status.connected {
   border-color: var(--svl-success);
 }
 
-html.eye-care .svl-nexus-api-status.disconnected {
+html.mint-green .svl-nexus-api-status.disconnected {
   border-color: var(--svl-error);
 }
 
-html.eye-care .svl-nexus-api-status-text {
+html.mint-green .svl-nexus-api-status-text {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-nexus-api-status-desc {
+html.mint-green .svl-nexus-api-status-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-nexus-api-btn {
+html.mint-green .svl-nexus-api-btn {
   border-color: var(--svl-primary);
   background-color: var(--svl-primary);
   color: #fff;
 }
 
-html.eye-care .svl-nexus-api-btn:hover {
+html.mint-green .svl-nexus-api-btn:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-nexus-api-btn:disabled {
+html.mint-green .svl-nexus-api-btn:disabled {
   background-color: var(--svl-border);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-nexus-api-input {
+html.mint-green .svl-nexus-api-input {
   border-color: var(--svl-border);
   background-color: var(--svl-bg-primary);
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-nexus-api-input:focus {
+html.mint-green .svl-nexus-api-input:focus {
   border-color: var(--svl-primary);
 }
 
-html.eye-care .svl-nexus-api-input::placeholder {
+html.mint-green .svl-nexus-api-input::placeholder {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-nexus-api-desc {
+html.mint-green .svl-nexus-api-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-nexus-api-hint {
+html.mint-green .svl-nexus-api-hint {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-nexus-api-error {
+html.mint-green .svl-nexus-api-error {
   color: var(--svl-error);
 }
 
-html.eye-care .svl-nexus-api-success {
+html.mint-green .svl-nexus-api-success {
   color: var(--svl-success);
 }
 
-html.eye-care .svl-network-diag-card {
+html.mint-green .svl-network-diag-card {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-network-diag-card:hover {
+html.mint-green .svl-network-diag-card:hover {
   border-color: var(--svl-primary);
 }
 
-html.eye-care .svl-network-diag-title {
+html.mint-green .svl-network-diag-title {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-network-diag-desc {
+html.mint-green .svl-network-diag-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-network-diag-btn {
+html.mint-green .svl-network-diag-btn {
   border-color: var(--svl-primary);
   background-color: var(--svl-primary);
   color: #fff;
 }
 
-html.eye-care .svl-network-diag-btn:hover {
+html.mint-green .svl-network-diag-btn:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-network-diag-btn:disabled {
+html.mint-green .svl-network-diag-btn:disabled {
   background-color: var(--svl-border);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-network-diag-result {
+html.mint-green .svl-network-diag-result {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-network-diag-result:hover {
+html.mint-green .svl-network-diag-result:hover {
   border-color: var(--svl-border-light);
 }
 
-html.eye-care .svl-network-diag-result-title {
+html.mint-green .svl-network-diag-result-title {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-network-diag-result-desc {
+html.mint-green .svl-network-diag-result-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-network-diag-result-status {
+html.mint-green .svl-network-diag-result-status {
   color: var(--svl-success);
 }
 
-html.eye-care .svl-network-diag-result-status.error {
+html.mint-green .svl-network-diag-result-status.error {
   color: var(--svl-error);
 }
 
-html.eye-care .svl-network-diag-result-status.warning {
+html.mint-green .svl-network-diag-result-status.warning {
   color: var(--svl-warning);
 }
 
-html.eye-care .svl-save-list-item {
+html.mint-green .svl-save-list-item {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-save-list-item:hover {
+html.mint-green .svl-save-list-item:hover {
   border-color: var(--svl-border-light);
 }
 
-html.eye-care .svl-save-list-item-name {
+html.mint-green .svl-save-list-item-name {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-save-list-item-desc {
+html.mint-green .svl-save-list-item-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-save-list-item-actions {
+html.mint-green .svl-save-list-item-actions {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-save-list-item-btn {
+html.mint-green .svl-save-list-item-btn {
   border-color: var(--svl-primary);
   background-color: var(--svl-primary);
   color: #fff;
 }
 
-html.eye-care .svl-save-list-item-btn:hover {
+html.mint-green .svl-save-list-item-btn:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-save-list-item-btn:disabled {
+html.mint-green .svl-save-list-item-btn:disabled {
   background-color: var(--svl-border);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-save-list-item-btn-secondary {
+html.mint-green .svl-save-list-item-btn-secondary {
   border-color: var(--svl-border);
   background-color: var(--svl-bg-secondary);
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-save-list-item-btn-secondary:hover {
+html.mint-green .svl-save-list-item-btn-secondary:hover {
   border-color: var(--svl-primary);
   background-color: var(--svl-bg-card-hover);
 }
 
-html.eye-care .svl-save-create-form {
+html.mint-green .svl-save-create-form {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-save-create-form input {
+html.mint-green .svl-save-create-form input {
   border-color: var(--svl-border);
   background-color: var(--svl-bg-primary);
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-save-create-form input:focus {
+html.mint-green .svl-save-create-form input:focus {
   border-color: var(--svl-primary);
 }
 
-html.eye-care .svl-save-create-form input::placeholder {
+html.mint-green .svl-save-create-form input::placeholder {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-save-create-form-btn {
+html.mint-green .svl-save-create-form-btn {
   border-color: var(--svl-primary);
   background-color: var(--svl-primary);
   color: #fff;
 }
 
-html.eye-care .svl-save-create-form-btn:hover {
+html.mint-green .svl-save-create-form-btn:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-save-create-form-btn:disabled {
+html.mint-green .svl-save-create-form-btn:disabled {
   background-color: var(--svl-border);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-save-create-form-btn-secondary {
+html.mint-green .svl-save-create-form-btn-secondary {
   border-color: var(--svl-border);
   background-color: var(--svl-bg-secondary);
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-save-create-form-btn-secondary:hover {
+html.mint-green .svl-save-create-form-btn-secondary:hover {
   border-color: var(--svl-primary);
   background-color: var(--svl-bg-card-hover);
 }
 
-html.eye-care .svl-profile-compare-card {
+html.mint-green .svl-profile-compare-card {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-profile-compare-card:hover {
+html.mint-green .svl-profile-compare-card:hover {
   border-color: var(--svl-primary);
 }
 
-html.eye-care .svl-profile-compare-title {
+html.mint-green .svl-profile-compare-title {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-profile-compare-desc {
+html.mint-green .svl-profile-compare-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-profile-compare-btn {
+html.mint-green .svl-profile-compare-btn {
   border-color: var(--svl-primary);
   background-color: var(--svl-primary);
   color: #fff;
 }
 
-html.eye-care .svl-profile-compare-btn:hover {
+html.mint-green .svl-profile-compare-btn:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-profile-compare-btn:disabled {
+html.mint-green .svl-profile-compare-btn:disabled {
   background-color: var(--svl-border);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-profile-copy-card {
+html.mint-green .svl-profile-copy-card {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-profile-copy-card:hover {
+html.mint-green .svl-profile-copy-card:hover {
   border-color: var(--svl-primary);
 }
 
-html.eye-care .svl-profile-copy-title {
+html.mint-green .svl-profile-copy-title {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-profile-copy-desc {
+html.mint-green .svl-profile-copy-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-profile-copy-btn {
+html.mint-green .svl-profile-copy-btn {
   border-color: var(--svl-primary);
   background-color: var(--svl-primary);
   color: #fff;
 }
 
-html.eye-care .svl-profile-copy-btn:hover {
+html.mint-green .svl-profile-copy-btn:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-profile-copy-btn:disabled {
+html.mint-green .svl-profile-copy-btn:disabled {
   background-color: var(--svl-border);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-conflict-card {
+html.mint-green .svl-conflict-card {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-conflict-card:hover {
+html.mint-green .svl-conflict-card:hover {
   border-color: var(--svl-primary);
 }
 
-html.eye-care .svl-conflict-title {
+html.mint-green .svl-conflict-title {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-conflict-desc {
+html.mint-green .svl-conflict-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-conflict-btn {
+html.mint-green .svl-conflict-btn {
   border-color: var(--svl-primary);
   background-color: var(--svl-primary);
   color: #fff;
 }
 
-html.eye-care .svl-conflict-btn:hover {
+html.mint-green .svl-conflict-btn:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-conflict-btn:disabled {
+html.mint-green .svl-conflict-btn:disabled {
   background-color: var(--svl-border);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-mod-install-progress {
+html.mint-green .svl-mod-install-progress {
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-mod-install-progress:hover {
+html.mint-green .svl-mod-install-progress:hover {
   border-color: var(--svl-primary);
 }
 
-html.eye-care .svl-mod-install-title {
+html.mint-green .svl-mod-install-title {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-mod-install-desc {
+html.mint-green .svl-mod-install-desc {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-mod-install-status {
+html.mint-green .svl-mod-install-status {
   color: var(--svl-success);
 }
 
-html.eye-care .svl-mod-install-status.error {
+html.mint-green .svl-mod-install-status.error {
   color: var(--svl-error);
 }
 
-html.eye-care .svl-mod-install-status.warning {
+html.mint-green .svl-mod-install-status.warning {
   color: var(--svl-warning);
 }
 
-html.eye-care .svl-mod-install-bar {
+html.mint-green .svl-mod-install-bar {
   background-color: var(--svl-primary);
 }
 
-html.eye-care .svl-mod-install-bar.error {
+html.mint-green .svl-mod-install-bar.error {
   background-color: var(--svl-error);
 }
 
-html.eye-care .svl-mod-install-bar.warning {
+html.mint-green .svl-mod-install-bar.warning {
   background-color: var(--svl-warning);
 }
 
-html.eye-care .svl-mod-install-bar.success {
+html.mint-green .svl-mod-install-bar.success {
   background-color: var(--svl-success);
 }
 
-html.eye-care .svl-mod-install-spinner {
+html.mint-green .svl-mod-install-spinner {
   border-color: var(--svl-accent-border);
   border-top-color: var(--svl-primary);
 }
 
-html.eye-care .svl-mod-install-check {
+html.mint-green .svl-mod-install-check {
   color: var(--svl-success);
 }
 
-html.eye-care .svl-mod-install-error {
+html.mint-green .svl-mod-install-error {
   color: var(--svl-error);
 }
 
-html.eye-care .svl-mod-install-warning {
+html.mint-green .svl-mod-install-warning {
   color: var(--svl-warning);
 }
 
-html.eye-care .svl-mod-install-info {
+html.mint-green .svl-mod-install-info {
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-mod-install-hint {
+html.mint-green .svl-mod-install-hint {
   color: var(--svl-text-muted);
 }
 
-html.eye-care .svl-mod-install-link {
+html.mint-green .svl-mod-install-link {
   color: var(--svl-primary);
 }
 
-html.eye-care .svl-mod-install-link:hover {
+html.mint-green .svl-mod-install-link:hover {
   color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-mod-install-btn {
+html.mint-green .svl-mod-install-btn {
   border-color: var(--svl-primary);
   background-color: var(--svl-primary);
   color: #fff;
 }
 
-html.eye-care .svl-mod-install-btn:hover {
+html.mint-green .svl-mod-install-btn:hover {
   background-color: var(--svl-primary-hover);
 }
 
-html.eye-care .svl-mod-install-btn:disabled {
+html.mint-green .svl-mod-install-btn:disabled {
   background-color: var(--svl-border);
   border-color: var(--svl-border);
 }
 
-html.eye-care .svl-mod-install-btn-secondary {
+html.mint-green .svl-mod-install-btn-secondary {
   border-color: var(--svl-border);
   background-color: var(--svl-bg-secondary);
   color: var(--svl-text-primary);
 }
 
-html.eye-care .svl-mod-install-btn-secondary:hover {
+html.mint-green .svl-mod-install-btn-secondary:hover {
   border-color: var(--svl-primary);
   background-color: var(--svl-bg-card-hover);
 }
 
-html.eye-care .svl-titlebar-btn:hover {
+html.mint-green .svl-titlebar-btn:hover {
   background-color: var(--svl-accent-bg);
 }
 
-html.eye-care .svl-titlebar-btn-close:hover {
+html.mint-green .svl-titlebar-btn-close:hover {
   background-color: var(--svl-error-bg-strong);
 }
 
-html.eye-care .svl-nav-item-error:hover {
+html.mint-green .svl-nav-item-error:hover {
   background-color: var(--svl-error-bg);
 }
 
@@ -1166,6 +1156,33 @@ body {
 
 html {
   background-color: var(--svl-bg-primary);
+}
+
+body.svl-has-custom-bg {
+  background-color: transparent;
+}
+
+body.svl-has-custom-bg #root {
+  position: relative;
+  z-index: 1;
+}
+
+body.svl-has-custom-bg .svl-sidebar {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+body.svl-has-custom-bg .svl-main {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+body.svl-has-custom-bg .svl-custom-titlebar {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 #root {
@@ -1245,54 +1262,268 @@ textarea,
   align-items: center;
   justify-content: center;
   overflow: visible;
-  padding: 12px 0 8px;
+  padding: 12px 12px 8px;
   min-height: 60px;
   margin-bottom: 4px;
 }
 
-.svl-logo-icon {
-  font-family: 'Press Start 2P', monospace;
-  font-size: 36px;
-  font-weight: 900;
-  color: var(--svl-primary);
-  text-shadow: 2px 2px 0 var(--svl-accent-glow), -1px -1px 0 var(--svl-primary-light);
-  letter-spacing: 2px;
-  line-height: 1;
-  image-rendering: pixelated;
+.svl-daynight-scene {
   position: relative;
-  transition: var(--svl-transition);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px 0 6px;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: background 0.6s ease, box-shadow 0.6s ease;
+  cursor: pointer;
+  user-select: none;
 }
 
-.svl-logo-icon:hover {
+.svl-daynight-scene:hover .svl-daynight-icon {
+  transform: scale(1.18);
+  filter: brightness(1.15);
+}
+
+.svl-daynight-scene:hover .svl-daynight-orb {
   transform: scale(1.05);
-  text-shadow: 2px 2px 0 var(--svl-accent-glow), -1px -1px 0 var(--svl-primary-light), 0 0 16px var(--svl-primary-glow);
 }
 
-.svl-logo-icon::before {
+.svl-daynight-scene.svl-bounce {
+  animation: svl-bounce-click 0.6s ease;
+}
+
+.svl-daynight-scene.svl-bounce .svl-daynight-icon {
+  animation: svl-icon-bounce 0.6s ease;
+}
+
+.svl-click-sparkles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.svl-sparkle-dot {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  animation: svl-sparkle-fly 0.7s ease-out forwards;
+}
+
+.svl-sparkle-dot-1 { top: 35%; left: 25%; background: #FFD700; animation-delay: 0s; }
+.svl-sparkle-dot-2 { top: 25%; right: 30%; background: #FFA500; animation-delay: 0.05s; }
+.svl-sparkle-dot-3 { top: 50%; left: 40%; background: #FFEC8B; animation-delay: 0.1s; }
+.svl-sparkle-dot-4 { top: 40%; right: 20%; background: #87CEEB; animation-delay: 0.08s; }
+.svl-sparkle-dot-5 { top: 55%; left: 20%; background: #DDA0DD; animation-delay: 0.12s; }
+.svl-sparkle-dot-6 { top: 30%; right: 40%; background: #98FB98; animation-delay: 0.06s; }
+
+@keyframes svl-bounce-click {
+  0% { transform: scale(1); }
+  30% { transform: scale(0.92); }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes svl-icon-bounce {
+  0% { transform: scale(1.18) rotate(0deg); }
+  25% { transform: scale(0.85) rotate(-15deg); }
+  50% { transform: scale(1.3) rotate(10deg); }
+  75% { transform: scale(1.05) rotate(-5deg); }
+  100% { transform: scale(1.18) rotate(0deg); }
+}
+
+@keyframes svl-sparkle-fly {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--sx, 15px), var(--sy, -20px)) scale(0); opacity: 0; }
+}
+
+.svl-sparkle-dot-1 { --sx: -18px; --sy: -22px; }
+.svl-sparkle-dot-2 { --sx: 20px; --sy: -18px; }
+.svl-sparkle-dot-3 { --sx: -12px; --sy: 16px; }
+.svl-sparkle-dot-4 { --sx: 22px; --sy: 12px; }
+.svl-sparkle-dot-5 { --sx: -20px; --sy: 8px; }
+.svl-sparkle-dot-6 { --sx: 14px; --sy: -25px; }
+
+.svl-daynight-orb {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  z-index: 2;
+  transition: transform 0.25s ease;
+}
+
+.svl-daynight-icon {
+  width: 36px;
+  height: 36px;
+  image-rendering: pixelated;
+  animation: svl-daynight-float 3s ease-in-out infinite;
+  transition: transform 0.25s ease, filter 0.25s ease, opacity 0.3s ease;
+}
+
+.svl-night-stars {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.svl-night-stars {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+.svl-day-clouds {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.svl-cloud {
+  position: absolute;
+  width: 20px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 4px;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
+  animation: svl-cloud-drift linear infinite;
+}
+
+.svl-cloud::before {
   content: '';
   position: absolute;
-  top: -8px;
-  right: -12px;
-  width: 12px;
-  height: 12px;
-  background: var(--svl-success);
+  width: 10px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.7);
   border-radius: 50%;
-  box-shadow: 0 0 6px var(--svl-accent-glow);
-  animation: pulse-dot 2s ease-in-out infinite;
+  top: -3px;
+  left: 4px;
 }
 
-@keyframes pulse-dot {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.8; }
+.svl-cloud::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  top: -2px;
+  left: 10px;
 }
+
+.svl-cloud-1 { top: 15%; animation-duration: 12s; }
+.svl-cloud-2 { top: 30%; animation-duration: 18s; animation-delay: -5s; opacity: 0.5; transform: scale(0.7); }
+.svl-cloud-3 { top: 45%; animation-duration: 15s; animation-delay: -9s; opacity: 0.6; transform: scale(0.8); }
+
+.svl-transition-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.svl-particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  animation: svl-particle-float 2s ease-out infinite;
+}
+
+.svl-particle-1 {
+  top: 40%;
+  left: 20%;
+  background: #FFD700;
+  box-shadow: 0 0 6px #FFD700;
+  animation-delay: 0s;
+}
+
+.svl-particle-2 {
+  top: 50%;
+  right: 25%;
+  background: #FF8C00;
+  box-shadow: 0 0 6px #FF8C00;
+  animation-delay: 0.7s;
+}
+
+.svl-particle-3 {
+  top: 35%;
+  left: 50%;
+  background: #FFA07A;
+  box-shadow: 0 0 6px #FFA07A;
+  animation-delay: 1.4s;
+}
+
+.svl-star {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: #e8e8ff;
+  border-radius: 50%;
+  animation: svl-star-twinkle 2s ease-in-out infinite;
+}
+
+.svl-star-1 { top: 12%; left: 15%; animation-delay: 0s; }
+.svl-star-2 { top: 20%; right: 18%; animation-delay: 0.5s; }
+.svl-star-3 { top: 35%; left: 10%; animation-delay: 1s; }
+.svl-star-4 { top: 8%; right: 25%; animation-delay: 1.5s; }
+.svl-star-5 { top: 28%; left: 30%; animation-delay: 0.8s; }
 
 .svl-logo-text {
-  font-size: 9px;
-  color: var(--svl-text-muted);
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  margin-top: 8px;
-  font-weight: 500;
+  font-family: 'Press Start 2P', 'Courier New', monospace;
+  font-size: 11px;
+  margin-top: 6px;
+  letter-spacing: 2px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  opacity: 0.85;
+  z-index: 2;
+  transition: color 0.5s ease;
+}
+
+@keyframes svl-daynight-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes svl-cloud-drift {
+  0% { transform: translateX(-30px); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateX(100px); opacity: 0; }
+}
+
+@keyframes svl-particle-float {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-30px) scale(0.3); opacity: 0; }
+}
+
+@keyframes svl-star-twinkle {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
 }
 
 .svl-nav {
@@ -1386,7 +1617,7 @@ textarea,
 
 @keyframes svl-chicken-breathe {
   0%, 100% { filter: brightness(1); transform: translateY(0); }
-  50% { filter: brightness(1.08); transform: translateY(-1px); }
+  50% { filter: brightness(1.08); transform: translateY(-2px); }
 }
 
 @keyframes svl-chicken-blink {
@@ -1396,11 +1627,11 @@ textarea,
 
 @keyframes svl-chicken-wiggle {
   0% { transform: rotate(0deg); }
-  15% { transform: rotate(-10deg); }
-  30% { transform: rotate(10deg); }
-  45% { transform: rotate(-6deg); }
-  60% { transform: rotate(6deg); }
-  75% { transform: rotate(-2deg); }
+  15% { transform: rotate(-25deg); }
+  30% { transform: rotate(25deg); }
+  45% { transform: rotate(-15deg); }
+  60% { transform: rotate(15deg); }
+  75% { transform: rotate(-6deg); }
   100% { transform: rotate(0deg); }
 }
 
@@ -1504,15 +1735,6 @@ textarea,
 .svl-dep-resolver-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.svl-dep-resolver-btn {
-  background-color: #b8792a;
-  border-color: #b8792a;
-}
-
-.svl-dep-resolver-btn:hover:not(:disabled) {
-  background-color: #9a6522;
 }
 
 .svl-batch-update-btn {
@@ -2368,13 +2590,13 @@ textarea,
   padding: 8px 28px;
   border-radius: var(--svl-radius-sm);
   border: none;
-  background: linear-gradient(135deg, #c49a3b 0%, #d4aa4b 50%, #c49a3b 100%);
+  background: linear-gradient(135deg, var(--svl-primary) 0%, var(--svl-primary-hover) 50%, var(--svl-primary) 100%);
   color: white;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: var(--svl-transition);
-  box-shadow: 0 2px 8px rgba(196, 154, 59, 0.35), 0 0 16px rgba(196, 154, 59, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px var(--svl-primary-glow), 0 0 16px var(--svl-primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   font-family: 'Outfit', sans-serif;
   letter-spacing: 0.5px;
   position: relative;
@@ -2398,9 +2620,9 @@ textarea,
 }
 
 .svl-launch-btn:hover {
-  box-shadow: 0 4px 16px rgba(196, 154, 59, 0.5), 0 0 24px rgba(196, 154, 59, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 16px var(--svl-primary-glow), 0 0 24px var(--svl-primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   transform: translateY(-1px);
-  background: linear-gradient(135deg, #d4aa4b 0%, #e0b855 50%, #d4aa4b 100%);
+  background: linear-gradient(135deg, var(--svl-primary-hover) 0%, var(--svl-primary-light) 50%, var(--svl-primary-hover) 100%);
 }
 
 .svl-launch-btn:disabled {
@@ -5352,15 +5574,20 @@ textarea,
   border-radius: 8px;
   border: 1px solid var(--svl-border);
   background: var(--svl-bg-card);
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 10px;
+}
+
+.svl-theme-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--svl-text-primary);
+  margin-bottom: 10px;
 }
 
 .svl-theme-color-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 6px;
 }
 
 .svl-theme-color-label {
@@ -5387,6 +5614,21 @@ textarea,
 .svl-theme-color-picker::-webkit-color-swatch {
   border: none;
   border-radius: 2px;
+}
+
+.svl-theme-auto-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 6px;
+}
+
+.svl-theme-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
 }
 
 .svl-main {

@@ -1,8 +1,10 @@
-import { useMemo, useState, useRef, useCallback } from 'react';
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ModInfo } from '../utils/tauri-api';
+import type { ModNameTranslation } from '../utils/tauri-api';
+import { getModNameTranslations, translateModName, batchTranslateModNames, deleteModNameTranslation, clearAllModNameTranslations } from '../utils/tauri-api';
 import { Tooltip, Modal, Dropdown, message } from 'antd';
-import { FolderOpenOutlined, LinkOutlined, DeleteOutlined, SyncOutlined, CheckOutlined, CloseOutlined, SettingOutlined, HistoryOutlined } from '@ant-design/icons';
+import { FolderOpenOutlined, LinkOutlined, DeleteOutlined, SyncOutlined, CheckOutlined, CloseOutlined, SettingOutlined, HistoryOutlined, TranslationOutlined } from '@ant-design/icons';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '../utils/openUrl';
@@ -66,6 +68,7 @@ function getModStatus(mod: ModInfo): { icon: string; label: string; className: s
 export default function ModList({
   mods,
   loading,
+  onRefresh,
   onToggleMod,
   onDeleteMod,
   onSelectMod,
@@ -83,7 +86,32 @@ export default function ModList({
   const [linkLoadingId, setLinkLoadingId] = useState<string | null>(null);
   const [tagInputId, setTagInputId] = useState<string | null>(null);
   const [tagInputValue, setTagInputValue] = useState('');
+  const [nameTranslations, setNameTranslations] = useState<Map<string, ModNameTranslation>>(new Map());
+  const [translatingId, setTranslatingId] = useState<string | null>(null);
+  const [batchTranslating, setBatchTranslating] = useState(false);
   const parentRef = useRef<HTMLDivElement>(null);
+
+  const isModTranslated = useCallback((mod: ModInfo) => {
+    const existing = nameTranslations.get(mod.unique_id);
+    if (existing && existing.translated_name !== existing.original_name) {
+      return true;
+    }
+    const hasNonAscii = mod.name.split('').some(c => c.charCodeAt(0) > 127);
+    if (!hasNonAscii) return false;
+    const match = mod.name.match(/\(([^)]+)\)\s*$/);
+    if (match && match[1].split('').every(c => c.charCodeAt(0) <= 127)) {
+      return true;
+    }
+    return false;
+  }, [nameTranslations]);
+
+  useEffect(() => {
+    getModNameTranslations().then(list => {
+      const map = new Map<string, ModNameTranslation>();
+      list.forEach(t => map.set(t.unique_id, t));
+      setNameTranslations(map);
+    }).catch(() => {});
+  }, []);
 
   const filteredMods = useMemo(() => {
     return mods;
@@ -168,6 +196,82 @@ export default function ModList({
     }
   }, [t]);
 
+  const handleTranslateName = useCallback(async (mod: ModInfo) => {
+    setTranslatingId(mod.unique_id);
+    try {
+      const result = await translateModName(mod.unique_id, mod.name, mod.folder_path);
+      setNameTranslations(prev => {
+        const next = new Map(prev);
+        next.set(result.unique_id, result);
+        return next;
+      });
+    } catch (err: any) {
+      message.error(err?.toString() || t('app.modNameTranslate.failed'));
+    } finally {
+      setTranslatingId(null);
+    }
+  }, [t]);
+
+  const handleBatchTranslateNames = useCallback(async () => {
+    setBatchTranslating(true);
+    try {
+      const modsToTranslate: Array<[string, string, string]> = filteredMods
+        .filter(mod => !isModTranslated(mod))
+        .map(mod => [mod.unique_id, mod.name, mod.folder_path] as [string, string, string]);
+      
+      if (modsToTranslate.length === 0) {
+        message.info(t('app.modNameTranslate.allTranslated'));
+        return;
+      }
+      const results = await batchTranslateModNames(modsToTranslate);
+      const newMap = new Map(nameTranslations);
+      results.forEach(r => newMap.set(r.unique_id, r));
+      setNameTranslations(newMap);
+      message.success(t('app.modNameTranslate.batchSuccess', { count: results.length }));
+    } catch (err: any) {
+      message.error(err?.toString() || t('app.modNameTranslate.failed'));
+    } finally {
+      setBatchTranslating(false);
+    }
+  }, [filteredMods, nameTranslations, t]);
+
+  const handleDeleteTranslation = useCallback(async (mod: ModInfo) => {
+    try {
+      await deleteModNameTranslation(mod.unique_id, mod.folder_path);
+      setNameTranslations(prev => {
+        const next = new Map(prev);
+        next.delete(mod.unique_id);
+        return next;
+      });
+      onRefresh();
+    } catch {}
+  }, [onRefresh]);
+
+  const handleClearAllTranslations = useCallback(async () => {
+    try {
+      const modsToRestore: Array<[string, string]> = filteredMods
+        .filter(mod => isModTranslated(mod))
+        .map(mod => [mod.unique_id, mod.folder_path] as [string, string]);
+      await clearAllModNameTranslations(modsToRestore);
+      setNameTranslations(new Map());
+      onRefresh();
+      message.success(t('app.modNameTranslate.clearSuccess'));
+    } catch (err: any) {
+      message.error(err?.toString() || t('app.modNameTranslate.failed'));
+    }
+  }, [filteredMods, isModTranslated, t, onRefresh]);
+
+  const getDisplayName = useCallback((mod: ModInfo) => {
+    const translation = nameTranslations.get(mod.unique_id);
+    if (translation && translation.translated_name !== translation.original_name) {
+      return `${translation.translated_name} (${translation.original_name})`;
+    }
+    if (isModTranslated(mod)) {
+      return mod.name;
+    }
+    return mod.name;
+  }, [nameTranslations, isModTranslated]);
+
   const contextMenuItems = contextMenuMod ? [
     {
       key: 'toggle',
@@ -231,6 +335,23 @@ export default function ModList({
     },
     { type: 'divider' as const },
     {
+      key: 'translateName',
+      icon: <TranslationOutlined />,
+      label: isModTranslated(contextMenuMod)
+        ? t('app.modNameTranslate.restoreName')
+        : t('app.modNameTranslate.translateName'),
+      disabled: translatingId === contextMenuMod.unique_id,
+      onClick: () => {
+        if (isModTranslated(contextMenuMod)) {
+          handleDeleteTranslation(contextMenuMod);
+        } else {
+          handleTranslateName(contextMenuMod);
+        }
+        setContextMenuMod(null);
+      },
+    },
+    { type: 'divider' as const },
+    {
       key: 'delete',
       icon: <DeleteOutlined />,
       label: t('app.modCard.uninstall'),
@@ -263,6 +384,27 @@ export default function ModList({
 
   return (
     <>
+      <div style={{ display: 'flex', gap: 8, padding: '4px 8px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <button
+          className="svl-batch-btn"
+          onClick={handleBatchTranslateNames}
+          disabled={batchTranslating}
+          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          <TranslationOutlined spin={batchTranslating} />
+          {batchTranslating ? t('app.modNameTranslate.translating') : t('app.modNameTranslate.batchTranslate')}
+        </button>
+        {nameTranslations.size > 0 && (
+          <button
+            className="svl-batch-btn svl-batch-btn-danger"
+            onClick={handleClearAllTranslations}
+            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            {t('app.modNameTranslate.clearAll')}
+          </button>
+        )}
+      </div>
+
       {selectedMods.size > 0 && (
         <div className="svl-batch-actions">
           <span className="svl-batch-count">
@@ -333,7 +475,7 @@ export default function ModList({
 
                 <div className="svl-mod-info">
                   <div className="svl-mod-name">
-                    {mod.name}
+                    <span>{getDisplayName(mod)}</span>
                     {mod.is_group && mod.sub_mods.length > 0 && (
                       <span className="svl-tag-accent" style={{ marginLeft: 6, fontSize: 11 }}>
                         {mod.sub_mods.length}{t('app.modList.subMods')}
@@ -417,6 +559,25 @@ export default function ModList({
                 </div>
 
                 <div className="svl-mod-actions">
+                  <Tooltip title={isModTranslated(mod)
+                    ? t('app.modNameTranslate.restoreName')
+                    : t('app.modNameTranslate.translateName')}>
+                    <button
+                      className="svl-link-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isModTranslated(mod)) {
+                          handleDeleteTranslation(mod);
+                        } else {
+                          handleTranslateName(mod);
+                        }
+                      }}
+                      disabled={translatingId === mod.unique_id}
+                      style={{ fontSize: 14, opacity: translatingId === mod.unique_id ? 0.5 : 1 }}
+                    >
+                      {translatingId === mod.unique_id ? '⏳' : '🌐'}
+                    </button>
+                  </Tooltip>
                   <Tooltip title={t('app.modCard.openPage')}>
                     <button
                       className="svl-link-btn"

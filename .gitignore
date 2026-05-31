@@ -92,9 +92,14 @@ website-php/*.sqlite
 # Build archives
 release-archive/
 old-builds/
+release/
+release2/
+release3/
+release4/
 
 # Temp game mod files
 Automate/
+Mods/
 
 # Temp docs
 FTM*.md

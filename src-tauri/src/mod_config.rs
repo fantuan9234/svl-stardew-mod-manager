@@ -1,3 +1,4 @@
+use crate::mod_name_translator::extract_original_name;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -118,7 +119,8 @@ fn read_manifest_info(mod_path: &PathBuf) -> (String, String) {
             if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&content) {
                 let name = manifest["Name"].as_str().unwrap_or("Unknown").to_string();
                 let unique_id = manifest["UniqueID"].as_str().unwrap_or("").to_string();
-                return (name, unique_id);
+                let display_name = extract_original_name(&name);
+                return (display_name, unique_id);
             }
         }
     }

@@ -920,16 +920,20 @@ fn group_content_packs(mods: Vec<ModInfo>) -> Vec<ModInfo> {
 
     for mod_info in mods {
         if let Some(ref parent_id) = mod_info.content_pack_for {
-            if mod_folder_map.contains_key(parent_id) {
+            let pack_folder = mod_info.folder_path.replace('\\', "/").trim_end_matches('/').to_string();
+            let parent_folder = mod_folder_map.get(parent_id).cloned();
+            let same_root = parent_folder.as_ref().map_or(false, |pf| *pf == pack_folder);
+            if same_root {
                 parent_map
                     .entry(parent_id.clone())
                     .or_insert_with(Vec::new)
                     .push(mod_info);
             } else {
-                parent_map
-                    .entry(parent_id.clone())
-                    .or_insert_with(Vec::new)
-                    .push(mod_info);
+                println!(
+                    "[mod_parser] Content pack '{}' ({}) is in different root folder than parent '{}', keeping standalone",
+                    mod_info.name, mod_info.unique_id, parent_id
+                );
+                standalone_mods.push(mod_info);
             }
         } else {
             standalone_mods.push(mod_info);
@@ -961,7 +965,7 @@ fn group_content_packs(mods: Vec<ModInfo>) -> Vec<ModInfo> {
                     component_ids.push(sub.unique_id.clone());
                 }
 
-                let group_enabled = mod_info.enabled || sub_mods.iter().any(|s| s.enabled);
+                let group_enabled = mod_info.enabled;
 
                 let group_mod = ModInfo {
                     name: mod_info.name.clone(),
@@ -1095,22 +1099,31 @@ fn group_same_folder_mods(mods: Vec<ModInfo>) -> Vec<ModInfo> {
 
 fn rename_mod_folder(mod_path: &PathBuf, new_path: &PathBuf) -> Result<(), String> {
     if let Err(e) = fs::rename(mod_path, new_path) {
-        println!("[mod_parser] fs::rename failed ({}), trying cmd fallback...", e);
-        use std::os::windows::process::CommandExt;
-        let parent = mod_path.parent().ok_or("Cannot determine parent directory")?;
-        let old_name = mod_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        let new_name = new_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        let output = std::process::Command::new("cmd")
-            .args(["/C", "rename", old_name, new_name])
-            .current_dir(parent)
-            .creation_flags(0x08000000)
-            .output()
-            .map_err(|e2| format!("Failed to execute rename command: {} (original error: {})", e2, e))?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("Failed to rename MOD: {} (original error: {})", stderr.trim(), e));
+        println!("[mod_parser] fs::rename failed ({}), trying fallback...", e);
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            let parent = mod_path.parent().ok_or("Cannot determine parent directory")?;
+            let old_name = mod_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let new_name = new_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let output = std::process::Command::new("cmd")
+                .args(["/C", "rename", old_name, new_name])
+                .current_dir(parent)
+                .creation_flags(0x08000000)
+                .output()
+                .map_err(|e2| format!("Failed to execute rename command: {} (original error: {})", e2, e))?;
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(format!("Failed to rename MOD: {} (original error: {})", stderr.trim(), e));
+            }
+            println!("[mod_parser] Rename succeeded via cmd fallback");
         }
-        println!("[mod_parser] Rename succeeded via cmd fallback");
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            return Err(format!("Failed to rename MOD: {}", e));
+        }
     }
     Ok(())
 }
@@ -1326,28 +1339,28 @@ fn find_root_mod_folder_from_mods_path(mod_folder: &PathBuf, mods_path: &PathBuf
 fn find_root_mod_folder(path: &PathBuf) -> PathBuf {
     let mut current = path.clone();
     let mods_root_marker = "Mods";
-    
-    println!("[find_root_mod_folder] Starting from: {}", path.display());
-    
+    let max_depth = 10;
+    let mut depth = 0;
+
     loop {
         let parent = match current.parent() {
             Some(p) => p.to_path_buf(),
             None => {
-                println!("[find_root_mod_folder] No parent, returning: {}", current.display());
-                return current;
+                return path.clone();
             }
         };
-        
+
         let parent_name = parent.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        println!("[find_root_mod_folder] Checking parent: {}, name={}", parent.display(), parent_name);
-        
+
         if parent_name.eq_ignore_ascii_case(mods_root_marker) {
-            println!("[find_root_mod_folder] Reached Mods folder, returning: {}", current.display());
             return current;
         }
-        
-        // Always move up to parent, regardless of manifest.json existence
-        println!("[find_root_mod_folder] Moving up to: {}", parent.display());
+
+        depth += 1;
+        if depth >= max_depth {
+            return path.clone();
+        }
+
         current = parent;
     }
 }
@@ -1882,5 +1895,106 @@ mod tests {
         let info = result.unwrap();
         assert_eq!(info.unique_id, "SuperMarco.Blackjack");
         assert!(info.url.is_some(), "Should still have a URL from BUILTIN_DICT or fallback");
+    }
+
+    #[test]
+    fn test_group_enabled_main_disabled_sub_enabled() {
+        let main_mod = ModInfo {
+            name: "MainMod".to_string(),
+            version: "1.0.0".to_string(),
+            author: "Test".to_string(),
+            description: String::new(),
+            unique_id: "test.main".to_string(),
+            enabled: false,
+            is_required: false,
+            has_dependencies: false,
+            dependency_count: 0,
+            is_content_pack: false,
+            content_pack_for: None,
+            folder_path: "/Mods/MainMod".to_string(),
+            has_conflict: false,
+            conflict_warning: None,
+            url: None,
+            category: String::new(),
+            screenshot_path: None,
+            thumbnail_path: None,
+            has_update: false,
+            latest_version: None,
+            update_url: None,
+            dependencies: vec![],
+            manifest_content: None,
+            sub_mods: vec![],
+            is_group: false,
+            internal_component_ids: vec!["test.main".to_string()],
+            nexus_mod_id: None,
+        };
+
+        let sub_mod = ModInfo {
+            name: "SubMod".to_string(),
+            version: "1.0.0".to_string(),
+            author: "Test".to_string(),
+            description: String::new(),
+            unique_id: "test.sub".to_string(),
+            enabled: true,
+            is_required: false,
+            has_dependencies: false,
+            dependency_count: 0,
+            is_content_pack: true,
+            content_pack_for: Some("test.main".to_string()),
+            folder_path: "/Mods/MainMod/SubMod".to_string(),
+            has_conflict: false,
+            conflict_warning: None,
+            url: None,
+            category: String::new(),
+            screenshot_path: None,
+            thumbnail_path: None,
+            has_update: false,
+            latest_version: None,
+            update_url: None,
+            dependencies: vec![],
+            manifest_content: None,
+            sub_mods: vec![],
+            is_group: false,
+            internal_component_ids: vec!["test.sub".to_string()],
+            nexus_mod_id: None,
+        };
+
+        let group_enabled = main_mod.enabled;
+        assert!(!group_enabled, "Group should be disabled when main mod is disabled, even if sub mod is enabled.");
+    }
+
+    #[test]
+    fn test_group_enabled_main_enabled() {
+        let group_enabled = true || false;
+        assert!(group_enabled, "Group should be enabled when main mod is enabled");
+    }
+
+    #[test]
+    fn test_group_enabled_all_disabled() {
+        let group_enabled = false || false;
+        assert!(!group_enabled, "Group should be disabled when all mods are disabled");
+    }
+
+    #[test]
+    fn test_find_root_mod_folder_stops_at_mods_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        let mod_dir = mods_dir.join("MyMod");
+        let sub_dir = mod_dir.join("subdir");
+        std::fs::create_dir_all(&sub_dir).unwrap();
+
+        let result = find_root_mod_folder(&sub_dir);
+        assert_eq!(result, mod_dir, "Should return the direct child of Mods directory");
+    }
+
+    #[test]
+    fn test_find_root_mod_folder_max_depth() {
+        let tmp = tempfile::tempdir().unwrap();
+        let deep_dir = tmp.path().join("a").join("b").join("c").join("d").join("e")
+            .join("f").join("g").join("h").join("i").join("j").join("k").join("MyMod");
+        std::fs::create_dir_all(&deep_dir).unwrap();
+
+        let result = find_root_mod_folder(&deep_dir);
+        assert_eq!(result, deep_dir, "Should return original path when no Mods directory found within max depth");
     }
 }

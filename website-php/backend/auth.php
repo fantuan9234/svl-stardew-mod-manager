@@ -5,11 +5,14 @@ require_once __DIR__ . '/security.php';
 sendSecurityHeaders();
 
 if (session_status() === PHP_SESSION_NONE) {
+    $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
     session_set_cookie_params([
         'lifetime' => SESSION_LIFETIME,
         'path' => '/',
         'domain' => '',
-        'secure' => isset($_SERVER['HTTPS']),
+        'secure' => $isSecure,
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
@@ -34,7 +37,15 @@ function isLoggedIn(): bool
 function requireLogin(): void
 {
     if (!isLoggedIn()) {
-        header('Location: login.php');
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH'])
+            && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
+        if ($isAjax) {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['error' => 'Session expired', 'redirect' => SITE_URL . '/admin/login.php']);
+            exit;
+        }
+        header('Location: ' . SITE_URL . '/admin/login.php');
         exit;
     }
 }
@@ -71,6 +82,7 @@ function login(string $username, string $password): bool
         $_SESSION['admin_logged_in'] = true;
         $_SESSION['admin_username'] = $username;
         $_SESSION['login_time'] = time();
+        session_write_close();
         return true;
     }
 

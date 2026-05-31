@@ -19,22 +19,14 @@ fn is_safe_to_delete(target: &Path, mods_dir: &Path) -> bool {
         Err(_) => return false,
     };
 
-    // Must NOT be the Mods directory itself
     if target_canon == mods_canon {
         eprintln!("[SAFETY] BLOCKED: attempted to delete mods directory itself: {}", target.display());
         return false;
     }
 
-    // Must be a subdirectory of Mods
     if !target_canon.starts_with(&mods_canon) {
         eprintln!("[SAFETY] BLOCKED: target is outside mods directory: {}", target.display());
         return false;
-    }
-
-    // Must have a parent that exists (not root)
-    if target.parent().is_none() || target.parent() == Some(mods_dir) {
-        // This is a direct child of mods_dir - safe
-        return true;
     }
 
     true
@@ -544,7 +536,7 @@ fn find_mod_folder(temp_dir: &PathBuf) -> Result<PathBuf, String> {
                 return Ok(entry.path());
             }
         }
-        Ok(entries[0].path())
+        Err("压缩包中包含多个文件夹，但均未找到 manifest.json，无法确定 MOD 目录".to_string())
     }
 }
 
@@ -555,7 +547,7 @@ fn clean_residual_files(mod_path: &PathBuf) {
                 let path = entry.path();
                 if path.is_file() {
                     if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                        if name.starts_with('.') || name.ends_with(".tmp") || name.ends_with(".bak") {
+                        if name.ends_with(".tmp") || name.ends_with(".bak") {
                             let _ = fs::remove_file(&path);
                         }
                     }
@@ -848,4 +840,172 @@ fn check_mod_dependencies_blocking(
         missing_dependencies: missing_deps,
         can_install: !has_required_missing,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_clean_residual_files_preserves_dot_config_files() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+
+        let dot_config = mods_dir.join(".smapi_config");
+        fs::write(&dot_config, "config data").unwrap();
+
+        let mod_path = mods_dir.join("SomeMod");
+        fs::create_dir_all(&mod_path).unwrap();
+
+        clean_residual_files(&mod_path);
+
+        assert!(dot_config.exists(), "Dot-prefixed config files should NOT be deleted by clean_residual_files");
+    }
+
+    #[test]
+    fn test_clean_residual_files_deletes_tmp_files() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+
+        let tmp_file = mods_dir.join("download.tmp");
+        fs::write(&tmp_file, "temp data").unwrap();
+
+        let mod_path = mods_dir.join("SomeMod");
+        fs::create_dir_all(&mod_path).unwrap();
+
+        clean_residual_files(&mod_path);
+
+        assert!(!tmp_file.exists(), "Temp files should be deleted by clean_residual_files");
+    }
+
+    #[test]
+    fn test_clean_residual_files_deletes_bak_files() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+
+        let bak_file = mods_dir.join("old_config.bak");
+        fs::write(&bak_file, "backup data").unwrap();
+
+        let mod_path = mods_dir.join("SomeMod");
+        fs::create_dir_all(&mod_path).unwrap();
+
+        clean_residual_files(&mod_path);
+
+        assert!(!bak_file.exists(), "Backup files should be deleted by clean_residual_files");
+    }
+
+    #[test]
+    fn test_clean_residual_files_preserves_normal_files() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+
+        let normal_file = mods_dir.join("readme.txt");
+        fs::write(&normal_file, "readme content").unwrap();
+
+        let mod_path = mods_dir.join("SomeMod");
+        fs::create_dir_all(&mod_path).unwrap();
+
+        clean_residual_files(&mod_path);
+
+        assert!(normal_file.exists(), "Normal files should NOT be deleted by clean_residual_files");
+    }
+
+    #[test]
+    fn test_find_mod_folder_multiple_dirs_none_with_manifest() {
+        let tmp = TempDir::new().unwrap();
+        let temp_dir = tmp.path().join("extracted");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let dir1 = temp_dir.join("NotAMod1");
+        fs::create_dir_all(&dir1).unwrap();
+        fs::write(dir1.join("readme.txt"), "not a mod").unwrap();
+
+        let dir2 = temp_dir.join("NotAMod2");
+        fs::create_dir_all(&dir2).unwrap();
+        fs::write(dir2.join("config.ini"), "not a mod").unwrap();
+
+        let result = find_mod_folder(&temp_dir);
+        assert!(result.is_err(), "Should return error when no directory contains manifest.json, got {:?}", result);
+    }
+
+    #[test]
+    fn test_find_mod_folder_single_dir_with_manifest() {
+        let tmp = TempDir::new().unwrap();
+        let temp_dir = tmp.path().join("extracted");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let mod_dir = temp_dir.join("RealMod");
+        fs::create_dir_all(&mod_dir).unwrap();
+        fs::write(mod_dir.join("manifest.json"), r#"{"Name":"Test","UniqueID":"test.mod","Version":"1.0.0"}"#).unwrap();
+
+        let result = find_mod_folder(&temp_dir);
+        assert!(result.is_ok(), "Should find mod folder with manifest.json");
+        assert_eq!(result.unwrap().file_name().unwrap(), "RealMod");
+    }
+
+    #[test]
+    fn test_find_mod_folder_multiple_dirs_one_with_manifest() {
+        let tmp = TempDir::new().unwrap();
+        let temp_dir = tmp.path().join("extracted");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let not_mod = temp_dir.join("Documentation");
+        fs::create_dir_all(&not_mod).unwrap();
+
+        let real_mod = temp_dir.join("ActualMod");
+        fs::create_dir_all(&real_mod).unwrap();
+        fs::write(real_mod.join("manifest.json"), r#"{"Name":"Test","UniqueID":"test.mod","Version":"1.0.0"}"#).unwrap();
+
+        let result = find_mod_folder(&temp_dir);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().file_name().unwrap(), "ActualMod");
+    }
+
+    #[test]
+    fn test_is_safe_to_delete_direct_child() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+        let child = mods_dir.join("SomeMod");
+        fs::create_dir_all(&child).unwrap();
+
+        assert!(is_safe_to_delete(&child, &mods_dir));
+    }
+
+    #[test]
+    fn test_is_safe_to_delete_nested_child() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+        let nested = mods_dir.join("SomeMod").join("subdir");
+        fs::create_dir_all(&nested).unwrap();
+
+        assert!(is_safe_to_delete(&nested, &mods_dir));
+    }
+
+    #[test]
+    fn test_is_safe_to_delete_blocks_mods_dir_itself() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+
+        assert!(!is_safe_to_delete(&mods_dir, &mods_dir));
+    }
+
+    #[test]
+    fn test_is_safe_to_delete_blocks_outside_path() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+        let outside = tmp.path().join("OtherDir");
+        fs::create_dir_all(&outside).unwrap();
+
+        assert!(!is_safe_to_delete(&outside, &mods_dir));
+    }
 }

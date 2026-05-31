@@ -7,9 +7,12 @@ import { MinusOutlined, BorderOutlined, CloseOutlined, SwitcherOutlined, Loading
 import { Badge, Modal, Button, Typography, Progress, Tag, message, Spin } from 'antd';
 import { CloudDownloadOutlined, CheckCircleOutlined, SyncOutlined, FolderOutlined, SaveOutlined, CoffeeOutlined, SearchOutlined, GlobalOutlined, ToolOutlined } from '@ant-design/icons';
 import chickenImg from '../assets/chicken.png';
+import sunIcon from '../assets/sv-sun-icon.png';
+import moonIcon from '../assets/sv-moon-icon.png';
 import HomeModal from './HomeModal';
 import { openUrl } from '../utils/openUrl';
 import { downloadAppUpdateFromServer, AppUpdateInfo, AppUpdateProgress, getCurrentAppVersion } from '../utils/tauri-api';
+import { useTheme } from '../hooks/useTheme';
 
 const ModManager = lazy(() => import('../pages/ModManager'));
 const NexusModBrowser = lazy(() => import('../pages/NexusModBrowser'));
@@ -57,10 +60,162 @@ const navItems = [
 
 const { Title, Text, Paragraph } = Typography;
 
+function lerpColor(a: number[], b: number[], t: number): string {
+  const r = Math.round(a[0] + (b[0] - a[0]) * t);
+  const g = Math.round(a[1] + (b[1] - a[1]) * t);
+  const bl = Math.round(a[2] + (b[2] - a[2]) * t);
+  return `rgb(${r},${g},${bl})`;
+}
+
+function hexToRgb(hex: string): number[] {
+  const h = hex.replace('#', '');
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+interface SkyFrame {
+  hour: number;
+  colors: string[];
+  starOpacity: number;
+  cloudOpacity: number;
+  isDay: boolean;
+  particleOpacity: number;
+  logoColor: string;
+  iconFilter: string;
+  orbGlow: string;
+}
+
+const SKY_FRAMES: SkyFrame[] = [
+  { hour: 0,    colors: ['#080c24', '#0c1230', '#101838', '#141e40'], starOpacity: 1, cloudOpacity: 0, isDay: false, particleOpacity: 0, logoColor: '#b0b0e8', iconFilter: 'brightness(0.85) drop-shadow(0 0 6px rgba(200,200,255,0.6))', orbGlow: 'radial-gradient(circle, rgba(100,100,200,0.2) 0%, transparent 70%)' },
+  { hour: 4,    colors: ['#0c1030', '#181e48', '#282858', '#382858'], starOpacity: 0.9, cloudOpacity: 0, isDay: false, particleOpacity: 0, logoColor: '#b0b0e8', iconFilter: 'brightness(0.85) drop-shadow(0 0 6px rgba(200,200,255,0.6))', orbGlow: 'radial-gradient(circle, rgba(100,100,200,0.2) 0%, transparent 70%)' },
+  { hour: 5,    colors: ['#1a1848', '#382868', '#683878', '#c06050'], starOpacity: 0.4, cloudOpacity: 0, isDay: false, particleOpacity: 0.5, logoColor: '#F4A460', iconFilter: 'drop-shadow(0 0 10px rgba(255,160,80,0.6)) brightness(1.1)', orbGlow: 'radial-gradient(circle, rgba(255,160,80,0.3) 0%, transparent 70%)' },
+  { hour: 5.5,  colors: ['#2a3878', '#5a5898', '#b86868', '#f0a050'], starOpacity: 0.1, cloudOpacity: 0.1, isDay: true, particleOpacity: 0.8, logoColor: '#F4A460', iconFilter: 'drop-shadow(0 0 10px rgba(255,160,80,0.6)) brightness(1.1)', orbGlow: 'radial-gradient(circle, rgba(255,160,80,0.3) 0%, transparent 70%)' },
+  { hour: 6.5,  colors: ['#4a88c8', '#7ab8e0', '#b8dce8', '#f0d098'], starOpacity: 0, cloudOpacity: 0.4, isDay: true, particleOpacity: 0.3, logoColor: '#E65100', iconFilter: 'drop-shadow(0 2px 4px rgba(255,152,0,0.4))', orbGlow: 'radial-gradient(circle, rgba(255,200,50,0.25) 0%, transparent 70%)' },
+  { hour: 8,    colors: ['#5898d8', '#88c8e8', '#b8e0f0', '#f0e0b8'], starOpacity: 0, cloudOpacity: 0.8, isDay: true, particleOpacity: 0, logoColor: '#E65100', iconFilter: 'drop-shadow(0 2px 4px rgba(255,152,0,0.4))', orbGlow: 'radial-gradient(circle, rgba(255,200,50,0.25) 0%, transparent 70%)' },
+  { hour: 12,   colors: ['#4888d0', '#78b8e0', '#a8d8f0', '#e0d0a8'], starOpacity: 0, cloudOpacity: 1, isDay: true, particleOpacity: 0, logoColor: '#E65100', iconFilter: 'drop-shadow(0 2px 4px rgba(255,152,0,0.4))', orbGlow: 'radial-gradient(circle, rgba(255,200,50,0.25) 0%, transparent 70%)' },
+  { hour: 15,   colors: ['#5088c0', '#80b0d0', '#b0c8d8', '#e0c0a0'], starOpacity: 0, cloudOpacity: 0.9, isDay: true, particleOpacity: 0, logoColor: '#E65100', iconFilter: 'drop-shadow(0 2px 4px rgba(255,152,0,0.4))', orbGlow: 'radial-gradient(circle, rgba(255,200,50,0.25) 0%, transparent 70%)' },
+  { hour: 17,   colors: ['#4860a0', '#8868a0', '#c87060', '#e89050'], starOpacity: 0, cloudOpacity: 0.4, isDay: true, particleOpacity: 0.5, logoColor: '#D4725C', iconFilter: 'drop-shadow(0 0 10px rgba(255,120,60,0.5)) brightness(0.95)', orbGlow: 'radial-gradient(circle, rgba(255,120,60,0.3) 0%, transparent 70%)' },
+  { hour: 18,   colors: ['#2a1850', '#5a2870', '#983858', '#d06040'], starOpacity: 0.2, cloudOpacity: 0.1, isDay: false, particleOpacity: 0.8, logoColor: '#D4725C', iconFilter: 'drop-shadow(0 0 10px rgba(255,120,60,0.5)) brightness(0.95)', orbGlow: 'radial-gradient(circle, rgba(255,120,60,0.3) 0%, transparent 70%)' },
+  { hour: 19,   colors: ['#141040', '#282050', '#382858', '#483050'], starOpacity: 0.6, cloudOpacity: 0, isDay: false, particleOpacity: 0.4, logoColor: '#b0b0e8', iconFilter: 'brightness(0.85) drop-shadow(0 0 6px rgba(200,200,255,0.6))', orbGlow: 'radial-gradient(circle, rgba(100,100,200,0.2) 0%, transparent 70%)' },
+  { hour: 20,   colors: ['#0c1030', '#141840', '#1c2048', '#242850'], starOpacity: 0.9, cloudOpacity: 0, isDay: false, particleOpacity: 0, logoColor: '#b0b0e8', iconFilter: 'brightness(0.85) drop-shadow(0 0 6px rgba(200,200,255,0.6))', orbGlow: 'radial-gradient(circle, rgba(100,100,200,0.2) 0%, transparent 70%)' },
+  { hour: 24,   colors: ['#080c24', '#0c1230', '#101838', '#141e40'], starOpacity: 1, cloudOpacity: 0, isDay: false, particleOpacity: 0, logoColor: '#b0b0e8', iconFilter: 'brightness(0.85) drop-shadow(0 0 6px rgba(200,200,255,0.6))', orbGlow: 'radial-gradient(circle, rgba(100,100,200,0.2) 0%, transparent 70%)' },
+];
+
+function computeSkyState(hour: number) {
+  const h = hour % 24;
+  let prev = SKY_FRAMES[0];
+  let next = SKY_FRAMES[1];
+  for (let i = 0; i < SKY_FRAMES.length - 1; i++) {
+    if (h >= SKY_FRAMES[i].hour && h < SKY_FRAMES[i + 1].hour) {
+      prev = SKY_FRAMES[i];
+      next = SKY_FRAMES[i + 1];
+      break;
+    }
+  }
+  const range = next.hour - prev.hour;
+  const t = range > 0 ? (h - prev.hour) / range : 0;
+  const pColors = prev.colors.map(hexToRgb);
+  const nColors = next.colors.map(hexToRgb);
+  const gradient = pColors.map((c, i) => lerpColor(c, nColors[i], t));
+  const pLogo = hexToRgb(prev.logoColor);
+  const nLogo = hexToRgb(next.logoColor);
+  return {
+    gradient: `linear-gradient(180deg, ${gradient[0]} 0%, ${gradient[1]} 30%, ${gradient[2]} 60%, ${gradient[3]} 100%)`,
+    starOpacity: prev.starOpacity + (next.starOpacity - prev.starOpacity) * t,
+    cloudOpacity: prev.cloudOpacity + (next.cloudOpacity - prev.cloudOpacity) * t,
+    isDay: t < 0.5 ? prev.isDay : next.isDay,
+    particleOpacity: prev.particleOpacity + (next.particleOpacity - prev.particleOpacity) * t,
+    logoColor: lerpColor(pLogo, nLogo, t),
+    iconFilter: t < 0.5 ? prev.iconFilter : next.iconFilter,
+    orbGlow: t < 0.5 ? prev.orbGlow : next.orbGlow,
+  };
+}
+
+function DayNightIcon() {
+  const getDecimalHour = () => {
+    const now = new Date();
+    return now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+  };
+
+  const [skyState, setSkyState] = useState(() => computeSkyState(getDecimalHour()));
+  const [bouncing, setBouncing] = useState(false);
+  const [sparkles, setSparkles] = useState(false);
+
+  useEffect(() => {
+    const update = () => setSkyState(computeSkyState(getDecimalHour()));
+    update();
+    const interval = setInterval(update, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleClick = () => {
+    setBouncing(true);
+    setSparkles(true);
+    setTimeout(() => setBouncing(false), 600);
+    setTimeout(() => setSparkles(false), 800);
+  };
+
+  const showStars = skyState.starOpacity > 0.05;
+  const showClouds = skyState.cloudOpacity > 0.05;
+  const showParticles = skyState.particleOpacity > 0.05;
+
+  return (
+    <div
+      className={`svl-daynight-scene${bouncing ? ' svl-bounce' : ''}${sparkles ? ' svl-sparkle' : ''}`}
+      style={{ background: skyState.gradient }}
+      onClick={handleClick}
+    >
+      {showClouds && (
+        <div className="svl-day-clouds" style={{ opacity: skyState.cloudOpacity }}>
+          <span className="svl-cloud svl-cloud-1" />
+          <span className="svl-cloud svl-cloud-2" />
+          <span className="svl-cloud svl-cloud-3" />
+        </div>
+      )}
+      <div className="svl-daynight-orb" style={{ background: skyState.orbGlow }}>
+        <img
+          className="svl-daynight-icon"
+          src={skyState.isDay ? sunIcon : moonIcon}
+          alt=""
+          draggable={false}
+          style={{ filter: skyState.iconFilter }}
+        />
+      </div>
+      {showStars && (
+        <div className="svl-night-stars" style={{ opacity: skyState.starOpacity }}>
+          <span className="svl-star svl-star-1" />
+          <span className="svl-star svl-star-2" />
+          <span className="svl-star svl-star-3" />
+          <span className="svl-star svl-star-4" />
+          <span className="svl-star svl-star-5" />
+        </div>
+      )}
+      {showParticles && (
+        <div className="svl-transition-particles" style={{ opacity: skyState.particleOpacity }}>
+          <span className="svl-particle svl-particle-1" />
+          <span className="svl-particle svl-particle-2" />
+          <span className="svl-particle svl-particle-3" />
+        </div>
+      )}
+      {sparkles && (
+        <div className="svl-click-sparkles">
+          <span className="svl-sparkle-dot svl-sparkle-dot-1" />
+          <span className="svl-sparkle-dot svl-sparkle-dot-2" />
+          <span className="svl-sparkle-dot svl-sparkle-dot-3" />
+          <span className="svl-sparkle-dot svl-sparkle-dot-4" />
+          <span className="svl-sparkle-dot svl-sparkle-dot-5" />
+          <span className="svl-sparkle-dot svl-sparkle-dot-6" />
+        </div>
+      )}
+      <div className="svl-logo-text" style={{ color: skyState.logoColor }}>SVL</div>
+    </div>
+  );
+}
+
 export default function AppLayout() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const { customColors } = useTheme();
   const [isMaximized, setIsMaximized] = useState(false);
   const [errorCount, setErrorCount] = useState(0);
   const [appVersion, setAppVersion] = useState('');
@@ -294,21 +449,7 @@ export default function AppLayout() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <aside className="svl-sidebar">
           <div className="svl-logo">
-            <img
-              src="/images/stardew-farm-screenshot.jpg"
-              alt={t('app.altFarm')}
-              className="svl-logo-image"
-              style={{
-                width: '180px',
-                height: '100px',
-                objectFit: 'cover',
-                borderRadius: '12px',
-                imageRendering: 'auto',
-                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
-                marginBottom: '8px',
-              }}
-            />
-            <div className="svl-logo-text">{t('app.brandName')}</div>
+            <DayNightIcon />
           </div>
 
           <div
@@ -372,7 +513,7 @@ export default function AppLayout() {
 
           <div className="svl-sidebar-footer">
             <img
-              src={chickenImg}
+              src={customColors.customChickenImage || chickenImg}
               alt={t('app.altChicken')}
               className="svl-chicken"
             />

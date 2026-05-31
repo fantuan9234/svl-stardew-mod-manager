@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use chrono::Utc;
+use tauri::{AppHandle, Emitter};
 
 fn is_safe_to_delete(target: &Path, parent_dir: &Path) -> bool {
     let target_canon = target.canonicalize().unwrap_or_else(|_| target.to_path_buf());
@@ -439,6 +440,7 @@ pub fn list_snapshots() -> Result<ModSnapshotList, String> {
 pub fn restore_snapshot(
     snapshot_name: String,
     mods_path: String,
+    app: AppHandle,
 ) -> Result<SnapshotResult, String> {
     let snapshot_dir = get_snapshot_dir()?;
     let snapshot_path = snapshot_dir.join(&snapshot_name);
@@ -486,6 +488,8 @@ pub fn restore_snapshot(
             restored += 1;
         }
     }
+
+    let _ = app.emit("mods-changed", ());
 
     Ok(SnapshotResult {
         success: true,

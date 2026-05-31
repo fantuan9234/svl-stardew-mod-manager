@@ -6,15 +6,18 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 pub fn get_svl_data_dir() -> PathBuf {
-    let d_drive = PathBuf::from("D:\\SVL");
-    if PathBuf::from("D:\\").exists() {
-        let _ = fs::create_dir_all(&d_drive);
-        d_drive
-    } else {
-        dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("SVL")
+    #[cfg(target_os = "windows")]
+    {
+        let d_drive = PathBuf::from("D:\\SVL");
+        if PathBuf::from("D:\\").exists() {
+            let _ = fs::create_dir_all(&d_drive);
+            return d_drive;
+        }
     }
+
+    dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("SVL")
 }
 
 lazy_static::lazy_static! {

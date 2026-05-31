@@ -110,6 +110,7 @@ export default function ModManager() {
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRefreshRef = useRef(false);
   const installProgressUnlistenRef = useRef<(() => void) | null>(null);
+  const modsChangedUnlistenRef = useRef<(() => void) | null>(null);
   const handleRefreshRef = useRef<(() => Promise<void>) | null>(null);
   const smapiInfoRef = useRef<SmapiInfo | null>(null);
   const gamePathInfoRef = useRef<GamePathInfo | null>(null);
@@ -177,10 +178,28 @@ export default function ModManager() {
 
     setupListener();
 
+    const setupModsChangedListener = async () => {
+      if (modsChangedUnlistenRef.current) {
+        modsChangedUnlistenRef.current();
+        modsChangedUnlistenRef.current = null;
+      }
+      const unlisten = await listen('mods-changed', () => {
+        if (handleRefreshRef.current) {
+          handleRefreshRef.current();
+        }
+      });
+      modsChangedUnlistenRef.current = unlisten;
+    };
+    setupModsChangedListener();
+
     return () => {
       if (installProgressUnlistenRef.current) {
         installProgressUnlistenRef.current();
         installProgressUnlistenRef.current = null;
+      }
+      if (modsChangedUnlistenRef.current) {
+        modsChangedUnlistenRef.current();
+        modsChangedUnlistenRef.current = null;
       }
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
@@ -902,7 +921,7 @@ export default function ModManager() {
   const gameFound = !!gamePathInfo?.detected_path;
   const smapiInstalled = smapiInfo?.installed || false;
   const gamePath = smapiInfo?.game_path || gamePathInfo?.detected_path || '';
-  const modsPath = gamePath ? `${gamePath}\\Mods` : '';
+  const modsPath = gamePath ? `${gamePath}/Mods` : '';
 
   const handleOpenConfigEditor = (modId: string) => {
     const mod = mods.find(m => m.unique_id === modId);

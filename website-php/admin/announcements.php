@@ -8,6 +8,14 @@ $db = getDB();
 $message = '';
 $error = '';
 
+$uploadDir = __DIR__ . '/../uploads/announcements';
+if (!is_dir($uploadDir)) {
+    @mkdir($uploadDir, 0777, true);
+}
+if (!is_dir($uploadDir)) {
+    $error = '无法创建上传目录: ' . $uploadDir . '，请手动创建并设置权限';
+}
+
 $action = $_GET['action'] ?? 'list';
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
@@ -23,9 +31,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $category = trim($_POST['category'] ?? '更新');
                 $content = trim($_POST['content'] ?? '');
+                $image_url = trim($_POST['image_url'] ?? '');
                 $is_pinned = isset($_POST['is_pinned']) ? 1 : 0;
-                $stmt = $db->prepare("INSERT INTO announcements (title, category, content, is_pinned) VALUES (?, ?, ?, ?)");
-                $stmt->execute([$title, $category, $content, $is_pinned]);
+                $stmt = $db->prepare("INSERT INTO announcements (title, category, content, image_url, is_pinned) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$title, $category, $content, $image_url, $is_pinned]);
                 $message = '公告已发布';
                 $action = 'list';
             }
@@ -37,9 +46,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $category = trim($_POST['category'] ?? '更新');
                 $content = trim($_POST['content'] ?? '');
+                $image_url = trim($_POST['image_url'] ?? '');
                 $is_pinned = isset($_POST['is_pinned']) ? 1 : 0;
-                $stmt = $db->prepare("UPDATE announcements SET title=?, category=?, content=?, is_pinned=?, updated_at=datetime('now','localtime') WHERE id=?");
-                $stmt->execute([$title, $category, $content, $is_pinned, $updateId]);
+                $stmt = $db->prepare("UPDATE announcements SET title=?, category=?, content=?, image_url=?, is_pinned=?, updated_at=datetime('now','localtime') WHERE id=?");
+                $stmt->execute([$title, $category, $content, $image_url, $is_pinned, $updateId]);
                 $message = '公告已更新';
                 $action = 'list';
             }
@@ -127,7 +137,30 @@ $items = $db->query("SELECT * FROM announcements ORDER BY is_pinned DESC, create
             </div>
             <div class="mb-4">
                 <label class="label">内容</label>
-                <textarea name="content" class="input-field" rows="4"><?php echo h($editItem['content'] ?? ''); ?></textarea>
+                <textarea name="content" class="input-field" rows="4" placeholder="支持输入链接（自动识别）或使用 [url=链接]文字[/url] 和 [img]图片链接[/img]"><?php echo h($editItem['content'] ?? ''); ?></textarea>
+            </div>
+            <div class="mb-4">
+                <label class="label">公告图片（可选）</label>
+                <div class="flex gap-3 items-start">
+                    <div class="flex-1">
+                        <input type="text" name="image_url" id="imageUrlField" class="input-field" placeholder="图片 URL（上传后自动填入）" value="<?php echo h($editItem['image_url'] ?? ''); ?>">
+                    </div>
+                    <label class="btn btn-primary btn-sm cursor-pointer whitespace-nowrap" style="padding: 8px 16px; font-size: 13px;">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        上传图片
+                        <input type="file" name="image" id="imageUpload" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" onchange="uploadAnnouncementImage(this)">
+                    </label>
+                </div>
+                <div id="imagePreview" class="mt-3" style="<?php echo empty($editItem['image_url'] ?? '') ? 'display:none;' : ''; ?>">
+                    <img id="imagePreviewImg" src="<?php echo h($editItem['image_url'] ?? ''); ?>" alt="预览" style="max-width: 160px; max-height: 100px; object-fit: contain; border-radius: 8px; border: 1px solid var(--border);">
+                    <button type="button" onclick="removeAnnouncementImage()" class="btn btn-ghost btn-sm mt-2" style="font-size: 12px; padding: 4px 10px;">移除图片</button>
+                </div>
+                <div id="imageUploadProgress" class="mt-2" style="display:none;">
+                    <div style="background: var(--border); border-radius: 4px; height: 4px; overflow: hidden;">
+                        <div id="imageUploadBar" style="background: var(--brand); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                    <span class="text-xs" style="color: var(--text-secondary);">上传中...</span>
+                </div>
             </div>
             <div class="mb-6">
                 <label class="checkbox-label">
@@ -183,6 +216,62 @@ $items = $db->query("SELECT * FROM announcements ORDER BY is_pinned DESC, create
 </div>
 
 <script>
+function uploadAnnouncementImage(input) {
+    if (!input.files || !input.files[0]) return;
+    var csrfToken = document.querySelector('input[name="csrf_token"]');
+    if (!csrfToken) { alert('页面已过期，请刷新后重试'); return; }
+
+    var formData = new FormData();
+    formData.append('csrf_token', csrfToken.value);
+    formData.append('image', input.files[0]);
+
+    var progress = document.getElementById('imageUploadProgress');
+    var bar = document.getElementById('imageUploadBar');
+    progress.style.display = 'block';
+    bar.style.width = '0%';
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'upload-image.php', true);
+    xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+            bar.style.width = Math.round((e.loaded / e.total) * 100) + '%';
+        }
+    };
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            progress.style.display = 'none';
+            if (xhr.status === 200) {
+                try {
+                    var resp = JSON.parse(xhr.responseText);
+                    if (resp.success) {
+                        document.getElementById('imageUrlField').value = resp.url;
+                        document.getElementById('imagePreviewImg').src = resp.url;
+                        document.getElementById('imagePreview').style.display = 'block';
+                    } else {
+                        alert(resp.error || '上传失败');
+                    }
+                } catch(e) {
+                    var preview = xhr.responseText.substring(0, 500);
+                    console.error('Upload response (not JSON):', xhr.responseText.substring(0, 2000));
+                    alert('上传失败：服务器返回了非预期内容。\n\n原始响应前500字符：\n' + preview + '\n\n请按 F12 打开控制台查看完整错误信息。');
+                }
+            } else if (xhr.status === 403) {
+                alert('页面已过期，请刷新后重试');
+            } else {
+                alert('上传失败（HTTP ' + xhr.status + '），请刷新页面后重试');
+            }
+            input.value = '';
+        }
+    };
+    xhr.send(formData);
+}
+
+function removeAnnouncementImage() {
+    document.getElementById('imageUrlField').value = '';
+    document.getElementById('imagePreviewImg').src = '';
+    document.getElementById('imagePreview').style.display = 'none';
+}
+
 function announceNav(action, id) {
     var params = 'action=' + encodeURIComponent(action);
     if (id) params += '&id=' + encodeURIComponent(id);

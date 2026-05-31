@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../backend/auth.php';
 logout();
-header('Location: login.php');
+session_write_close();
+header('Location: ' . SITE_URL . '/admin/login.php');
 exit;
