@@ -1,4 +1,4 @@
-# SVL - Stardew Valley Mod Manager
+# SVL - Stardew Valley Mod Manager svl星露谷物语模组管理器
 
 <div align="center">
 
