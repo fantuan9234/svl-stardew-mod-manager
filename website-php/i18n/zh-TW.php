@@ -2,7 +2,7 @@
 return [
     'site_name' => 'SVL - 星露谷物語模組管理器',
     'site_desc' => 'SVL — 星露谷物語MOD一鍵安裝管理工具，自動檢測衝突、智能備份恢復',
-    'site_subdesc' => 'Windows 平台 | 支援星露谷物語 1.5.x / 1.6.x | 永久免費',
+    'site_subdesc' => 'Windows / macOS / Linux 全平台 | 支援星露谷物語 1.5.x / 1.6.x | 永久免費',
 
     'nav_home' => '首頁',
     'nav_announcements' => '公告',
@@ -53,7 +53,7 @@ return [
     'how_3_desc' => '點擊啟動按鈕，自動加載 SMAPI 和所有選中的 MOD',
 
     'download_title' => '下載 SVL',
-    'download_subtitle' => '免費下載 SVL — 星露谷物語MOD管理器，僅支持 Windows',
+    'download_subtitle' => '免費下載 SVL — 星露谷物語MOD管理器，支援 Windows / macOS / Linux',
     'download_btn_windows' => 'Windows 下載',
     'download_btn_macos' => 'macOS 下載',
     'download_btn_linux' => 'Linux 下載',

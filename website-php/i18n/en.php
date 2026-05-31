@@ -2,7 +2,7 @@
 return [
     'site_name' => 'SVL - Stardew Valley MOD Manager',
     'site_desc' => 'SVL — Stardew Valley MOD Manager: One-click install, auto conflict detection, smart backup & restore',
-    'site_subdesc' => 'Windows | Stardew Valley 1.5.x / 1.6.x | Always Free',
+    'site_subdesc' => 'Windows / macOS / Linux | Stardew Valley 1.5.x / 1.6.x | Always Free',
 
     'nav_home' => 'Home',
     'nav_announcements' => 'News',
@@ -53,7 +53,7 @@ return [
     'how_3_desc' => 'Click the launch button to auto-load SMAPI and all selected MODs',
 
     'download_title' => 'Download SVL',
-    'download_subtitle' => 'Free download SVL — Stardew Valley MOD Manager, Windows only',
+    'download_subtitle' => 'Free download SVL — Stardew Valley MOD Manager for Windows, macOS, and Linux',
     'download_btn_windows' => 'Windows Download',
     'download_btn_macos' => 'macOS Download',
     'download_btn_linux' => 'Linux Download',

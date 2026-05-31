@@ -2,7 +2,7 @@
 return [
     'site_name' => 'SVL - 星露谷物语模组管理器',
     'site_desc' => 'SVL — 星露谷物语MOD一键安装管理工具，自动检测冲突、智能备份恢复',
-    'site_subdesc' => 'Windows 平台 | 支持星露谷物语 1.5.x / 1.6.x | 永久免费',
+    'site_subdesc' => 'Windows / macOS / Linux 全平台 | 支持星露谷物语 1.5.x / 1.6.x | 永久免费',
 
     'nav_home' => '首页',
     'nav_announcements' => '公告',
@@ -53,7 +53,7 @@ return [
     'how_3_desc' => '点击启动按钮，自动加载 SMAPI 和所有选中的 MOD',
 
     'download_title' => '下载 SVL',
-    'download_subtitle' => '免费下载 SVL — 星露谷物语MOD管理器，仅支持 Windows',
+    'download_subtitle' => '免费下载 SVL — 星露谷物语MOD管理器，支持 Windows / macOS / Linux',
     'download_btn_windows' => 'Windows 下载',
     'download_btn_macos' => 'macOS 下载',
     'download_btn_linux' => 'Linux 下载',

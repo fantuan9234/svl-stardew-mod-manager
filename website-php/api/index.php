@@ -32,13 +32,26 @@ try {
             break;
 
         case 'latest_version':
-            $stmt = $db->prepare("SELECT version, changelog, download_url, platform, created_at FROM versions WHERE is_latest = 1 ORDER BY created_at DESC LIMIT 1");
-            $stmt->execute();
-            $version = $stmt->fetch();
-            if (!$version) {
-                $version = ['version' => '1.0.0', 'changelog' => '', 'download_url' => '', 'platform' => 'windows', 'created_at' => date('Y-m-d H:i:s')];
+            $platform = in_array($_GET['platform'] ?? '', ['windows', 'macos', 'linux']) ? $_GET['platform'] : null;
+            if ($platform) {
+                $stmt = $db->prepare("SELECT version, changelog, download_url, platform, created_at FROM versions WHERE is_latest = 1 AND platform = ? ORDER BY created_at DESC LIMIT 1");
+                $stmt->execute([$platform]);
+            } else {
+                $stmt = $db->query("SELECT version, changelog, download_url, platform, created_at FROM versions WHERE is_latest = 1 ORDER BY created_at DESC");
             }
-            echo json_encode(['success' => true, 'data' => $version]);
+            $rows = $stmt->fetchAll();
+            if (empty($rows)) {
+                $rows = [['version' => '1.0.0', 'changelog' => '', 'download_url' => '', 'platform' => 'windows', 'created_at' => date('Y-m-d H:i:s')]];
+            }
+            if ($platform) {
+                echo json_encode(['success' => true, 'data' => $rows[0]]);
+            } else {
+                $result = [];
+                foreach ($rows as $r) {
+                    $result[$r['platform']] = $r;
+                }
+                echo json_encode(['success' => true, 'data' => $result]);
+            }
             break;
 
         case 'check_update':
@@ -48,12 +61,13 @@ try {
                 break;
             }
             $currentVersion = trim($_GET['current'] ?? '');
+            $platform = in_array($_GET['platform'] ?? '', ['windows', 'macos', 'linux']) ? $_GET['platform'] : 'windows';
             if ($currentVersion === '') {
                 echo json_encode(['success' => false, 'error' => 'Missing current version']);
                 break;
             }
-            $stmt = $db->prepare("SELECT version, changelog, download_url, platform, created_at FROM versions WHERE is_latest = 1 ORDER BY created_at DESC LIMIT 1");
-            $stmt->execute();
+            $stmt = $db->prepare("SELECT version, changelog, download_url, platform, created_at FROM versions WHERE is_latest = 1 AND platform = ? ORDER BY created_at DESC LIMIT 1");
+            $stmt->execute([$platform]);
             $latest = $stmt->fetch();
             if (!$latest) {
                 echo json_encode(['success' => true, 'data' => ['has_update' => false]]);
