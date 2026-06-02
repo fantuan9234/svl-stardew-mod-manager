@@ -4,7 +4,6 @@ pub mod save_file;
 pub mod character;
 pub mod skills;
 
-use error::Result;
 use save_file::SaveFile;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
