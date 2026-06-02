@@ -127,6 +127,7 @@ async fn check_update_from_github(current_version: &str) -> Result<AppUpdateInfo
         .or_else(|| release.assets.first());
 
     #[cfg(target_os = "linux")]
+    // Linux support disabled (see .github/workflows/build.yml). Keep code for future re-enable.
     let setup_asset = release
         .assets
         .iter()
@@ -280,12 +281,14 @@ pub async fn download_app_update_from_server(
     let mut downloaded: u64 = 0;
     let mut stream = response.bytes_stream();
 
-    let temp_dir = std::env::temp_dir();
+    let data_dir = crate::app_logger::get_svl_data_dir();
+    let update_dir = data_dir.join("updates");
+    let _ = std::fs::create_dir_all(&update_dir);
     let file_name = download_url
         .split('/')
         .last()
         .unwrap_or("svl-update");
-    let temp_file_path = temp_dir.join(format!("svl_update_{}", file_name));
+    let temp_file_path = update_dir.join(file_name);
     let mut file = std::fs::File::create(&temp_file_path)
         .map_err(|e| format!("创建临时文件失败: {}", e))?;
 
@@ -335,12 +338,37 @@ pub fn get_current_app_version() -> String {
 fn open_update_installer(installer_path: &std::path::Path) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new(installer_path)
-            .spawn()
-            .map_err(|e| format!("启动更新程序失败: {}", e))?;
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let path_str = installer_path.to_string_lossy().to_string();
+        let ext = installer_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        if ext == "msi" {
+            let res = std::process::Command::new("msiexec")
+                .args(["/i", &path_str])
+                .spawn();
+            if res.is_err() {
+                std::process::Command::new("cmd")
+                    .args(["/C", "start", "", &path_str])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .spawn()
+                    .map_err(|e| format!("启动更新程序失败: {}", e))?;
+            }
+        } else {
+            std::process::Command::new("cmd")
+                .args(["/C", "start", "", &path_str])
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
+                .map_err(|e| format!("启动更新程序失败: {}", e))?;
+        }
     }
 
     #[cfg(target_os = "linux")]
+    // Linux support disabled (see .github/workflows/build.yml). Keep code for future re-enable.
     {
         let name = installer_path
             .file_name()
@@ -377,7 +405,7 @@ fn open_update_installer(installer_path: &std::path::Path) -> Result<(), String>
             .map_err(|e| format!("启动更新程序失败: {}", e))?;
     }
 
-    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         std::process::Command::new(installer_path)
             .spawn()
@@ -396,6 +424,7 @@ pub fn run_installer(path: String) -> Result<(), String> {
     open_update_installer(exe_path)?;
     let _ = std::io::stdout().flush();
     let _ = std::io::stderr().flush();
+    std::thread::sleep(std::time::Duration::from_millis(1500));
     std::process::exit(0);
 }
 

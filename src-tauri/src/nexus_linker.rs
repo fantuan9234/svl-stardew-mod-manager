@@ -82,6 +82,9 @@ lazy_static::lazy_static! {
         m.insert("FlashShifter.SVEMap", 3753);
         m.insert("FlashShifter.SVENPC", 3753);
         m.insert("FlashShifter.SVEEvent", 3753);
+        m.insert("DIGUS.MailFrameworkMod", 1536);
+        m.insert("MailFrameworkMod", 1536);
+        m.insert("Mail Framework Mod", 1536);
         m
     };
     
@@ -117,6 +120,8 @@ lazy_static::lazy_static! {
         m.insert("Advanced Location Loader", 2270);
         m.insert("Walk of Life", 8304);
         m.insert("Pony Rider", 10979);
+        m.insert("Mail Framework Mod", 1536);
+        m.insert("MailFrameworkMod", 1536);
         m
     };
 }
@@ -168,6 +173,28 @@ pub fn build_nexus_link(unique_id: &str, mod_name: Option<&str>, nexus_mod_id: O
             method: "smapi_data".to_string(),
             mod_id: Some(nexus_id.to_string()),
         };
+    }
+
+    if let Some(pos) = unique_id.find('.') {
+        let suffix = &unique_id[pos + 1..];
+        if !suffix.is_empty() {
+            if let Some(nexus_id) = builtin_dict_lookup(suffix) {
+                let url = format!("https://www.nexusmods.com/stardewvalley/mods/{}", nexus_id);
+                return NexusLinkResult {
+                    url,
+                    method: "builtin_dict_suffix".to_string(),
+                    mod_id: Some(nexus_id.to_string()),
+                };
+            }
+            if let Some(nexus_id) = crate::smapi_data::get_mod_nexus_id(suffix) {
+                let url = format!("https://www.nexusmods.com/stardewvalley/mods/{}", nexus_id);
+                return NexusLinkResult {
+                    url,
+                    method: "smapi_data_suffix".to_string(),
+                    mod_id: Some(nexus_id.to_string()),
+                };
+            }
+        }
     }
 
     if let Some(name) = mod_name {

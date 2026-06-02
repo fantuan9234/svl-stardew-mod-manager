@@ -143,7 +143,7 @@ function DayNightIcon() {
   useEffect(() => {
     const update = () => setSkyState(computeSkyState(getDecimalHour()));
     update();
-    const interval = setInterval(update, 5000);
+    const interval = setInterval(update, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -297,7 +297,7 @@ export default function AppLayout() {
 
   useEffect(() => {
     checkLog();
-    const interval = setInterval(checkLog, 30000);
+    const interval = setInterval(checkLog, 120000);
     return () => clearInterval(interval);
   }, []);
 
@@ -401,8 +401,9 @@ export default function AppLayout() {
     if (!forceInstallerPath) return;
     try {
       await invoke('run_installer', { path: forceInstallerPath });
-    } catch {
-      message.error('Failed to start installer');
+    } catch (err: any) {
+      console.error('Force restart installer failed:', err);
+      message.error(t('features.updater.downloadFailed'));
     }
   };
 
@@ -414,16 +415,20 @@ export default function AppLayout() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const [loadedPages, setLoadedPages] = useState<Set<string>>(new Set());
+  const [renderedPages, setRenderedPages] = useState<Set<string>>(new Set());
+  const prevPathRef = useRef<string>('');
 
   useEffect(() => {
     if (location.pathname !== '/') {
-      setLoadedPages(prev => {
-        if (prev.has(location.pathname)) return prev;
-        const next = new Set(prev);
+      setRenderedPages(() => {
+        const next = new Set<string>();
         next.add(location.pathname);
+        if (prevPathRef.current && prevPathRef.current !== '/' && prevPathRef.current !== location.pathname) {
+          next.add(prevPathRef.current);
+        }
         return next;
       });
+      prevPathRef.current = location.pathname;
     }
   }, [location.pathname]);
 
@@ -531,7 +536,7 @@ export default function AppLayout() {
               <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} spin />} />
             </div>
           }>
-            {Array.from(loadedPages).map((path) => {
+            {Array.from(renderedPages).map((path) => {
               const PageComponent = pageMap[path];
               if (!PageComponent) return null;
               const isActive = path === location.pathname;
@@ -542,7 +547,7 @@ export default function AppLayout() {
               );
             })}
             {(() => {
-              if (loadedPages.has(location.pathname)) return null;
+              if (renderedPages.has(location.pathname)) return null;
               const PageComponent = pageMap[location.pathname];
               return PageComponent ? <PageComponent /> : null;
             })()}

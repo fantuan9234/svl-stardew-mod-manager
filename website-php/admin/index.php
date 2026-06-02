@@ -10,28 +10,29 @@ if (!defined('ADMIN_LAYOUT') && basename($_SERVER['SCRIPT_NAME']) === 'index.php
 }
 
 $db = getDB();
+$message = '';
+
 $announcementCount = $db->query("SELECT COUNT(*) FROM announcements")->fetchColumn();
 $contactCount = $db->query("SELECT COUNT(*) FROM contacts")->fetchColumn();
 $unreadCount = $db->query("SELECT COUNT(*) FROM contacts WHERE is_read = 0")->fetchColumn();
 $downloadCount = $db->query("SELECT COUNT(*) FROM downloads")->fetchColumn();
-
 $versionCount = $db->query("SELECT COUNT(*) FROM versions")->fetchColumn();
 
 $today = date('Y-m-d');
 $todayPV = $db->prepare("SELECT COUNT(*) FROM visitors WHERE date(created_at) = ?");
 $todayPV->execute([$today]);
-$todayPV = $todayPV->fetchColumn();
+$todayPV = (int)$todayPV->fetchColumn();
 $todayUV = $db->prepare("SELECT COUNT(DISTINCT ip_hash) FROM visitors WHERE date(created_at) = ?");
 $todayUV->execute([$today]);
-$todayUV = $todayUV->fetchColumn();
+$todayUV = (int)$todayUV->fetchColumn();
 
 $recentContacts = $db->query("SELECT * FROM contacts ORDER BY created_at DESC LIMIT 5")->fetchAll();
 $latestVersion = $db->query("SELECT version, platform, created_at FROM versions WHERE is_latest = 1 ORDER BY created_at DESC LIMIT 1")->fetch();
-
-$currentPage = basename($_SERVER['PHP_SELF']);
 ?>
 <div class="main-content">
         <h1 class="text-2xl font-bold mb-8">仪表盘</h1>
+
+        <?php if ($message): ?><div class="msg-success"><?php echo h($message); ?></div><?php endif; ?>
 
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
             <div class="stat-card">
@@ -107,10 +108,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                         <td style="color: var(--text-secondary);"><?php echo h($c['email']); ?></td>
                         <td><?php echo h($c['subject']); ?></td>
                         <td><span class="badge <?php echo $c['is_read'] ? 'badge-read' : 'badge-unread'; ?>"><?php echo $c['is_read'] ? '已读' : '未读'; ?></span></td>
-                        <td style="color: var(--text-secondary); font-size: 13px;"><?php echo h($c['created_at']); ?></td>
+                        <td style="color: var(--text-secondary); font-size: 13px;"><?php echo h(format_cn($c['created_at'])); ?></td>
                     </tr>
                     <?php endforeach; ?>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
+</div>

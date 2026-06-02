@@ -97,11 +97,36 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
     vec![
         Rule {
             error_type: "MissingDependency".into(),
-            pattern: Regex::new(r"(?i)(因为|because)\s*(it\s*)?(需要|needs|requires).*?mod\s*'([^']+)'").expect("Invalid regex: MissingDependency"),
+            pattern: Regex::new(r#"(?i)because\s+it\s+requires\s+mods?\s+which\s+aren[''\u{2019}]?t\s+installed\s*\(\s*['"\u{2018}]([^'"\u{2019}\)]+)['"\u{2019}](?::\s*(https?://[^\s\)]+))?"#).expect("Invalid regex: MissingDependencyWithUrl"),
             severity: "Error".into(),
             extract: |caps| {
-                let missing_mod = caps.get(4).map(|m| m.as_str()).unwrap_or("未知MOD");
-                (missing_mod.into(), format!("这个MOD需要 '{}' 才能运行，但你没有安装它。请去Nexus Mods搜索并下载 '{}'，然后放到 Mods 文件夹里。", missing_mod, missing_mod))
+                let missing_mod = caps.get(1).map(|m| m.as_str().trim()).unwrap_or("未知MOD");
+                let nexus_url = caps.get(2).map(|m| m.as_str().trim_end_matches(|c: char| c == '.' || c == ',' || c == ')'));
+                let url_hint = nexus_url
+                    .map(|u| format!("\nNexus 链接: {}", u))
+                    .unwrap_or_default();
+                let solution = format!(
+                    "这个 MOD 需要 '{}' 才能运行，但你没有安装它。请前往 Nexus Mods 下载并安装该前置 MOD，然后放到 Mods 文件夹里。{}",
+                    missing_mod, url_hint
+                );
+                (missing_mod.into(), solution)
+            },
+        },
+        Rule {
+            error_type: "MissingDependency".into(),
+            pattern: Regex::new(r#"(?i)because\s+it\s+requires\s+mods?\s+which\s+aren[''\u{2019}]?t\s+installed\s*\((?P<name>.+?)(?:\s*:\s*(?P<url>https?://[^\s\)]+))?\s*\)"#).expect("Invalid regex: MissingDependencyNoQuote"),
+            severity: "Error".into(),
+            extract: |caps| {
+                let missing_mod = caps.name("name").map(|m| m.as_str().trim().trim_matches(|c: char| c == '\'' || c == '"' || c == '\u{2018}' || c == '\u{2019}')).unwrap_or("未知MOD");
+                let nexus_url = caps.name("url").map(|m| m.as_str().trim_end_matches(|c: char| c == '.' || c == ',' || c == ')'));
+                let url_hint = nexus_url
+                    .map(|u| format!("\nNexus 链接: {}", u))
+                    .unwrap_or_default();
+                let solution = format!(
+                    "这个 MOD 需要 '{}' 才能运行，但你没有安装它。请前往 Nexus Mods 下载并安装该前置 MOD，然后放到 Mods 文件夹里。{}",
+                    missing_mod, url_hint
+                );
+                (missing_mod.into(), solution)
             },
         },
         Rule {
@@ -119,6 +144,15 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             severity: "Error".into(),
             extract: |caps| {
                 let missing_mod = caps.get(1).map(|m| m.as_str()).unwrap_or("未知MOD");
+                (missing_mod.into(), format!("这个MOD需要 '{}' 才能运行，但你没有安装它。请去Nexus Mods搜索并下载 '{}'，然后放到 Mods 文件夹里。", missing_mod, missing_mod))
+            },
+        },
+        Rule {
+            error_type: "MissingDependency".into(),
+            pattern: Regex::new(r"(?i)(因为|because)\s*(it\s*)?(需要|needs|requires).*?mod\s*'([^']+)'").expect("Invalid regex: MissingDependency"),
+            severity: "Error".into(),
+            extract: |caps| {
+                let missing_mod = caps.get(4).map(|m| m.as_str()).unwrap_or("未知MOD");
                 (missing_mod.into(), format!("这个MOD需要 '{}' 才能运行，但你没有安装它。请去Nexus Mods搜索并下载 '{}'，然后放到 Mods 文件夹里。", missing_mod, missing_mod))
             },
         },
@@ -986,6 +1020,17 @@ pub fn parse_smapi_log(log_path: Option<String>) -> Result<ParseSmapiLogResult, 
                             None
                         };
 
+                        let missing_dep_name = if err.translated_message.starts_with("MissingDependency:") {
+                            let name = extract_mod_name_from_translated(&err.translated_message);
+                            if !name.is_empty() && name != "Unknown" {
+                                Some(name)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+
                         all_errors.push(ParsedLogError {
                             mod_name: extract_mod_name_from_translated(&err.translated_message),
                             error_type: extract_error_type_from_translated(&err.translated_message),
@@ -993,7 +1038,7 @@ pub fn parse_smapi_log(log_path: Option<String>) -> Result<ParseSmapiLogResult, 
                             solution: err.solution.clone(),
                             severity: err.severity.clone(),
                             missing_dep_id,
-                            missing_dep_name: None,
+                            missing_dep_name,
                         });
                     }
                 }
@@ -1067,8 +1112,26 @@ fn extract_error_type_from_translated(translated: &str) -> String {
 
 fn extract_unique_id_from_solution(solution: &str) -> Option<String> {
     let re = Regex::new(r"UniqueID:\s*([^\),，）]+)").ok()?;
-    let caps = re.captures(solution)?;
-    caps.get(1).map(|m| m.as_str().trim().to_string())
+    if let Some(caps) = re.captures(solution) {
+        return caps.get(1).map(|m| m.as_str().trim().to_string());
+    }
+    let url_re = Regex::new(r"https?://www\.nexusmods\.com/stardewvalley/mods/(\d+)").ok()?;
+    if let Some(caps) = url_re.captures(solution) {
+        if let Some(nexus_id) = caps.get(1) {
+            if let Ok(id) = nexus_id.as_str().parse::<u64>() {
+                if let Some(unique_id) = crate::smapi_data::lookup_unique_id_by_nexus_id(id) {
+                    return Some(unique_id);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn extract_nexus_mod_id_from_solution(solution: &str) -> Option<String> {
+    let url_re = Regex::new(r"https?://www\.nexusmods\.com/stardewvalley/mods/(\d+)").ok()?;
+    let caps = url_re.captures(solution)?;
+    caps.get(1).map(|m| m.as_str().to_string())
 }
 
 fn run_mod_health_check(mods_path: &PathBuf) -> (Vec<ParsedLogError>, usize) {
@@ -1306,6 +1369,13 @@ fn parse_errors_v2(content: &str) -> Vec<LogError> {
     let mut seen: HashSet<String> = HashSet::new();
 
     let section_headers = ["skipped mods", "skipped mods:"];
+    let section_header_exact = [
+        "these mods could not be added to your game.",
+        "这些mod无法被添加到您的游戏中。",
+        "这些 mod 无法被添加到您的游戏中。",
+        "这些mod无法被添加到您的游戏中",
+        "这些 mod 无法被添加到您的游戏中",
+    ];
     let log_prefix_re = Regex::new(r"^\[\d{2}:\d{2}:\d{2}\s+\w+\s+\w+\]\s*").expect("Invalid regex: log_prefix3");
 
     for line in content.lines() {
@@ -1323,6 +1393,11 @@ fn parse_errors_v2(content: &str) -> Vec<LogError> {
         }
 
         if !ERROR_INDICATORS.is_match(trimmed) {
+            continue;
+        }
+
+        let body_no_prefix = log_prefix_re.replace(trimmed, "").trim().to_string();
+        if section_header_exact.iter().any(|h| body_no_prefix.eq_ignore_ascii_case(h)) {
             continue;
         }
 
@@ -1844,8 +1919,27 @@ async fn fix_single_error(
             } else {
                 err.mod_name.clone()
             };
-            eprintln!("[fix_single_error] 下载缺失依赖: {} -> 搜索: {}", err.mod_name, search_term);
-            download_and_install_mod(app, &search_term, mods_path, api_key).await
+
+            if let Some(nexus_mod_id) = extract_nexus_mod_id_from_solution(&err.solution) {
+                eprintln!("[fix_single_error] 直接通过 Nexus ID 下载缺失依赖: {} -> nexus_id={}", err.mod_name, nexus_mod_id);
+                let download_result = crate::nexus_api::download_mod_from_nexus(
+                    app.clone(),
+                    nexus_mod_id.clone(),
+                    api_key.to_string(),
+                    Some(mods_path.to_string()),
+                    None,
+                    None,
+                ).await?;
+
+                if download_result.success {
+                    Ok(("自动下载并安装".into(), format!("已成功下载并安装 '{}'", download_result.mod_name)))
+                } else {
+                    Err(format!("下载失败: {}", download_result.message))
+                }
+            } else {
+                eprintln!("[fix_single_error] 搜索下载缺失依赖: {} -> 搜索: {}", err.mod_name, search_term);
+                download_and_install_mod(app, &search_term, mods_path, api_key).await
+            }
         }
         "VersionMismatch" | "DllLoadFailed" | "FailedLoading" | "BrokenMod" | "AbandonedMod" | "ObsoleteMod" | "NeedsWorkaround" => {
             let search_term = &err.mod_name;
@@ -2151,6 +2245,70 @@ mod tests {
         let found = errors.iter().any(|e| e.translated_message.contains("MissingDependency"));
         assert!(found, "Should classify as MissingDependency, got: {:?}", errors);
     }
+
+    #[test]
+    fn test_parse_errors_v2_detects_requires_mods_which_arent_installed() {
+        let log = r#"[20:52:18 ERROR SMAPI] These mods could not be added to your game.
+[20:52:18 ERROR SMAPI] - Gifts from Linus - Simple Living and Nature's Gifts 1.1.0 because it requires mods which aren't installed ('Mail Framework': https://www.nexusmods.com/stardewvalley/mods/1536).
+"#;
+        let errors = parse_errors_v2(log);
+        let section_header = errors.iter()
+            .find(|e| e.translated_message.to_lowercase().contains("failedloading")
+                && e.raw_message.contains("These mods could not be added"));
+        assert!(section_header.is_none(), "Should filter out the section header line");
+
+        let dep = errors.iter()
+            .find(|e| e.translated_message.contains("MissingDependency"));
+        assert!(dep.is_some(), "Should classify as MissingDependency, got: {:?}", errors);
+        let dep = dep.unwrap();
+        assert!(dep.solution.contains("Mail Framework"), "Solution should contain the mod name: {}", dep.solution);
+        assert!(dep.solution.contains("nexusmods.com/stardewvalley/mods/1536"), "Solution should contain the Nexus URL: {}", dep.solution);
+    }
+
+    #[test]
+    fn test_parse_errors_v2_filters_section_header_could_not_be_added() {
+        let log = r#"[20:52:18 ERROR SMAPI] These mods could not be added to your game.
+"#;
+        let errors = parse_errors_v2(log);
+        assert!(errors.is_empty(), "Should filter out the section header alone, got: {:?}", errors);
+    }
+
+    #[test]
+    fn test_parse_errors_v2_requires_mods_with_smart_quotes() {
+        let log = format!("[20:52:18 ERROR SMAPI] - Gifts from Linus 1.1.0 because it requires mods which aren\u{2019}t installed (\u{2018}Mail Framework\u{2019}: https://www.nexusmods.com/stardewvalley/mods/1536).\n");
+        let errors = parse_errors_v2(&log);
+        let dep = errors.iter()
+            .find(|e| e.translated_message.contains("MissingDependency"));
+        assert!(dep.is_some(), "Should classify as MissingDependency with smart quotes, got: {:?}", errors);
+        let dep = dep.unwrap();
+        assert!(dep.solution.contains("Mail Framework"), "Solution should contain mod name: {}", dep.solution);
+        assert!(dep.solution.contains("nexusmods.com/stardewvalley/mods/1536"), "Solution should contain Nexus URL: {}", dep.solution);
+    }
+
+    #[test]
+    fn test_parse_errors_v2_requires_mods_no_quotes() {
+        let log = "[20:52:18 ERROR SMAPI] - Gifts from Linus - Simple Living and Nature's Gifts 1.1.0 because it requires mods which arent installed (Mail Framework: https://www.nexusmods.com/stardewvalley/mods/1536).\n";
+        let errors = parse_errors_v2(log);
+        let dep = errors.iter()
+            .find(|e| e.translated_message.contains("MissingDependency"));
+        assert!(dep.is_some(), "Should classify as MissingDependency even without quotes, got: {:?}", errors);
+        let dep = dep.unwrap();
+        assert!(dep.solution.contains("Mail Framework"), "Solution should contain mod name: {}", dep.solution);
+        assert!(dep.solution.contains("nexusmods.com/stardewvalley/mods/1536"), "Solution should contain Nexus URL: {}", dep.solution);
+    }
+
+    #[test]
+    fn test_parse_errors_v2_requires_mods_no_quote_no_colon() {
+        let log = "[20:52:18 ERROR SMAPI] - Gifts from Linus 1.1.0 because it requires mods which arent installed (Mail Framework).\n";
+        let errors = parse_errors_v2(log);
+        let dep = errors.iter()
+            .find(|e| e.translated_message.contains("MissingDependency"));
+        assert!(dep.is_some(), "Should classify as MissingDependency even without quotes/colon, got: {:?}", errors);
+        let dep = dep.unwrap();
+        assert!(dep.solution.contains("Mail Framework"), "Solution should contain mod name: {}", dep.solution);
+    }
+
+
 
     #[test]
     fn test_parse_errors_v2_detects_no_longer_compatible() {

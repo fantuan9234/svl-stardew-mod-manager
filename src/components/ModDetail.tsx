@@ -96,8 +96,14 @@ export default function ModDetail({ mod, installedMods, onClose, onDeleteMod, on
   const handleCheckUpdate = async () => {
     try {
       setUpdateLoading(true);
-      const updates = await invoke('check_mod_updates', { uniqueId: mod.unique_id });
-      if (updates && (updates as any).has_update) {
+      const apiKey = localStorage.getItem('svl-nexus-api-key') || undefined;
+      const result = await invoke<{ unique_id: string; has_update: boolean; latest_version: string | null; update_source: string | null }>('check_single_mod_update', {
+        unique_id: mod.unique_id,
+        current_version: mod.version,
+        mod_folder_path: mod.folder_path,
+        api_key: apiKey || null,
+      });
+      if (result && result.has_update) {
         message.info(t('app.modDetail.updateAvailable'));
       } else {
         message.success(t('app.modCard.upToDate'));

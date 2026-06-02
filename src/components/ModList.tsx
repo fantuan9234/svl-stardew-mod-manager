@@ -261,16 +261,24 @@ export default function ModList({
     }
   }, [filteredMods, isModTranslated, t, onRefresh]);
 
+  const displayNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const mod of filteredMods) {
+      const translation = nameTranslations.get(mod.unique_id);
+      if (translation && translation.translated_name !== translation.original_name) {
+        map.set(mod.unique_id, `${translation.translated_name} (${translation.original_name})`);
+      } else if (isModTranslated(mod)) {
+        map.set(mod.unique_id, mod.name);
+      } else {
+        map.set(mod.unique_id, mod.name);
+      }
+    }
+    return map;
+  }, [filteredMods, nameTranslations, isModTranslated]);
+
   const getDisplayName = useCallback((mod: ModInfo) => {
-    const translation = nameTranslations.get(mod.unique_id);
-    if (translation && translation.translated_name !== translation.original_name) {
-      return `${translation.translated_name} (${translation.original_name})`;
-    }
-    if (isModTranslated(mod)) {
-      return mod.name;
-    }
-    return mod.name;
-  }, [nameTranslations, isModTranslated]);
+    return displayNameMap.get(mod.unique_id) || mod.name;
+  }, [displayNameMap]);
 
   const contextMenuItems = contextMenuMod ? [
     {

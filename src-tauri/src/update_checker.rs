@@ -291,8 +291,23 @@ pub async fn batch_update_mods(
             continue;
         }
 
+        let mods_dir = std::path::PathBuf::from(&mods_path);
+        let version_before = crate::mod_installer::find_existing_mod_folder(&mods_dir, &unique_id)
+            .and_then(|path| {
+                let manifest_path = path.join("manifest.json");
+                std::fs::read_to_string(&manifest_path).ok()
+            })
+            .and_then(|content| {
+                let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+                let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                serde_json::from_str::<serde_json::Value>(cleaned).ok()
+            })
+            .and_then(|manifest| manifest["Version"].as_str().map(|s| s.to_string()))
+            .unwrap_or_else(|| "0.0.0".to_string());
+
         if let Some(nexus_id) = get_nexus_id_from_mod_data(mod_entry) {
-            log_info("UpdateChecker", &format!("Auto-downloading {} from Nexus (mod_id={})", name, nexus_id));
+            log_info("UpdateChecker", &format!("Auto-downloading {} from Nexus (mod_id={}), current_version={}", name, nexus_id, version_before));
 
             match crate::nexus_api::download_mod_from_nexus(
                 app.clone(),
@@ -304,33 +319,47 @@ pub async fn batch_update_mods(
             ).await {
                 Ok(download_result) => {
                     if download_result.success {
-                        updated_count += 1;
-                        log_info("UpdateChecker", &format!("Updated {} successfully: {}", name, download_result.message));
+                        let version_after = crate::mod_installer::find_existing_mod_folder(&mods_dir, &unique_id)
+                            .and_then(|path| {
+                                let manifest_path = path.join("manifest.json");
+                                std::fs::read_to_string(&manifest_path).ok()
+                            })
+                            .and_then(|content| {
+                                let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+                                let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                                let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                                serde_json::from_str::<serde_json::Value>(cleaned).ok()
+                            })
+                            .and_then(|manifest| manifest["Version"].as_str().map(|s| s.to_string()))
+                            .unwrap_or_else(|| "unknown".to_string());
 
-                        let mods_dir = std::path::PathBuf::from(&mods_path);
-                        if let Some(existing) = crate::mod_installer::find_existing_mod_folder(&mods_dir, &unique_id) {
-                            let manifest_path = existing.join("manifest.json");
-                            if let Ok(content) = std::fs::read_to_string(&manifest_path) {
-                            let normalized = crate::mod_parser::normalize_smart_quotes(&content);
-                            let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
-                            let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
-                            if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(cleaned) {
-                                    let installed_ver = manifest["Version"].as_str().unwrap_or("unknown");
-                                    let installed_uid = manifest["UniqueID"].as_str().unwrap_or("unknown");
-                                    log_info("UpdateChecker", &format!(
-                                        "Post-install verify: {} uid={} version={} at {}",
-                                        name, installed_uid, installed_ver, existing.display()
-                                    ));
-                                }
-                            }
+                        let version_changed = compare_versions(&version_before, &version_after) < 0;
+
+                        if version_changed {
+                            updated_count += 1;
+                            log_info("UpdateChecker", &format!(
+                                "Updated {} successfully: {} -> {}",
+                                name, version_before, version_after
+                            ));
+                            details.push(ModUpdateDetail {
+                                unique_id: unique_id.clone(),
+                                name: name.clone(),
+                                success: true,
+                                message: format!("{} -> {}", version_before, version_after),
+                            });
+                        } else {
+                            failed_count += 1;
+                            log_warn("UpdateChecker", &format!(
+                                "Version unchanged after update: {} still at {} (expected newer)",
+                                name, version_after
+                            ));
+                            details.push(ModUpdateDetail {
+                                unique_id: unique_id.clone(),
+                                name: name.clone(),
+                                success: false,
+                                message: format!("版本未变化: {} (安装前: {})", version_after, version_before),
+                            });
                         }
-
-                        details.push(ModUpdateDetail {
-                            unique_id: unique_id.clone(),
-                            name: name.clone(),
-                            success: true,
-                            message: download_result.message,
-                        });
                     } else {
                         failed_count += 1;
                         log_error("UpdateChecker", &format!("Failed to update {}: {}", name, download_result.message));
@@ -692,9 +721,39 @@ pub async fn download_mod_update(
             .collect();
         if !main_files.is_empty() {
             let mut sorted = main_files;
-            sorted.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
-            sorted.into_iter().next()
-                .ok_or("该 MOD 的所有文件都需要付费会员".to_string())?
+            sorted.sort_by(|a, b| {
+                let va = a.version.trim_start_matches('v').trim_start_matches('V');
+                let vb = b.version.trim_start_matches('v').trim_start_matches('V');
+                compare_versions(vb, va).cmp(&0)
+            });
+            let best_main = sorted.into_iter().next()
+                .ok_or("该 MOD 的所有文件都需要付费会员".to_string())?;
+
+            let update_files: Vec<_> = non_premium.iter()
+                .filter(|f| f.category_id == 2)
+                .cloned()
+                .collect();
+            if !update_files.is_empty() {
+                let mut sorted_upd = update_files;
+                sorted_upd.sort_by(|a, b| {
+                    let va = a.version.trim_start_matches('v').trim_start_matches('V');
+                    let vb = b.version.trim_start_matches('v').trim_start_matches('V');
+                    compare_versions(vb, va).cmp(&0)
+                });
+                if let Some(best_update) = sorted_upd.into_iter().next() {
+                    let main_ver = best_main.version.trim_start_matches('v').trim_start_matches('V');
+                    let upd_ver = best_update.version.trim_start_matches('v').trim_start_matches('V');
+                    if compare_versions(upd_ver, main_ver) > 0 {
+                        best_update
+                    } else {
+                        best_main
+                    }
+                } else {
+                    best_main
+                }
+            } else {
+                best_main
+            }
         } else {
             let update_files: Vec<_> = non_premium.iter()
                 .filter(|f| f.category_id == 2)
@@ -702,12 +761,20 @@ pub async fn download_mod_update(
                 .collect();
             if !update_files.is_empty() {
                 let mut sorted = update_files;
-                sorted.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
+                sorted.sort_by(|a, b| {
+                    let va = a.version.trim_start_matches('v').trim_start_matches('V');
+                    let vb = b.version.trim_start_matches('v').trim_start_matches('V');
+                    compare_versions(vb, va).cmp(&0)
+                });
                 sorted.into_iter().next()
                     .ok_or("该 MOD 的所有文件都需要付费会员".to_string())?
             } else {
                 let mut sorted = non_premium;
-                sorted.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
+                sorted.sort_by(|a, b| {
+                    let va = a.version.trim_start_matches('v').trim_start_matches('V');
+                    let vb = b.version.trim_start_matches('v').trim_start_matches('V');
+                    compare_versions(vb, va).cmp(&0)
+                });
                 sorted.into_iter().next()
                     .ok_or("该 MOD 的所有文件都需要付费会员".to_string())?
             }

@@ -89,6 +89,20 @@ export default function ModManager() {
   const [downloadingModIds, setDownloadingModIds] = useState<Set<string>>(new Set());
   const [showUpdatePanel, setShowUpdatePanel] = useState(false);
   const [selectedUpdateMods, setSelectedUpdateMods] = useState<Set<string>>(new Set());
+  const [showModsLayoutHint, setShowModsLayoutHint] = useState(() => {
+    try {
+      return localStorage.getItem('svl.modsLayoutHint.dismissed') !== 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const dismissModsLayoutHint = () => {
+    setShowModsLayoutHint(false);
+    try {
+      localStorage.setItem('svl.modsLayoutHint.dismissed', 'true');
+    } catch {}
+  };
 
   const [showLoadOrder, setShowLoadOrder] = useState(false);
   const [showConfigEditor, setShowConfigEditor] = useState(false);
@@ -602,10 +616,10 @@ export default function ModManager() {
     try {
       const apiKey = localStorage.getItem('svl-nexus-api-key') || undefined;
       const result = await invoke<{ unique_id: string; has_update: boolean; latest_version: string | null; update_source: string | null }>('check_single_mod_update', {
-        uniqueId: mod.unique_id,
-        currentVersion: mod.version,
-        modFolderPath: mod.folder_path,
-        apiKey: apiKey || null,
+        unique_id: mod.unique_id,
+        current_version: mod.version,
+        mod_folder_path: mod.folder_path,
+        api_key: apiKey || null,
       });
       if (result && result.has_update) {
         message.info(t('app.modDetail.updateAvailable'));
@@ -712,7 +726,7 @@ export default function ModManager() {
   const executeBatchUpdate = async (modsToUpdate: typeof updateStatuses) => {
     try {
       const apiKey = localStorage.getItem('svl-nexus-api-key') || '';
-      const result = await invoke<{updated: number, total: number}>('batch_update_mods', {
+      const result = await invoke<{updated: number, total: number, failed: number, details: Array<{unique_id: string, name: string, success: boolean, message: string}>}>('batch_update_mods', {
         modsToUpdate: modsToUpdate.map(u => ({
           unique_id: u.unique_id,
           name: u.name,
@@ -723,12 +737,26 @@ export default function ModManager() {
         modsPath: modsPath,
       });
 
-      message.success(t('app.modList.batchUpdateSuccess', {
-        updated: result.updated,
-        total: result.total,
-      }));
+      if (result.failed > 0) {
+        const failedNames = result.details
+          .filter(d => !d.success)
+          .map(d => d.name)
+          .join(', ');
+        message.warning(t('app.modList.batchUpdatePartial', {
+          updated: result.updated,
+          total: result.total,
+          failed: result.failed,
+          failedNames,
+        }));
+      } else {
+        message.success(t('app.modList.batchUpdateSuccess', {
+          updated: result.updated,
+          total: result.total,
+        }));
+      }
 
-      handleRefresh();
+      await handleRefresh();
+      setUpdateStatuses([]);
       setShowUpdatePanel(false);
       setSelectedUpdateMods(new Set());
     } catch (err) {
@@ -799,7 +827,7 @@ export default function ModManager() {
     try {
       const result = await downloadModUpdate(nexusModId, key, modsPath, uniqueId);
       message.success(result);
-      handleRefresh();
+      await handleRefresh();
       setUpdateStatuses(prev => prev.filter(u => u.nexus_mod_id !== nexusModId));
     } catch (err) {
       message.error(typeof err === 'string' ? err : String(err));
@@ -1529,6 +1557,25 @@ export default function ModManager() {
         apiKey={localStorage.getItem('svl-nexus-api-key') || ''}
         onInstallComplete={() => handleRefresh()}
       />
+
+      <Modal
+        title={t('app.pages.modManager.unsupportedLayoutTitle')}
+        open={showModsLayoutHint}
+        footer={null}
+        width={520}
+        centered
+        maskClosable={false}
+        closable={false}
+      >
+        <Typography.Paragraph style={{ whiteSpace: 'pre-line', marginBottom: 16 }}>
+          {t('app.pages.modManager.unsupportedLayoutDesc')}
+        </Typography.Paragraph>
+        <div style={{ textAlign: 'right' }}>
+          <button className="svl-detect-btn" onClick={dismissModsLayoutHint}>
+            {t('app.pages.modManager.unsupportedLayoutDismiss')}
+          </button>
+        </div>
+      </Modal>
 
     </>
   );

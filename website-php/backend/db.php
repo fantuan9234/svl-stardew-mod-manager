@@ -43,6 +43,7 @@ function initDatabase(): void
     $db->exec("CREATE TABLE IF NOT EXISTS downloads (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ip_hash TEXT NOT NULL,
+        version TEXT NOT NULL DEFAULT '',
         platform TEXT NOT NULL DEFAULT 'unknown',
         created_at DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
     )");
@@ -72,6 +73,7 @@ function initDatabase(): void
         download_url TEXT NOT NULL DEFAULT '',
         platform TEXT NOT NULL DEFAULT 'windows',
         is_latest INTEGER NOT NULL DEFAULT 0,
+        download_count INTEGER NOT NULL DEFAULT 0,
         created_at DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
     )");
 
@@ -158,7 +160,7 @@ function initDatabase(): void
         $db->exec("ALTER TABLE contacts ADD COLUMN device_id TEXT NOT NULL DEFAULT ''");
     }
 
-    // Migration for versions: add alt download fields
+    // Migration for versions: add alt download fields and download_count
     $versionCols = [];
     $result = $db->query("PRAGMA table_info(versions)");
     while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
@@ -169,6 +171,19 @@ function initDatabase(): void
     }
     if (!in_array('download_label_alt', $versionCols)) {
         $db->exec("ALTER TABLE versions ADD COLUMN download_label_alt TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('download_count', $versionCols)) {
+        $db->exec("ALTER TABLE versions ADD COLUMN download_count INTEGER NOT NULL DEFAULT 0");
+    }
+
+    // Migration for downloads: add version field
+    $downloadCols = [];
+    $result = $db->query("PRAGMA table_info(downloads)");
+    while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
+        $downloadCols[] = $row['name'];
+    }
+    if (!in_array('version', $downloadCols)) {
+        $db->exec("ALTER TABLE downloads ADD COLUMN version TEXT NOT NULL DEFAULT ''");
     }
 
     // Only insert seed data once using settings flag

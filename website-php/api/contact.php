@@ -55,8 +55,9 @@ if ($deviceId === '' || strlen($deviceId) !== 32) {
 
 try {
     $db = getDB();
-    $stmt = $db->prepare("INSERT INTO contacts (name, email, subject, message, device_id) VALUES (?, ?, ?, ?, ?)");
-    $stmt->execute([$name, $email, $subject, $message, $deviceId]);
+    $now = now_cn();
+    $stmt = $db->prepare("INSERT INTO contacts (name, email, subject, message, device_id, created_at) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$name, $email, $subject, $message, $deviceId, $now]);
     echo json_encode(['success' => true, 'message' => '消息已发送'], JSON_UNESCAPED_UNICODE);
 } catch (Exception $e) {
     http_response_code(500);

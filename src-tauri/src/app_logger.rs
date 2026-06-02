@@ -15,6 +15,21 @@ pub fn get_svl_data_dir() -> PathBuf {
         }
     }
 
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            let app_support = PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join("SVL");
+            if let Some(parent) = app_support.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            let _ = fs::create_dir_all(&app_support);
+            return app_support;
+        }
+    }
+
     dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("SVL")

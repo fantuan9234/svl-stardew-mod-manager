@@ -1,18 +1,20 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Input, Select, Spin, Progress, Typography, message, Collapse, Tag, Empty, Tooltip, Table, Checkbox
+  Button, Input, Select, Spin, Progress, Typography, message, Collapse, Tag, Empty, Tooltip, Table, Checkbox,
+  Modal, Segmented
 } from 'antd';
 import {
   ArrowLeftOutlined, TranslationOutlined, ApiOutlined, ScanOutlined,
   PlayCircleOutlined, ExperimentOutlined, LinkOutlined,
   WarningFilled, CloseCircleFilled, CheckCircleFilled, UndoOutlined,
-  HistoryOutlined, ReloadOutlined
+  HistoryOutlined, ReloadOutlined, FileSearchOutlined, SearchOutlined
 } from '@ant-design/icons';
 import { listen } from '@tauri-apps/api/event';
 import {
   scanTranslatableMods, translateModFile, testAiConnection, restoreTranslationBackup,
-  scanTranslationBackups,
+  scanTranslationBackups, getModUntranslatedEntries,
+  type ModTranslationDetail, type UntranslatedEntry,
   detectGamePath, checkSmapiStatus,
   type AiConfig, type ModTranslationStatus, type BackupEntry
 } from '../utils/tauri-api';
@@ -114,6 +116,12 @@ interface FileResult {
   backupPath: string | null;
 }
 
+interface TranslationSample {
+  key: string;
+  source: string;
+  translation: string;
+}
+
 export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation();
   const [provider, setProvider] = useState(() => localStorage.getItem('svl-ai-provider') || 'DeepSeek');
@@ -141,6 +149,28 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
   } | null>(null);
   const [backups, setBackups] = useState<BackupEntry[]>([]);
   const [backupsLoading, setBackupsLoading] = useState(false);
+  const [liveSamples, setLiveSamples] = useState<{
+    translated: TranslationSample[];
+    missing: TranslationSample[];
+  }>({ translated: [], missing: [] });
+  const [samplesModName, setSamplesModName] = useState<string>('');
+  const [detailModal, setDetailModal] = useState<{
+    open: boolean;
+    loading: boolean;
+    modName: string;
+    modPath: string;
+    detail: ModTranslationDetail | null;
+    filter: 'all' | 'untranslated' | 'same_as_source';
+    searchKey: string;
+  }>({
+    open: false,
+    loading: false,
+    modName: '',
+    modPath: '',
+    detail: null,
+    filter: 'all',
+    searchKey: '',
+  });
 
   useEffect(() => {
     localStorage.setItem('svl-ai-provider', provider);
@@ -166,8 +196,19 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
       }
     });
 
+    const unlistenSample = listen('translate-sample', (event: any) => {
+      const data = event.payload;
+      if (data) {
+        setLiveSamples({
+          translated: data.translated || [],
+          missing: data.missing || [],
+        });
+      }
+    });
+
     return () => {
       unlisten.then((fn) => fn());
+      unlistenSample.then((fn) => fn());
     };
   }, []);
 
@@ -252,6 +293,29 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
     });
   };
 
+  const openModDetail = async (record: ModTranslationStatus) => {
+    if (!record.has_i18n) {
+      message.info(t('app.translator.detailNoI18n'));
+      return;
+    }
+    setDetailModal({
+      open: true,
+      loading: true,
+      modName: record.mod_name,
+      modPath: record.mod_path,
+      detail: null,
+      filter: 'all',
+      searchKey: '',
+    });
+    try {
+      const detail = await getModUntranslatedEntries(record.mod_path, targetLang);
+      setDetailModal(prev => ({ ...prev, loading: false, detail }));
+    } catch (e: any) {
+      message.error(typeof e === 'string' ? e : (e?.message || String(e)));
+      setDetailModal(prev => ({ ...prev, open: false, loading: false }));
+    }
+  };
+
   const toggleAllNeed = () => {
     const names = needProcessMods.map(m => m.mod_name);
     const allSelected = names.every(n => selectedMods.has(n));
@@ -305,6 +369,8 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
     setProgress({ current: 0, total });
     setResults([]);
     setDetailProgress(null);
+    setLiveSamples({ translated: [], missing: [] });
+    setSamplesModName('');
 
     const fileResults: FileResult[] = [];
 
@@ -312,6 +378,8 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
       const file = allFiles[i];
       setCurrentFile(file.modName);
       setProgress({ current: i, total });
+      setLiveSamples({ translated: [], missing: [] });
+      setSamplesModName(file.modName);
       try {
         const result = await translateModFile(file.filePath, file.fileType, aiConfig, targetLang);
         fileResults.push({
@@ -635,6 +703,14 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
                   border: '1px solid rgba(250, 173, 20, 0.2)',
                   borderRadius: '0 0 8px 8px',
                 }}
+                onRow={(record: ModTranslationStatus) => ({
+                  onClick: (e: any) => {
+                    const tag = (e?.target as HTMLElement)?.tagName;
+                    if (tag === 'INPUT' || tag === 'BUTTON' || tag === 'LABEL' || tag === 'SPAN') return;
+                    openModDetail(record);
+                  },
+                  style: { cursor: record.has_i18n ? 'pointer' : 'default' },
+                })}
                 locale={{ emptyText: '' }}
               />
             </div>
@@ -660,6 +736,14 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
                   border: '1px solid rgba(82, 196, 26, 0.2)',
                   borderRadius: '0 0 8px 8px',
                 }}
+                onRow={(record: ModTranslationStatus) => ({
+                  onClick: (e: any) => {
+                    const tag = (e?.target as HTMLElement)?.tagName;
+                    if (tag === 'INPUT' || tag === 'BUTTON' || tag === 'LABEL' || tag === 'SPAN') return;
+                    openModDetail(record);
+                  },
+                  style: { cursor: record.has_i18n ? 'pointer' : 'default' },
+                })}
                 locale={{ emptyText: '' }}
               />
             </div>
@@ -762,6 +846,80 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
               </div>
             </div>
           )}
+
+          {(liveSamples.translated.length > 0 || liveSamples.missing.length > 0) && (
+            <div style={{
+              marginTop: 10,
+              background: 'rgba(114, 46, 209, 0.04)',
+              borderRadius: 8,
+              padding: '10px 14px',
+              border: '1px solid rgba(114, 46, 209, 0.1)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <Text style={{ fontSize: 12, color: '#722ed1', fontWeight: 600 }}>
+                  {t('app.translator.livePreview')}
+                </Text>
+                {samplesModName && (
+                  <Tag color="purple" style={{ fontSize: 11, margin: 0 }}>{samplesModName}</Tag>
+                )}
+                {liveSamples.translated.length > 0 && (
+                  <Tag color="success" style={{ fontSize: 11, margin: 0 }}>
+                    {t('app.translator.livePreviewTranslated', { count: liveSamples.translated.length })}
+                  </Tag>
+                )}
+                {liveSamples.missing.length > 0 && (
+                  <Tag color="warning" style={{ fontSize: 11, margin: 0 }}>
+                    {t('app.translator.livePreviewSkipped', { count: liveSamples.missing.length })}
+                  </Tag>
+                )}
+              </div>
+              <div style={{ maxHeight: 280, overflowY: 'auto', borderRadius: 6, background: 'var(--svl-bg-elevated, rgba(0,0,0,0.2))' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ position: 'sticky', top: 0, background: 'var(--svl-bg-elevated, rgba(0,0,0,0.3))', zIndex: 1 }}>
+                      <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: '#b37feb', borderBottom: '1px solid rgba(114,46,209,0.2)', width: '30%' }}>
+                        {t('app.translator.livePreviewKey')}
+                      </th>
+                      <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: '#b37feb', borderBottom: '1px solid rgba(114,46,209,0.2)', width: '35%' }}>
+                        {t('app.translator.livePreviewSource')}
+                      </th>
+                      <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: '#b37feb', borderBottom: '1px solid rgba(114,46,209,0.2)', width: '35%' }}>
+                        {t('app.translator.livePreviewTranslation')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {liveSamples.translated.map((s, idx) => (
+                      <tr key={`t-${idx}`} style={{ borderBottom: '1px solid rgba(114,46,209,0.06)' }}>
+                        <td style={{ padding: '6px 10px', color: '#b37feb', fontFamily: 'monospace', fontSize: 11, wordBreak: 'break-all' }}>
+                          {s.key}
+                        </td>
+                        <td style={{ padding: '6px 10px', color: 'var(--svl-text-secondary, #aaa)' }}>
+                          {s.source}
+                        </td>
+                        <td style={{ padding: '6px 10px', color: 'var(--svl-text-primary, #fff)' }}>
+                          {s.translation}
+                        </td>
+                      </tr>
+                    ))}
+                    {liveSamples.missing.map((s, idx) => (
+                      <tr key={`m-${idx}`} style={{ borderBottom: '1px solid rgba(114,46,209,0.06)', opacity: 0.6 }}>
+                        <td style={{ padding: '6px 10px', color: '#b37feb', fontFamily: 'monospace', fontSize: 11, wordBreak: 'break-all' }}>
+                          {s.key}
+                        </td>
+                        <td style={{ padding: '6px 10px', color: 'var(--svl-text-secondary, #aaa)' }}>
+                          {s.source}
+                        </td>
+                        <td style={{ padding: '6px 10px', color: 'var(--svl-text-tertiary, #888)', fontStyle: 'italic' }}>
+                          {t('app.translator.livePreviewNotTranslated')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -817,6 +975,138 @@ export default function ModTranslatorView({ onBack }: { onBack: () => void }) {
           ))}
         </div>
       )}
+
+      <Modal
+        open={detailModal.open}
+        onCancel={() => setDetailModal(prev => ({ ...prev, open: false }))}
+        width={920}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <FileSearchOutlined style={{ color: '#722ed1' }} />
+            <span>{detailModal.modName}</span>
+            {detailModal.detail && (
+              <Tag color="purple" style={{ marginLeft: 4 }}>
+                {t('app.translator.detailUntranslatedCount', {
+                  count: detailModal.detail.untranslated_count,
+                  total: detailModal.detail.total_entries,
+                })}
+              </Tag>
+            )}
+          </div>
+        }
+        footer={
+          <Button onClick={() => setDetailModal(prev => ({ ...prev, open: false }))}>
+            {t('common.close')}
+          </Button>
+        }
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
+      >
+        {detailModal.loading && (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Spin tip={t('app.translator.detailLoading')} />
+          </div>
+        )}
+
+        {!detailModal.loading && detailModal.detail && (
+          <div>
+            <div style={{
+              display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center'
+            }}>
+              <Segmented
+                value={detailModal.filter}
+                onChange={(v: any) => setDetailModal(prev => ({ ...prev, filter: v }))}
+                options={[
+                  {
+                    label: t('app.translator.detailFilterAll', { count: detailModal.detail!.entries.length }),
+                    value: 'all',
+                  },
+                  {
+                    label: t('app.translator.detailFilterUntranslated', {
+                      count: detailModal.detail!.entries.filter(e => e.status === 'untranslated').length,
+                    }),
+                    value: 'untranslated',
+                  },
+                  {
+                    label: t('app.translator.detailFilterSame', {
+                      count: detailModal.detail!.entries.filter(e => e.status === 'same_as_source').length,
+                    }),
+                    value: 'same_as_source',
+                  },
+                ]}
+              />
+              <Input
+                allowClear
+                prefix={<SearchOutlined />}
+                placeholder={t('app.translator.detailSearchPlaceholder')}
+                style={{ flex: 1, minWidth: 180 }}
+                value={detailModal.searchKey}
+                onChange={(e) => setDetailModal(prev => ({ ...prev, searchKey: e.target.value }))}
+              />
+            </div>
+
+            {(() => {
+              const filtered = detailModal.detail!.entries.filter(e => {
+                if (detailModal.filter !== 'all' && e.status !== detailModal.filter) return false;
+                if (detailModal.searchKey) {
+                  const k = detailModal.searchKey.toLowerCase();
+                  return e.key.toLowerCase().includes(k)
+                    || e.source.toLowerCase().includes(k)
+                    || e.current.toLowerCase().includes(k);
+                }
+                return true;
+              });
+              if (filtered.length === 0) {
+                return <Empty description={t('app.translator.detailNoMatches')} style={{ padding: '30px 0' }} />;
+              }
+              return (
+                <Table
+                  dataSource={filtered}
+                  rowKey="key"
+                  size="small"
+                  pagination={{ pageSize: 50, showSizeChanger: false }}
+                  columns={[
+                    {
+                      title: t('app.translator.detailColKey'),
+                      dataIndex: 'key',
+                      key: 'key',
+                      width: 240,
+                      render: (v: string) => (
+                        <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#722ed1', wordBreak: 'break-all' }}>
+                          {v}
+                        </span>
+                      ),
+                    },
+                    {
+                      title: t('app.translator.detailColSource'),
+                      dataIndex: 'source',
+                      key: 'source',
+                      render: (v: string) => (
+                        <span style={{ color: 'var(--svl-text-secondary, #aaa)' }}>{v}</span>
+                      ),
+                    },
+                    {
+                      title: t('app.translator.detailColCurrent'),
+                      dataIndex: 'current',
+                      key: 'current',
+                      width: 140,
+                      render: (v: string, record: UntranslatedEntry) => {
+                        if (!v) {
+                          return <Text type="secondary" style={{ fontStyle: 'italic' }}>{t('app.translator.detailEmpty')}</Text>;
+                        }
+                        return (
+                          <Tag color={record.status === 'same_as_source' ? 'warning' : 'default'}>
+                            {t('app.translator.detailSameAsSource')}
+                          </Tag>
+                        );
+                      },
+                    },
+                  ]}
+                />
+              );
+            })()}
+          </div>
+        )}
+      </Modal>
 
       <div style={{ marginTop: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>

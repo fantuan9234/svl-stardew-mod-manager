@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Typography, Input, Button, Tag, Space, Pagination, message, Spin, Progress, Select, Empty, Alert, Card, Row, Col, Divider, theme, Steps, Modal, Collapse, Checkbox, Segmented, Tooltip } from 'antd';
-import { SearchOutlined, DownloadOutlined, HeartOutlined, ThunderboltOutlined, FireOutlined, ReloadOutlined, GlobalOutlined, ArrowLeftOutlined, QuestionCircleOutlined, SettingOutlined, InfoCircleOutlined, UserOutlined, ClockCircleOutlined, CrownOutlined, EyeOutlined, SortAscendingOutlined } from '@ant-design/icons';
+import { SearchOutlined, DownloadOutlined, HeartOutlined, ThunderboltOutlined, FireOutlined, ReloadOutlined, GlobalOutlined, ArrowLeftOutlined, QuestionCircleOutlined, SettingOutlined, InfoCircleOutlined, UserOutlined, ClockCircleOutlined, CrownOutlined, SortAscendingOutlined } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useTranslation } from 'react-i18next';
@@ -81,7 +81,9 @@ function ModGridCard({ mod, onDownload, onOpenNexus, downloading, downloadProgre
           paddingTop: '56.25%',
           background: `linear-gradient(135deg, ${token.colorPrimaryBg}, ${token.colorBgLayout})`,
           overflow: 'hidden',
+          cursor: 'pointer',
         }}
+        onClick={() => onOpenNexus(mod.nexus_url)}
       >
         {mod.picture_url ? (
           <img
@@ -198,14 +200,6 @@ function ModGridCard({ mod, onDownload, onOpenNexus, downloading, downloadProgre
             >
               {t('features.nexus.download')}
             </Button>
-            <Tooltip title={t('features.nexus.viewOnNexus')}>
-              <Button
-                size="small"
-                icon={<EyeOutlined />}
-                onClick={() => onOpenNexus(mod.nexus_url)}
-                style={{ borderRadius: 6 }}
-              />
-            </Tooltip>
           </div>
         )}
       </div>

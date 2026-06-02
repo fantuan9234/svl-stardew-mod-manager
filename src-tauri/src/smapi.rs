@@ -35,10 +35,12 @@ const STEAM_DEFAULT_PATHS: &[&str] = &[
 #[cfg(target_os = "macos")]
 const STEAM_DEFAULT_PATHS: &[&str] = &[
     "/Applications/Stardew Valley.app/Contents/MacOS",
+    "~/Library/Application Support/Steam/steamapps/common/Stardew Valley.app/Contents/MacOS",
     "~/Library/Application Support/Steam/steamapps/common/Stardew Valley",
 ];
 
 #[cfg(target_os = "linux")]
+// Linux support disabled (see .github/workflows/build.yml). Keep code for future re-enable.
 const STEAM_DEFAULT_PATHS: &[&str] = &[
     "~/.steam/steam/steamapps/common/Stardew Valley",
     "~/.local/share/Steam/steamapps/common/Stardew Valley",
@@ -185,26 +187,43 @@ fn find_via_steam_library_folders() -> Option<PathBuf> {
     if library_folders_path.exists() {
         if let Some(path) = parse_library_folders(&library_folders_path) {
             println!("[smapi] Found library path: {}", path.display());
-            let game_path = path
-                .join("steamapps")
-                .join("common")
-                .join("Stardew Valley");
-
-            if game_path.exists() && is_valid_game_path(&game_path) {
+            if let Some(game_path) = resolve_steam_game_path(&path) {
                 return Some(game_path);
             }
         }
 
         if let Some(paths) = parse_all_library_folders(&library_folders_path) {
             for lib_path in paths {
-                let game_path = lib_path
-                    .join("steamapps")
-                    .join("common")
-                    .join("Stardew Valley");
-
-                if game_path.exists() && is_valid_game_path(&game_path) {
+                if let Some(game_path) = resolve_steam_game_path(&lib_path) {
                     return Some(game_path);
                 }
+            }
+        }
+    }
+
+    None
+}
+
+fn resolve_steam_game_path(library_path: &PathBuf) -> Option<PathBuf> {
+    let game_path = library_path
+        .join("steamapps")
+        .join("common")
+        .join("Stardew Valley");
+
+    if game_path.exists() && is_valid_game_path(&game_path) {
+        return Some(game_path);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let app_path = game_path.join("Stardew Valley.app");
+        if app_path.exists() {
+            let macos_inner = app_path.join("Contents").join("MacOS");
+            if macos_inner.exists() && is_valid_game_path(&macos_inner) {
+                return Some(macos_inner);
+            }
+            if is_valid_game_path(&app_path) {
+                return Some(app_path);
             }
         }
     }
@@ -240,10 +259,10 @@ fn find_steam_install_dir() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     let steam_candidates = [
         "~/Library/Application Support/Steam",
-        "/Applications/Steam.app/Contents/MacOS",
+        "~/Library/Application Support/Steam/Contents/MacOS",
     ];
 
-    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     let steam_candidates: [&str; 0] = [];
 
     for candidate in &steam_candidates {
@@ -381,7 +400,11 @@ fn find_via_disk_scan() -> Option<PathBuf> {
     {
         let macos_paths = [
             "~/Games/Stardew Valley",
+            "/Applications/Stardew Valley.app",
             "/Applications/Stardew Valley.app/Contents/MacOS",
+            "~/Library/Application Support/Steam/steamapps/common/Stardew Valley",
+            "~/Library/Application Support/Steam/steamapps/common/Stardew Valley.app",
+            "~/Library/Application Support/Steam/steamapps/common/Stardew Valley.app/Contents/MacOS",
         ];
         for path_str in &macos_paths {
             let p = expand_tilde(PathBuf::from(path_str));
@@ -395,15 +418,20 @@ fn find_via_disk_scan() -> Option<PathBuf> {
 }
 
 fn expand_tilde(path: PathBuf) -> PathBuf {
-    if let Ok(home) = std::env::var("HOME") {
+    let home = std::env::var("HOME")
+        .ok()
+        .map(PathBuf::from)
+        .or_else(dirs::home_dir);
+
+    if let Some(home) = home {
         let path_str = path.to_string_lossy().to_string();
         if path_str.starts_with("~/") {
             let rest = &path_str[2..];
-            return PathBuf::from(home).join(rest);
+            return home.join(rest);
         }
         if path_str.starts_with("~") {
             let rest = &path_str[1..];
-            return PathBuf::from(home).join(rest);
+            return home.join(rest);
         }
     }
     path
@@ -420,6 +448,7 @@ fn is_valid_game_path(path: &PathBuf) -> bool {
     }
 
     #[cfg(target_os = "linux")]
+    // Linux support disabled (see .github/workflows/build.yml). Keep code for future re-enable.
     {
         path.join("Stardew Valley").exists()
             || path.join("StardewModdingAPI").exists()
@@ -429,13 +458,29 @@ fn is_valid_game_path(path: &PathBuf) -> bool {
 
     #[cfg(target_os = "macos")]
     {
-        path.join("Stardew Valley").exists()
-            || path.join("StardewModdingAPI").exists()
-            || path.join("StardewModdingAPI.dll").exists()
-            || (path.join("Content").is_dir() && path.join("Content").join("MacOS").is_dir())
+        let inner_exe = path.join("Stardew Valley");
+        let inner_smapi = path.join("StardewModdingAPI");
+        let inner_smapi_dll = path.join("StardewModdingAPI.dll");
+        let app_exe = path.join("Contents").join("MacOS").join("Stardew Valley");
+        let app_smapi = path.join("Contents").join("MacOS").join("StardewModdingAPI");
+        let nested_app_exe = path.join("Stardew Valley.app").join("Contents").join("MacOS").join("Stardew Valley");
+        let nested_app_smapi = path.join("Stardew Valley.app").join("Contents").join("MacOS").join("StardewModdingAPI");
+        let has_content_macos = path.join("Content").is_dir() && path.join("Content").join("MacOS").is_dir();
+        let has_app_bundle = path.join("Stardew Valley.app").is_dir() && path.join("Stardew Valley.app").join("Contents").is_dir();
+
+        inner_exe.exists()
+            || inner_smapi.exists()
+            || inner_smapi_dll.exists()
+            || app_exe.exists()
+            || app_smapi.exists()
+            || nested_app_exe.exists()
+            || nested_app_smapi.exists()
+            || has_content_macos
+            || has_app_bundle
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    // Linux support disabled (see .github/workflows/build.yml). Keep code for future re-enable.
     {
         path.join("Stardew Valley.exe").exists()
             || path.join("StardewModdingAPI.dll").exists()

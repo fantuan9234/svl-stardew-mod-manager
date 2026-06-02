@@ -1,4 +1,6 @@
 <?php
+date_default_timezone_set('Asia/Shanghai');
+
 define('BASE_PATH', dirname(__DIR__));
 define('DATA_DIR', BASE_PATH . '/data');
 define('DB_PATH', DATA_DIR . '/site.db');
@@ -18,4 +20,24 @@ if (!is_dir(DATA_DIR)) {
 function h(string $str): string
 {
     return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
+}
+
+function now_cn(): string
+{
+    $dt = new DateTime('now', new DateTimeZone('Asia/Shanghai'));
+    return $dt->format('Y-m-d H:i:s');
+}
+
+function format_cn(?string $value): string
+{
+    if ($value === null || $value === '') {
+        return '';
+    }
+    try {
+        $dt = new DateTime($value);
+        $dt->setTimezone(new DateTimeZone('Asia/Shanghai'));
+        return $dt->format('Y-m-d H:i:s');
+    } catch (Exception $e) {
+        return $value;
+    }
 }

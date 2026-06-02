@@ -1664,15 +1664,238 @@ pub async fn get_nexus_categories(
     Ok(categories)
 }
 
+async fn download_with_reqwest(url: &str, temp_dir: &PathBuf, mod_name: &str) -> Result<PathBuf, String> {
+    eprintln!("[reqwest_dl] Starting download: {}", url);
+
+    let file_name = extract_filename_from_url(url);
+    let safe_name = file_name.replace(|c: char| !c.is_alphanumeric() && c != '.' && c != '-' && c != '_', "_");
+    let final_name = if safe_name.is_empty() || safe_name == "_" {
+        format!("{}_nexus_download.zip", mod_name.replace(|c: char| !c.is_alphanumeric(), "_"))
+    } else {
+        safe_name
+    };
+    let dest = temp_dir.join(&final_name);
+
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .map_err(|e| format!("创建HTTP客户端失败: {}", e))?;
+
+    let response = client.get(url)
+        .header("Referer", "https://www.nexusmods.com/")
+        .header("Accept", "*/*")
+        .send()
+        .await
+        .map_err(|e| format!("HTTP请求失败: {}", e))?;
+
+    let status = response.status();
+    eprintln!("[reqwest_dl] Response status: {}", status);
+
+    if !status.is_success() {
+        return Err(format!("HTTP错误: {} {}", status.as_u16(), status.canonical_reason().unwrap_or("")));
+    }
+
+    let content_type = response.headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    eprintln!("[reqwest_dl] Content-Type: {}", content_type);
+
+    let bytes = response.bytes().await.map_err(|e| format!("读取响应体失败: {}", e))?;
+    let size = bytes.len();
+    eprintln!("[reqwest_dl] Downloaded {} bytes", size);
+
+    if size < 1024 {
+        let preview = String::from_utf8_lossy(&bytes[..std::cmp::min(512, size)]);
+        eprintln!("[reqwest_dl] Response too small, preview: {}", preview);
+        return Err(format!("下载文件太小 ({} bytes)，可能不是有效的mod文件", size));
+    }
+
+    let mut file = fs::File::create(&dest).map_err(|e| format!("创建文件失败: {}", e))?;
+    std::io::Write::write_all(&mut file, &bytes).map_err(|e| format!("写入文件失败: {}", e))?;
+
+    eprintln!("[reqwest_dl] File saved to: {} ({} bytes)", dest.display(), size);
+    Ok(dest)
+}
+
+fn list_dir_contents(dir: &PathBuf) -> String {
+    let mut items = Vec::new();
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("?");
+            let size = fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
+            let kind = if p.is_dir() { "DIR" } else { "FILE" };
+            items.push(format!("{} {} ({} bytes)", kind, name, size));
+        }
+    }
+    if items.is_empty() {
+        "(空目录或不存在)".to_string()
+    } else {
+        items.join(", ")
+    }
+}
+
+struct FileSnapshot {
+    size: u64,
+    mtime: std::time::SystemTime,
+}
+
+fn snapshot_downloads_dir() -> std::collections::HashMap<String, FileSnapshot> {
+    let mut snapshot = std::collections::HashMap::new();
+    if let Some(downloads_dir) = dirs::download_dir() {
+        if let Ok(entries) = fs::read_dir(&downloads_dir) {
+            for entry in entries.flatten() {
+                if let Some(name) = entry.file_name().to_str() {
+                    if let Ok(meta) = entry.metadata() {
+                        if let Ok(mtime) = meta.modified() {
+                            snapshot.insert(name.to_string(), FileSnapshot {
+                                size: meta.len(),
+                                mtime,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    eprintln!("[snapshot] 记录系统下载目录快照，共 {} 个文件", snapshot.len());
+    snapshot
+}
+
+fn find_changed_file_in_downloads(before: &std::collections::HashMap<String, FileSnapshot>, mod_name_hint: &str) -> Option<PathBuf> {
+    if let Some(downloads_dir) = dirs::download_dir() {
+        if !downloads_dir.exists() {
+            eprintln!("[find_changed] 系统下载目录不存在: {}", downloads_dir.display());
+            return None;
+        }
+        if let Ok(entries) = fs::read_dir(&downloads_dir) {
+            let mut candidates: Vec<(PathBuf, u64, bool)> = Vec::new();
+            let mod_name_lower = mod_name_hint.to_lowercase()
+                .replace(|c: char| !c.is_alphanumeric(), "");
+
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if !p.is_file() {
+                    continue;
+                }
+                let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+                if name.starts_with('.') || name.ends_with(".crdownload") || name.ends_with(".part") {
+                    continue;
+                }
+                let meta = match fs::metadata(&p) {
+                    Ok(m) => m,
+                    Err(_) => continue,
+                };
+                let size = meta.len();
+                if size < 1024 {
+                    continue;
+                }
+                let mtime = meta.modified().ok();
+
+                let is_new_or_changed = match before.get(&name) {
+                    None => {
+                        eprintln!("[find_changed] 新文件: {} ({} bytes)", name, size);
+                        true
+                    }
+                    Some(old) => {
+                        let size_changed = old.size != size;
+                        let mtime_changed = mtime.map_or(true, |t| t > old.mtime);
+                        if size_changed || mtime_changed {
+                            eprintln!("[find_changed] 变化的文件: {} ({} bytes, size_changed={}, mtime_changed={})", name, size, size_changed, mtime_changed);
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                };
+
+                if !is_new_or_changed {
+                    continue;
+                }
+
+                let name_lower = name.to_lowercase();
+                let name_clean = name_lower.replace(|c: char| !c.is_alphanumeric(), "");
+                let matches_mod_name = !mod_name_lower.is_empty()
+                    && (name_clean.contains(&mod_name_lower)
+                        || mod_name_lower.contains(&name_clean.split('-').next().unwrap_or("")));
+
+                candidates.push((p, size, matches_mod_name));
+            }
+
+            if candidates.is_empty() {
+                eprintln!("[find_changed] 没有找到新文件或变化的文件");
+                return None;
+            }
+
+            let mod_matched: Vec<_> = candidates.iter().filter(|(_, _, m)| *m).collect();
+            if !mod_matched.is_empty() {
+                let best = mod_matched.into_iter().max_by_key(|(_, s, _)| *s).unwrap();
+                eprintln!("[find_changed] 选择匹配 mod 名的最大文件: {} ({} bytes)", best.0.display(), best.1);
+                return Some(best.0.clone());
+            }
+
+            if let Some((path, size, _)) = candidates.into_iter().max_by_key(|(_, s, _)| *s) {
+                eprintln!("[find_changed] 选择最大变化文件: {} ({} bytes)", path.display(), size);
+                return Some(path);
+            }
+        }
+    }
+    eprintln!("[find_changed] 系统下载目录中未找到新文件或变化的文件");
+    None
+}
+
+fn find_download_file_anywhere(temp_dir: &PathBuf, downloaded_file_path: &std::sync::Arc<std::sync::Mutex<Option<String>>>, downloads_before: &std::collections::HashMap<String, FileSnapshot>, mod_name_hint: &str) -> Option<PathBuf> {
+    if let Some(found) = find_and_normalize_download(temp_dir) {
+        eprintln!("[find_anywhere] 在临时目录找到文件");
+        return Some(found);
+    }
+
+    eprintln!("[find_anywhere] Temp dir empty, checking downloaded_file_path hint...");
+    if let Ok(guard) = downloaded_file_path.lock() {
+        if let Some(ref path_str) = *guard {
+            let path = PathBuf::from(path_str);
+            if path.exists() && path.is_file() {
+                let size = fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                eprintln!("[find_anywhere] Found file at hinted path: {} ({} bytes)", path.display(), size);
+                if size > 1024 {
+                    return Some(path);
+                }
+            }
+        }
+    }
+
+    eprintln!("[find_anywhere] Checking system Downloads directory via snapshot diff (with change detection)...");
+    if let Some(found) = find_changed_file_in_downloads(downloads_before, mod_name_hint) {
+        return Some(found);
+    }
+
+    eprintln!("[find_anywhere] No download file found anywhere");
+    None
+}
+
 fn find_and_normalize_download(temp_dir: &PathBuf) -> Option<PathBuf> {
     if let Ok(entries) = fs::read_dir(temp_dir) {
+        let mut candidates: Vec<PathBuf> = Vec::new();
         for entry in entries.flatten() {
             let p = entry.path();
             if !p.is_file() {
                 continue;
             }
             let file_name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if file_name.starts_with('.') {
+                continue;
+            }
             eprintln!("[find_and_normalize] 检查文件: {}", file_name);
+
+            let file_size = fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
+            if file_size == 0 {
+                eprintln!("[find_and_normalize] 跳过空文件: {}", file_name);
+                continue;
+            }
 
             let clean_name = extract_filename_from_url(file_name);
             let clean_path = temp_dir.join(&clean_name);
@@ -1681,18 +1904,33 @@ fn find_and_normalize_download(temp_dir: &PathBuf) -> Option<PathBuf> {
                 eprintln!("[find_and_normalize] 文件名含URL参数，重命名: {} -> {}", file_name, clean_name);
                 if let Err(e) = fs::rename(&p, &clean_path) {
                     eprintln!("[find_and_normalize] 重命名失败: {} (将使用原路径)", e);
-                    let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-                    if ext == "zip" || ext == "7z" || ext == "rar" {
-                        return Some(p);
-                    }
+                    candidates.push(p);
                     continue;
                 }
             }
 
             let ext = clean_path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
             if ext == "zip" || ext == "7z" || ext == "rar" {
-                eprintln!("[find_and_normalize] 找到下载文件: {}", clean_path.display());
+                eprintln!("[find_and_normalize] 找到下载文件: {} ({} bytes)", clean_path.display(), file_size);
                 return Some(clean_path);
+            }
+
+            candidates.push(clean_path);
+        }
+
+        if let Some(best) = candidates.into_iter().max_by_key(|p| fs::metadata(p).map(|m| m.len()).unwrap_or(0)) {
+            let ext = best.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            let file_size = fs::metadata(&best).map(|m| m.len()).unwrap_or(0);
+            if file_size > 1024 {
+                if ext.is_empty() {
+                    let renamed = best.with_extension("zip");
+                    eprintln!("[find_and_normalize] 无扩展名文件，尝试重命名为 .zip: {} -> {} ({} bytes)", best.display(), renamed.display(), file_size);
+                    if fs::rename(&best, &renamed).is_ok() {
+                        return Some(renamed);
+                    }
+                }
+                eprintln!("[find_and_normalize] 使用最大文件作为候选: {} ({} bytes)", best.display(), file_size);
+                return Some(best);
             }
         }
     }
@@ -1744,6 +1982,8 @@ pub async fn open_nexus_browser(
         let _ = fs::create_dir_all(&temp_dir);
     }
 
+    let downloads_before = snapshot_downloads_dir();
+
     let _app_dl = app.clone();
     let temp_dir_for_dl = temp_dir.clone();
     let mods_path_for_dl = mods_path.clone();
@@ -1780,11 +2020,13 @@ pub async fn open_nexus_browser(
                 eprintln!("[nexus_browser] on_download Requested: {}", url_str);
                 let file_name = extract_filename_from_url(&url_str);
                 let safe_name = file_name.replace(|c: char| !c.is_alphanumeric() && c != '.' && c != '-' && c != '_', "_");
-                if safe_name.is_empty() || safe_name == "_" {
-                    eprintln!("[nexus_browser] 无法提取文件名，忽略");
-                    return true;
-                }
-                let dest = temp_dir_for_dl.join(&safe_name);
+                let final_name = if safe_name.is_empty() || safe_name == "_" {
+                    eprintln!("[nexus_browser] 无法从URL提取文件名，使用默认名");
+                    "nexus_mod_download.zip".to_string()
+                } else {
+                    safe_name
+                };
+                let dest = temp_dir_for_dl.join(&final_name);
                 eprintln!("[nexus_browser] 拦截下载，重定向到: {}", dest.display());
                 *destination = dest.clone();
                 if let Ok(mut fp) = file_path_dl.lock() {
@@ -1798,13 +2040,13 @@ pub async fn open_nexus_browser(
             }
             DownloadEvent::Finished { url, path, success } => {
                 eprintln!("[nexus_browser] Download finished: {} success={}", url, success);
-                if success {
-                    if let Some(p) = path {
-                        eprintln!("[nexus_browser] 下载完成: {}", p.display());
-                        if let Ok(mut fp) = file_path_dl.lock() {
-                            *fp = Some(p.to_string_lossy().to_string());
-                        }
+                if let Some(p) = path {
+                    eprintln!("[nexus_browser] Download path: {} (exists={})", p.display(), p.exists());
+                    if let Ok(mut fp) = file_path_dl.lock() {
+                        *fp = Some(p.to_string_lossy().to_string());
                     }
+                }
+                if success {
                     success_flag_dl.store(true, Ordering::SeqCst);
                 }
                 finished_flag_dl.store(true, Ordering::SeqCst);
@@ -1821,6 +2063,8 @@ pub async fn open_nexus_browser(
     let success_flag_wait = download_success_flag.clone();
     let temp_dir_wait = temp_dir.clone();
     let mods_path_wait = mods_path_for_dl.clone();
+    let file_path_wait = downloaded_file_path.clone();
+    let downloads_before_wait = downloads_before;
 
     tokio::spawn(async move {
         for _ in 0..1200 {
@@ -1831,7 +2075,8 @@ pub async fn open_nexus_browser(
         }
 
         if !success_flag_wait.load(Ordering::SeqCst) {
-            return;
+            eprintln!("[nexus_browser] Download reported failed, waiting for file system...");
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         }
 
         let _ = app_wait.emit("mod-install-progress", serde_json::json!({
@@ -1840,7 +2085,7 @@ pub async fn open_nexus_browser(
             "message": "正在安装模组...",
         }));
 
-        let archive_path = find_and_normalize_download(&temp_dir_wait);
+        let archive_path = find_download_file_anywhere(&temp_dir_wait, &file_path_wait, &downloads_before_wait, "Nexus Mod");
 
         if let Some(archive) = archive_path {
             let path_str = archive.to_string_lossy().to_string();
@@ -1953,13 +2198,17 @@ async fn download_mod_via_webview(
     }
     fs::create_dir_all(&temp_dir).map_err(|e| format!("创建临时文件夹失败: {}", e))?;
 
+    let downloads_before = snapshot_downloads_dir();
+
     let download_finished = Arc::new(AtomicBool::new(false));
     let download_success = Arc::new(AtomicBool::new(false));
     let downloaded_file_path: Arc<std::sync::Mutex<Option<String>>> = Arc::new(std::sync::Mutex::new(None));
+    let download_url_captured: Arc<std::sync::Mutex<Option<String>>> = Arc::new(std::sync::Mutex::new(None));
 
     let finished_flag_dl = download_finished.clone();
     let success_flag_dl = download_success.clone();
     let file_path_dl = downloaded_file_path.clone();
+    let url_dl = download_url_captured.clone();
     let app_dl = app.clone();
     let temp_dir_for_dl = temp_dir.clone();
     let mod_name_for_dl = mod_name.to_string();
@@ -1999,13 +2248,18 @@ async fn download_mod_via_webview(
             DownloadEvent::Requested { url, destination } => {
                 let url_str = url.to_string();
                 eprintln!("[nexus_webview] on_download Requested: {}", url_str);
+                if let Ok(mut u) = url_dl.lock() {
+                    *u = Some(url_str.clone());
+                }
                 let file_name = extract_filename_from_url(&url_str);
                 let safe_name = file_name.replace(|c: char| !c.is_alphanumeric() && c != '.' && c != '-' && c != '_', "_");
-                if safe_name.is_empty() || safe_name == "_" {
-                    eprintln!("[nexus_webview] 无法提取文件名，忽略");
-                    return true;
-                }
-                let dest = temp_dir_for_dl.join(&safe_name);
+                let final_name = if safe_name.is_empty() || safe_name == "_" {
+                    eprintln!("[nexus_webview] 无法从URL提取文件名，使用默认名");
+                    format!("{}_nexus_download.zip", mod_name_for_dl.replace(|c: char| !c.is_alphanumeric(), "_"))
+                } else {
+                    safe_name
+                };
+                let dest = temp_dir_for_dl.join(&final_name);
                 eprintln!("[nexus_webview] 拦截下载，重定向到: {}", dest.display());
                 *destination = dest.clone();
                 if let Ok(mut fp) = file_path_dl.lock() {
@@ -2019,13 +2273,13 @@ async fn download_mod_via_webview(
             }
             DownloadEvent::Finished { url, path, success } => {
                 eprintln!("[nexus_webview] Download finished: {} success={}", url, success);
-                if success {
-                    if let Some(p) = path {
-                        eprintln!("[nexus_webview] 下载完成: {}", p.display());
-                        if let Ok(mut fp) = file_path_dl.lock() {
-                            *fp = Some(p.to_string_lossy().to_string());
-                        }
+                if let Some(p) = path {
+                    eprintln!("[nexus_webview] Download path: {} (exists={})", p.display(), p.exists());
+                    if let Ok(mut fp) = file_path_dl.lock() {
+                        *fp = Some(p.to_string_lossy().to_string());
                     }
+                }
+                if success {
                     success_flag_dl.store(true, Ordering::SeqCst);
                 }
                 finished_flag_dl.store(true, Ordering::SeqCst);
@@ -2055,15 +2309,57 @@ async fn download_mod_via_webview(
     }
 
     if !download_success.load(Ordering::SeqCst) {
-        let _ = fs::remove_dir_all(&temp_dir);
         if !download_finished.load(Ordering::SeqCst) {
+            let _ = fs::remove_dir_all(&temp_dir);
             return Err("下载超时：请确保已在内置浏览器中登录 N 网账号".to_string());
-        } else {
-            return Err("下载失败：文件未能成功下载，请重试".to_string());
         }
+
+        eprintln!("[nexus_webview] WebView2 download failed, trying reqwest fallback with captured URL...");
+        let captured_url = download_url_captured.lock().ok().and_then(|u| u.clone());
+        if let Some(ref url) = captured_url {
+            eprintln!("[nexus_webview] Captured download URL: {}", url);
+            let _ = app.emit("mod-install-progress", serde_json::json!({
+                "step": "downloading_file",
+                "mod_name": mod_name,
+                "message": "正在通过备用方式下载...",
+            }));
+
+            match download_with_reqwest(url, &temp_dir, mod_name).await {
+                Ok(path) => {
+                    eprintln!("[nexus_webview] reqwest download succeeded: {}", path.display());
+                    if let Ok(mut fp) = downloaded_file_path.lock() {
+                        *fp = Some(path.to_string_lossy().to_string());
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[nexus_webview] reqwest download also failed: {}", e);
+                }
+            }
+        } else {
+            eprintln!("[nexus_webview] No download URL was captured from WebView2");
+        }
+
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        let fallback_archive = find_download_file_anywhere(&temp_dir, &downloaded_file_path, &downloads_before, mod_name);
+        if fallback_archive.is_none() {
+            let temp_listing = list_dir_contents(&temp_dir);
+            let downloads_dir = dirs::download_dir().unwrap_or_else(|| PathBuf::from("unknown"));
+            let downloads_listing = list_dir_contents(&downloads_dir);
+            eprintln!("[nexus_webview] === DIAGNOSTIC ===");
+            eprintln!("[nexus_webview] temp_dir: {}", temp_dir.display());
+            eprintln!("[nexus_webview] temp_dir contents: {}", temp_listing);
+            eprintln!("[nexus_webview] downloads_dir: {}", downloads_dir.display());
+            eprintln!("[nexus_webview] downloads_dir contents: {}", downloads_listing);
+            eprintln!("[nexus_webview] captured_url: {:?}", captured_url);
+            eprintln!("[nexus_webview] ====================");
+            let _ = fs::remove_dir_all(&temp_dir);
+            return Err(format!("下载失败：文件未能成功下载，请重试\n\n诊断信息:\n临时目录: {}\n系统下载目录: {}", temp_listing, downloads_listing));
+        }
+        eprintln!("[nexus_webview] Found file via fallback search, proceeding with install");
     }
 
-    let archive_path = find_and_normalize_download(&temp_dir);
+    let archive_path = find_download_file_anywhere(&temp_dir, &downloaded_file_path, &downloads_before, mod_name);
 
     match archive_path {
         Some(archive) => {
@@ -2308,9 +2604,40 @@ pub async fn download_mod_from_nexus(
                 .collect();
             if !main_files.is_empty() {
                 let mut sorted = main_files;
-                sorted.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
-                sorted.into_iter().next()
-                    .ok_or_else(|| "该MOD没有可下载的文件".to_string())?
+                sorted.sort_by(|a, b| {
+                    let va = a.version.trim_start_matches('v').trim_start_matches('V');
+                    let vb = b.version.trim_start_matches('v').trim_start_matches('V');
+                    crate::update_checker::compare_versions(vb, va).cmp(&0)
+                });
+                let best_main = sorted.into_iter().next()
+                    .ok_or_else(|| "该MOD没有可下载的文件".to_string())?;
+
+                let update_files: Vec<_> = non_premium.iter()
+                    .filter(|f| f.category_id == 2)
+                    .cloned()
+                    .collect();
+                if !update_files.is_empty() {
+                    let mut sorted_upd = update_files;
+                    sorted_upd.sort_by(|a, b| {
+                        let va = a.version.trim_start_matches('v').trim_start_matches('V');
+                        let vb = b.version.trim_start_matches('v').trim_start_matches('V');
+                        crate::update_checker::compare_versions(vb, va).cmp(&0)
+                    });
+                    if let Some(best_update) = sorted_upd.into_iter().next() {
+                        let main_ver = best_main.version.trim_start_matches('v').trim_start_matches('V');
+                        let upd_ver = best_update.version.trim_start_matches('v').trim_start_matches('V');
+                        if crate::update_checker::compare_versions(upd_ver, main_ver) > 0 {
+                            eprintln!("[download_mod_from_nexus] Update file has newer version: {} > {}, selecting update file", upd_ver, main_ver);
+                            best_update
+                        } else {
+                            best_main
+                        }
+                    } else {
+                        best_main
+                    }
+                } else {
+                    best_main
+                }
             } else {
                 let update_files: Vec<_> = non_premium.iter()
                     .filter(|f| f.category_id == 2)
@@ -2318,14 +2645,22 @@ pub async fn download_mod_from_nexus(
                     .collect();
                 if !update_files.is_empty() {
                     let mut sorted = update_files;
-                    sorted.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
+                    sorted.sort_by(|a, b| {
+                        let va = a.version.trim_start_matches('v').trim_start_matches('V');
+                        let vb = b.version.trim_start_matches('v').trim_start_matches('V');
+                        crate::update_checker::compare_versions(vb, va).cmp(&0)
+                    });
                     sorted.into_iter().next()
                         .ok_or_else(|| "该MOD没有可下载的文件".to_string())?
                 } else {
                     let mut sorted = non_premium;
-                    sorted.sort_by(|a, b| b.upload_time.cmp(&a.upload_time));
+                    sorted.sort_by(|a, b| {
+                        let va = a.version.trim_start_matches('v').trim_start_matches('V');
+                        let vb = b.version.trim_start_matches('v').trim_start_matches('V');
+                        crate::update_checker::compare_versions(vb, va).cmp(&0)
+                    });
                     sorted.into_iter().next()
-                        .ok_or_else(|| "该MOD没有可下载的文件".to_string())?
+                        .ok_or_else(|| "该MOD的所有文件都需要付费会员".to_string())?
                 }
             }
         }
@@ -2557,6 +2892,7 @@ fn sanitize_file_name(name: &str) -> String {
 mod tests {
     use super::*;
     use std::io::Write;
+    use std::sync::Arc;
 
     #[test]
     fn test_extract_nexus_id_numeric_update_key() {
@@ -2608,6 +2944,144 @@ mod tests {
         let result = extract_nexus_id_from_manifest(mod_dir.to_str().unwrap());
         assert_eq!(result, Some("1915".to_string()),
             "String Nexus UpdateKeys should work");
+    }
+
+    #[test]
+    fn test_find_and_normalize_zip_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let zip_path = tmp.path().join("test_mod.zip");
+        let mut f = fs::File::create(&zip_path).unwrap();
+        f.write_all(&vec![0u8; 2048]).unwrap();
+
+        let result = find_and_normalize_download(&tmp.path().to_path_buf());
+        assert!(result.is_some(), "Should find the zip file");
+        assert_eq!(result.unwrap().extension().unwrap(), "zip");
+    }
+
+    #[test]
+    fn test_find_and_normalize_skips_empty_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let empty_zip = tmp.path().join("empty.zip");
+        fs::File::create(&empty_zip).unwrap();
+
+        let result = find_and_normalize_download(&tmp.path().to_path_buf());
+        assert!(result.is_none(), "Should skip empty files");
+    }
+
+    #[test]
+    fn test_find_and_normalize_skips_hidden_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let hidden = tmp.path().join(".hidden_file");
+        let mut f = fs::File::create(&hidden).unwrap();
+        f.write_all(&vec![0u8; 2048]).unwrap();
+
+        let result = find_and_normalize_download(&tmp.path().to_path_buf());
+        assert!(result.is_none(), "Should skip hidden files starting with .");
+    }
+
+    #[test]
+    fn test_find_and_normalize_no_extension_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let no_ext = tmp.path().join("nexus_download_abc123");
+        let mut f = fs::File::create(&no_ext).unwrap();
+        f.write_all(&vec![0u8; 10240]).unwrap();
+
+        let result = find_and_normalize_download(&tmp.path().to_path_buf());
+        assert!(result.is_some(), "Should find file without extension and rename to .zip");
+        let found = result.unwrap();
+        assert_eq!(found.extension().unwrap(), "zip", "Should rename to .zip");
+    }
+
+    #[test]
+    fn test_find_and_normalize_prefers_zip_over_no_ext() {
+        let tmp = tempfile::tempdir().unwrap();
+        let zip_file = tmp.path().join("mod.zip");
+        let mut f1 = fs::File::create(&zip_file).unwrap();
+        f1.write_all(&vec![0u8; 2048]).unwrap();
+        let no_ext = tmp.path().join("nexus_download");
+        let mut f2 = fs::File::create(&no_ext).unwrap();
+        f2.write_all(&vec![0u8; 10240]).unwrap();
+
+        let result = find_and_normalize_download(&tmp.path().to_path_buf());
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().extension().unwrap(), "zip", "Should prefer .zip file");
+    }
+
+    #[test]
+    fn test_find_and_normalize_empty_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = find_and_normalize_download(&tmp.path().to_path_buf());
+        assert!(result.is_none(), "Should return None for empty directory");
+    }
+
+    #[test]
+    fn test_find_download_file_anywhere_with_hint() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file_path = tmp.path().join("downloaded_mod.zip");
+        let mut f = fs::File::create(&file_path).unwrap();
+        f.write_all(&vec![0u8; 5120]).unwrap();
+
+        let empty_temp = tempfile::tempdir().unwrap();
+        let hint: Arc<std::sync::Mutex<Option<String>>> = Arc::new(std::sync::Mutex::new(Some(file_path.to_string_lossy().to_string())));
+        let before = snapshot_downloads_dir();
+
+        let result = find_download_file_anywhere(&empty_temp.path().to_path_buf(), &hint, &before, "test_mod");
+        assert!(result.is_some(), "Should find file at hinted path");
+        assert_eq!(result.unwrap(), file_path, "Should return the exact hinted path");
+    }
+
+    #[test]
+    fn test_find_download_file_anywhere_hint_nonexistent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let hint: Arc<std::sync::Mutex<Option<String>>> = Arc::new(std::sync::Mutex::new(Some("/nonexistent/path/file.zip".to_string())));
+        let before = snapshot_downloads_dir();
+
+        let result = find_download_file_anywhere(&tmp.path().to_path_buf(), &hint, &before, "test_mod");
+        assert!(result.is_none(), "Should return None when hinted path doesn't exist and no new files in Downloads");
+    }
+
+    #[test]
+    fn test_find_download_file_anywhere_hint_small_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let small_file = tmp.path().join("tiny.zip");
+        let mut f = fs::File::create(&small_file).unwrap();
+        f.write_all(&vec![0u8; 100]).unwrap();
+
+        let empty_temp = tempfile::tempdir().unwrap();
+        let hint: Arc<std::sync::Mutex<Option<String>>> = Arc::new(std::sync::Mutex::new(Some(small_file.to_string_lossy().to_string())));
+        let before = snapshot_downloads_dir();
+
+        let result = find_download_file_anywhere(&empty_temp.path().to_path_buf(), &hint, &before, "test_mod");
+        assert!(result.is_none(), "Should skip files smaller than 1KB at hinted path");
+    }
+
+    #[test]
+    fn test_list_dir_contents() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file1 = tmp.path().join("test.zip");
+        let mut f = fs::File::create(&file1).unwrap();
+        f.write_all(&vec![0u8; 1024]).unwrap();
+
+        let result = list_dir_contents(&tmp.path().to_path_buf());
+        assert!(result.contains("test.zip"), "Should list test.zip");
+        assert!(result.contains("1024 bytes"), "Should show file size");
+    }
+
+    #[test]
+    fn test_list_dir_contents_empty() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = list_dir_contents(&tmp.path().to_path_buf());
+        assert!(result.contains("空目录"), "Should indicate empty directory");
+    }
+
+    #[test]
+    fn test_extract_filename_from_url() {
+        assert_eq!(extract_filename_from_url("https://example.com/path/mod.zip"), "mod.zip");
+        assert_eq!(extract_filename_from_url("https://example.com/mod.zip?query=1"), "mod.zip");
+        assert_eq!(extract_filename_from_url("https://example.com/mod.zip#fragment"), "mod.zip");
+        let trailing_slash = extract_filename_from_url("https://example.com/path/");
+        assert!(trailing_slash.is_empty() || trailing_slash == "mod_download.zip",
+            "Trailing slash URL should return empty or default name, got: {}", trailing_slash);
     }
 }
 

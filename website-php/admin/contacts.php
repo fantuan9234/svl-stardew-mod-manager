@@ -26,7 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $id = (int)($_POST['id'] ?? 0);
             $reply = trim($_POST['admin_reply'] ?? '');
             if ($id > 0) {
-                $db->prepare("UPDATE contacts SET admin_reply = ?, replied_at = datetime('now','localtime'), is_read = 1 WHERE id = ?")->execute([$reply, $id]);
+                $now = now_cn();
+                $db->prepare("UPDATE contacts SET admin_reply = ?, replied_at = ?, is_read = 1 WHERE id = ?")->execute([$reply, $now, $id]);
                 $message = '回复成功';
             }
         } elseif ($postAction === 'delete') {
@@ -99,7 +100,7 @@ $unreadCount = $db->query("SELECT COUNT(*) FROM contacts WHERE is_read = 0")->fe
                         <div class="existing-reply">
                             <div class="reply-label">我的回复</div>
                             <div class="reply-content"><?php echo nl2br(h($c['admin_reply'])); ?></div>
-                            <div class="reply-time"><?php echo h($c['replied_at']); ?></div>
+                            <div class="reply-time"><?php echo h(format_cn($c['replied_at'])); ?></div>
                         </div>
                         <?php endif; ?>
                     </td>
@@ -112,7 +113,7 @@ $unreadCount = $db->query("SELECT COUNT(*) FROM contacts WHERE is_read = 0")->fe
                         <span class="badge badge-unread">未读</span>
                         <?php endif; ?>
                     </td>
-                    <td style="color: var(--text-secondary); font-size: 13px;"><?php echo h($c['created_at']); ?></td>
+                    <td style="color: var(--text-secondary); font-size: 13px;"><?php echo h(format_cn($c['created_at'])); ?></td>
                     <td>
                         <div class="flex gap-2">
                             <?php if (!$c['is_read']): ?>

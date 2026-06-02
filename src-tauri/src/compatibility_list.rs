@@ -237,6 +237,25 @@ pub fn get_mod_metadata(mod_unique_id: &str) -> Option<SmapiModMetadata> {
     None
 }
 
+pub fn ensure_loaded_sync() {
+    if COMPAT_CACHE.get().is_some() {
+        return;
+    }
+
+    let cache_path = get_cache_path();
+    if cache_path.exists() {
+        if let Ok(content) = fs::read_to_string(&cache_path) {
+            if let Ok(cache) = serde_json::from_str::<HashMap<String, SmapiModMetadata>>(&content) {
+                eprintln!("[compatibility_list] ensure_loaded_sync: loaded {} mods", cache.len());
+                COMPAT_CACHE.get_or_init(|| cache);
+                return;
+            }
+        }
+    }
+
+    COMPAT_CACHE.get_or_init(HashMap::new);
+}
+
 pub fn get_last_update_time() -> Option<String> {
     let path = get_update_time_path();
     if path.exists() {

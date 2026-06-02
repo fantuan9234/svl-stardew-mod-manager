@@ -9,6 +9,26 @@ use tauri::Emitter;
 use crate::mod_name_resolver::resolve_mod_name;
 use crate::dependency_patches::apply_final_patches;
 
+fn decode_zip_filename(raw: &[u8]) -> String {
+    if let Ok(s) = std::str::from_utf8(raw) {
+        if !s.contains('\u{FFFD}') {
+            return s.to_string();
+        }
+    }
+
+    let (decoded, _, had_errors) = encoding_rs::GBK.decode(raw);
+    if !had_errors {
+        return decoded.into_owned();
+    }
+
+    let (decoded, _, had_errors) = encoding_rs::GB18030.decode(raw);
+    if !had_errors {
+        return decoded.into_owned();
+    }
+
+    String::from_utf8_lossy(raw).into_owned()
+}
+
 fn is_safe_to_delete(target: &Path, mods_dir: &Path) -> bool {
     let target_canon = match target.canonicalize() {
         Ok(c) => c,
@@ -30,6 +50,95 @@ fn is_safe_to_delete(target: &Path, mods_dir: &Path) -> bool {
     }
 
     true
+}
+
+fn is_safe_source_for_install(source: &Path, mods_dir: &Path) -> Result<(), String> {
+    let source_canon = source
+        .canonicalize()
+        .map_err(|e| format!("无法解析源文件夹路径 '{}': {}", source.display(), e))?;
+    let mods_canon = mods_dir
+        .canonicalize()
+        .map_err(|e| format!("无法解析 Mods 目录路径 '{}': {}", mods_dir.display(), e))?;
+
+    if source_canon == mods_canon {
+        return Err(format!(
+            "安全拦截: 源文件夹不能是 Mods 目录本身 ({})。请选择 Mods 目录之外的文件夹",
+            source.display()
+        ));
+    }
+
+    if source_canon.starts_with(&mods_canon) {
+        return Err(format!(
+            "安全拦截: 源文件夹不能位于 Mods 目录内部 ({})。请选择 Mods 目录之外的文件夹",
+            source.display()
+        ));
+    }
+
+    Ok(())
+}
+
+fn install_via_staging(
+    source: &Path,
+    dest_path: &Path,
+    mods_dir: &Path,
+) -> Result<(), String> {
+    let folder_name = dest_path
+        .file_name()
+        .ok_or_else(|| format!("无法获取目标文件夹名称: {}", dest_path.display()))?
+        .to_string_lossy()
+        .to_string();
+
+    let mut backup_path: Option<PathBuf> = None;
+    if dest_path.exists() {
+        if !is_safe_to_delete(dest_path, mods_dir) {
+            return Err(format!(
+                "安全拦截: 不允许替换目标路径 {}",
+                dest_path.display()
+            ));
+        }
+
+        let backup_name = format!(".{}.svl_backup", folder_name);
+        let backup = mods_dir.join(&backup_name);
+        if backup.exists() {
+            let _ = fs::remove_dir_all(&backup);
+        }
+
+        fs::rename(dest_path, &backup).map_err(|e| {
+            format!(
+                "备份已存在的 MOD 失败 ({} -> {}): {}",
+                dest_path.display(),
+                backup.display(),
+                e
+            )
+        })?;
+        backup_path = Some(backup);
+    }
+
+    if let Err(e) = fs_extra::dir::copy(source, mods_dir, &fs_extra::dir::CopyOptions::new()) {
+        if dest_path.exists() {
+            let _ = fs::remove_dir_all(dest_path);
+        }
+        if let Some(backup) = &backup_path {
+            let _ = fs::rename(backup, dest_path);
+        }
+        return Err(format!("复制 MOD 失败: {}", e));
+    }
+
+    if !dest_path.exists() {
+        if let Some(backup) = &backup_path {
+            let _ = fs::rename(backup, dest_path);
+        }
+        return Err(format!(
+            "复制完成后未找到目标目录: {}",
+            dest_path.display()
+        ));
+    }
+
+    if let Some(backup) = backup_path {
+        let _ = fs::remove_dir_all(&backup);
+    }
+
+    Ok(())
 }
 
 pub fn find_existing_mod_folder(mods_dir: &PathBuf, unique_id: &str) -> Option<PathBuf> {
@@ -168,6 +277,79 @@ fn cleanup_temp_dir_with_retry(path: &PathBuf) {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstallSourceSafety {
+    pub safe: bool,
+    pub risk: String,
+    pub reason: String,
+    pub source_path: String,
+    pub mods_path: String,
+    pub conflicting_mod_name: Option<String>,
+}
+
+#[tauri::command]
+pub fn check_install_source_safety(
+    source_path: String,
+    mods_path: String,
+) -> Result<InstallSourceSafety, String> {
+    let source = PathBuf::from(&source_path);
+    let mods_dir = PathBuf::from(&mods_path);
+
+    if !source.exists() {
+        return Ok(InstallSourceSafety {
+            safe: false,
+            risk: "missing".to_string(),
+            reason: format!("源文件夹不存在: {}", source_path),
+            source_path,
+            mods_path,
+            conflicting_mod_name: None,
+        });
+    }
+
+    if !source.is_dir() {
+        return Ok(InstallSourceSafety {
+            safe: false,
+            risk: "not_dir".to_string(),
+            reason: format!("所选路径不是一个文件夹: {}", source_path),
+            source_path,
+            mods_path,
+            conflicting_mod_name: None,
+        });
+    }
+
+    match is_safe_source_for_install(&source, &mods_dir) {
+        Ok(()) => Ok(InstallSourceSafety {
+            safe: true,
+            risk: "none".to_string(),
+            reason: "源路径合法，可安全安装".to_string(),
+            source_path,
+            mods_path,
+            conflicting_mod_name: None,
+        }),
+        Err(reason) => {
+            let folder_name = source
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string());
+            let dest_path = folder_name.as_ref().map(|n| mods_dir.join(n));
+            let conflicting_mod_name = dest_path.and_then(|p| {
+                if p.exists() {
+                    folder_name.clone()
+                } else {
+                    None
+                }
+            });
+            Ok(InstallSourceSafety {
+                safe: false,
+                risk: "inside_mods".to_string(),
+                reason,
+                source_path,
+                mods_path,
+                conflicting_mod_name,
+            })
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn install_mod_from_archive(
     app: tauri::AppHandle,
@@ -225,14 +407,24 @@ pub(crate) fn install_mod_from_archive_blocking(
         },
     );
 
-    match extension.as_str() {
-        "zip" => extract_zip(&archive, &temp_dir)?,
-        "7z" => extract_7z(&archive, &temp_dir)?,
-        "rar" => return Err("RAR 格式暂不支持，请使用 ZIP 或 7Z 格式".to_string()),
-        _ => return Err(format!("不支持的格式: .{}", extension)),
+    let extract_result = match extension.as_str() {
+        "zip" => extract_zip(&archive, &temp_dir),
+        "7z" => extract_7z(&archive, &temp_dir),
+        "rar" => Err("RAR 格式暂不支持，请使用 ZIP 或 7Z 格式".to_string()),
+        _ => Err(format!("不支持的格式: .{}", extension)),
+    };
+    if let Err(e) = extract_result {
+        cleanup_temp_dir_with_retry(&temp_dir);
+        return Err(e);
     }
 
-    let mod_folder = find_mod_folder(&temp_dir)?;
+    let mod_folder = match find_mod_folder(&temp_dir) {
+        Ok(f) => f,
+        Err(e) => {
+            cleanup_temp_dir_with_retry(&temp_dir);
+            return Err(e);
+        }
+    };
     let mod_name = mod_folder
         .file_name()
         .ok_or("无法获取 MOD 文件夹名称")?
@@ -250,14 +442,6 @@ pub(crate) fn install_mod_from_archive_blocking(
 
     let dest_path = mods_dir.join(&mod_name);
 
-    if dest_path.exists() {
-        if !is_safe_to_delete(&dest_path, &mods_dir) {
-            return Err(format!("安全拦截: 不允许删除路径 {}", dest_path.display()));
-        }
-        fs::remove_dir_all(&dest_path)
-            .map_err(|e| format!("无法删除已存在的 MOD: {}", e))?;
-    }
-
     if let Some(ref uid) = old_unique_id {
         if !uid.is_empty() {
             let removed = remove_old_mod_versions(&mods_dir, uid);
@@ -267,8 +451,10 @@ pub(crate) fn install_mod_from_archive_blocking(
         }
     }
 
-    fs_extra::dir::copy(&mod_folder, &mods_dir, &fs_extra::dir::CopyOptions::new())
-        .map_err(|e| format!("复制 MOD 失败: {}", e))?;
+    if let Err(e) = install_via_staging(&mod_folder, &dest_path, &mods_dir) {
+        cleanup_temp_dir_with_retry(&temp_dir);
+        return Err(e);
+    }
 
     cleanup_temp_dir_with_retry(&temp_dir);
 
@@ -342,10 +528,16 @@ fn install_mod_from_folder_blocking(
         return Err(format!("源文件夹不存在: {}", source_path));
     }
 
+    if !source.is_dir() {
+        return Err(format!("源路径不是一个文件夹: {}", source_path));
+    }
+
     if !mods_dir.exists() {
         fs::create_dir_all(&mods_dir)
             .map_err(|e| format!("无法创建 Mods 文件夹: {}", e))?;
     }
+
+    is_safe_source_for_install(&source, &mods_dir)?;
 
     let folder_name = source
         .file_name()
@@ -364,16 +556,7 @@ fn install_mod_from_folder_blocking(
 
     let dest_path = mods_dir.join(&folder_name);
 
-    if dest_path.exists() {
-        if !is_safe_to_delete(&dest_path, &mods_dir) {
-            return Err(format!("安全拦截: 不允许删除路径 {}", dest_path.display()));
-        }
-        fs::remove_dir_all(&dest_path)
-            .map_err(|e| format!("无法删除已存在的 MOD: {}", e))?;
-    }
-
-    fs_extra::dir::copy(&source, &mods_dir, &fs_extra::dir::CopyOptions::new())
-        .map_err(|e| format!("复制 MOD 失败: {}", e))?;
+    install_via_staging(&source, &dest_path, &mods_dir)?;
 
     // Force filesystem flush on Windows
     #[cfg(target_os = "windows")]
@@ -474,13 +657,14 @@ fn extract_zip(archive: &PathBuf, dest: &PathBuf) -> Result<(), String> {
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).map_err(|e| format!("读取文件索引失败: {}", e))?;
-        let file_name = file.name();
+        let file_name_raw = file.name_raw();
+        let file_name = decode_zip_filename(file_name_raw);
 
         if file_name.contains("..") {
             continue;
         }
 
-        let outpath = dest.join(file_name);
+        let outpath = dest.join(&file_name);
 
         if let Ok(canonical) = outpath.canonicalize() {
             if !canonical.starts_with(&dest_canonical) {
@@ -490,7 +674,7 @@ fn extract_zip(archive: &PathBuf, dest: &PathBuf) -> Result<(), String> {
             continue;
         }
 
-        if file_name.ends_with('/') {
+        if file.is_dir() {
             fs::create_dir_all(&outpath).map_err(|e| format!("创建文件夹失败: {}", e))?;
         } else {
             if let Some(p) = outpath.parent() {
@@ -614,14 +798,24 @@ fn install_mod_blocking(
         },
     );
 
-    match extension.as_str() {
-        "zip" => extract_zip(&archive, &temp_dir)?,
-        "7z" => extract_7z(&archive, &temp_dir)?,
-        "rar" => return Err("RAR 格式暂不支持，请使用 ZIP 或 7Z 格式".to_string()),
-        _ => return Err(format!("不支持的格式: .{}", extension)),
+    let extract_result = match extension.as_str() {
+        "zip" => extract_zip(&archive, &temp_dir),
+        "7z" => extract_7z(&archive, &temp_dir),
+        "rar" => Err("RAR 格式暂不支持，请使用 ZIP 或 7Z 格式".to_string()),
+        _ => Err(format!("不支持的格式: .{}", extension)),
+    };
+    if let Err(e) = extract_result {
+        cleanup_temp_dir_with_retry(&temp_dir);
+        return Err(e);
     }
 
-    let mod_folder = find_mod_folder(&temp_dir)?;
+    let mod_folder = match find_mod_folder(&temp_dir) {
+        Ok(f) => f,
+        Err(e) => {
+            cleanup_temp_dir_with_retry(&temp_dir);
+            return Err(e);
+        }
+    };
     let mod_name = mod_folder
         .file_name()
         .ok_or("无法获取 MOD 文件夹名称")?
@@ -639,14 +833,6 @@ fn install_mod_blocking(
 
     let dest_path = mods_dir.join(&mod_name);
 
-    if dest_path.exists() {
-        if !is_safe_to_delete(&dest_path, &mods_dir) {
-            return Err(format!("安全拦截: 不允许删除路径 {}", dest_path.display()));
-        }
-        fs::remove_dir_all(&dest_path)
-            .map_err(|e| format!("无法删除已存在的 MOD: {}", e))?;
-    }
-
     if let Some(ref uid) = old_unique_id {
         if !uid.is_empty() {
             let removed = remove_old_mod_versions(&mods_dir, uid);
@@ -656,8 +842,10 @@ fn install_mod_blocking(
         }
     }
 
-    fs_extra::dir::copy(&mod_folder, &mods_dir, &fs_extra::dir::CopyOptions::new())
-        .map_err(|e| format!("复制 MOD 失败: {}", e))?;
+    if let Err(e) = install_via_staging(&mod_folder, &dest_path, &mods_dir) {
+        cleanup_temp_dir_with_retry(&temp_dir);
+        return Err(e);
+    }
 
     cleanup_temp_dir_with_retry(&temp_dir);
 
@@ -1007,5 +1195,212 @@ mod tests {
         fs::create_dir_all(&outside).unwrap();
 
         assert!(!is_safe_to_delete(&outside, &mods_dir));
+    }
+
+    #[test]
+    fn test_decode_zip_filename_ascii() {
+        let result = decode_zip_filename(b"StardewMod/manifest.json");
+        assert_eq!(result, "StardewMod/manifest.json");
+    }
+
+    #[test]
+    fn test_decode_zip_filename_utf8() {
+        let result = decode_zip_filename("StardewMod/中文修订/i18n.json".as_bytes());
+        assert_eq!(result, "StardewMod/中文修订/i18n.json");
+    }
+
+    #[test]
+    fn test_decode_zip_filename_gbk() {
+        let gbk_bytes: Vec<u8> = encoding_rs::GBK.encode("中文修订").0.into_owned();
+        let result = decode_zip_filename(&gbk_bytes);
+        assert_eq!(result, "中文修订");
+    }
+
+    #[test]
+    fn test_decode_zip_filename_gbk_with_path() {
+        let gbk_bytes: Vec<u8> = encoding_rs::GBK.encode("StardewMod/中文修订/图片.png").0.into_owned();
+        let result = decode_zip_filename(&gbk_bytes);
+        assert_eq!(result, "StardewMod/中文修订/图片.png");
+    }
+
+    #[test]
+    fn test_decode_zip_filename_gb18030() {
+        let gb18030_bytes: Vec<u8> = encoding_rs::GB18030.encode("中文修订测试").0.into_owned();
+        let result = decode_zip_filename(&gb18030_bytes);
+        assert_eq!(result, "中文修订测试");
+    }
+
+    #[test]
+    fn test_extract_zip_chinese_localization() {
+        use std::io::Write;
+        let tmp = TempDir::new().unwrap();
+        let archive_path = tmp.path().join("test_cn.zip");
+        let extract_dir = tmp.path().join("extracted");
+        fs::create_dir_all(&extract_dir).unwrap();
+
+        let file = fs::File::create(&archive_path).unwrap();
+        let mut zip_writer = zip::ZipWriter::new(file);
+        let options = zip::write::FileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+
+        zip_writer.add_directory("StardewMod中文修订/", options).unwrap();
+
+        zip_writer.start_file("StardewMod中文修订/图片.png", options).unwrap();
+        zip_writer.write_all(b"fake image data").unwrap();
+
+        zip_writer.start_file("StardewMod中文修订/manifest.json", options).unwrap();
+        let manifest_content = r#"{"Name":"测试","UniqueID":"test.cn","Version":"1.0.0"}"#;
+        zip_writer.write_all(manifest_content.as_bytes()).unwrap();
+
+        zip_writer.finish().unwrap();
+
+        extract_zip(&archive_path, &extract_dir).unwrap();
+
+        let mod_dir = extract_dir.join("StardewMod中文修订");
+        assert!(mod_dir.exists(), "Mod directory with Chinese name should exist: {:?}", mod_dir);
+
+        let image_file = mod_dir.join("图片.png");
+        assert!(image_file.exists(), "Image file with Chinese name should exist: {:?}", image_file);
+
+        let manifest_file = mod_dir.join("manifest.json");
+        assert!(manifest_file.exists(), "Manifest should exist");
+    }
+
+    #[test]
+    fn test_is_safe_source_for_install_outside_mods() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+        let source = tmp.path().join("ExternalMod");
+        fs::create_dir_all(&source).unwrap();
+
+        let result = is_safe_source_for_install(&source, &mods_dir);
+        assert!(result.is_ok(), "External source should be allowed, got: {:?}", result);
+    }
+
+    #[test]
+    fn test_is_safe_source_for_install_blocks_mods_dir_itself() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+
+        let result = is_safe_source_for_install(&mods_dir, &mods_dir);
+        assert!(result.is_err(), "Mods dir itself should be blocked");
+        assert!(result.unwrap_err().contains("不能是 Mods 目录本身"));
+    }
+
+    #[test]
+    fn test_is_safe_source_for_install_blocks_subfolder_of_mods() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+        let sub = mods_dir.join("美化合集");
+        fs::create_dir_all(&sub).unwrap();
+
+        let result = is_safe_source_for_install(&sub, &mods_dir);
+        assert!(result.is_err(), "Subfolder of Mods should be blocked, got: {:?}", result);
+        assert!(result.unwrap_err().contains("不能位于 Mods 目录内部"));
+    }
+
+    #[test]
+    fn test_is_safe_source_for_install_blocks_nested_inside_mods() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+        let nested = mods_dir.join("category").join("MyMod");
+        fs::create_dir_all(&nested).unwrap();
+
+        let result = is_safe_source_for_install(&nested, &mods_dir);
+        assert!(result.is_err(), "Nested folder inside Mods should be blocked");
+    }
+
+    #[test]
+    fn test_install_via_staging_copies_new_mod() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+        let source = tmp.path().join("NewMod");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("manifest.json"), r#"{"Name":"X","UniqueID":"x.mod","Version":"1.0.0"}"#).unwrap();
+        fs::write(source.join("data.txt"), "hello").unwrap();
+
+        let dest_path = mods_dir.join("NewMod");
+        install_via_staging(&source, &dest_path, &mods_dir).unwrap();
+
+        assert!(dest_path.exists(), "Dest should exist after install");
+        assert!(dest_path.join("manifest.json").exists());
+        assert_eq!(
+            fs::read_to_string(dest_path.join("data.txt")).unwrap(),
+            "hello"
+        );
+        assert!(!mods_dir.join(".NewMod.svl_backup").exists(), "No backup should be left when there was no existing mod");
+    }
+
+    #[test]
+    fn test_install_via_staging_replaces_existing_mod() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+
+        let source = tmp.path().join("SameName");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("new.txt"), "new content").unwrap();
+
+        let dest_path = mods_dir.join("SameName");
+        fs::create_dir_all(&dest_path).unwrap();
+        fs::write(dest_path.join("old.txt"), "old content").unwrap();
+
+        install_via_staging(&source, &dest_path, &mods_dir).unwrap();
+
+        assert!(dest_path.exists(), "Dest should still exist after install");
+        assert!(dest_path.join("new.txt").exists(), "New file should be present");
+        assert!(!dest_path.join("old.txt").exists(), "Old file should be gone after replacement");
+        assert!(!mods_dir.join(".SameName.svl_backup").exists(), "Backup should be removed after successful install");
+    }
+
+    #[test]
+    fn test_install_via_staging_preserves_existing_on_copy_failure() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+
+        let dest_path = mods_dir.join("ImportantMod");
+        let important_file = dest_path.join("important.txt");
+        fs::create_dir_all(&dest_path).unwrap();
+        fs::write(&important_file, "I must not be lost").unwrap();
+
+        let source = tmp.path().join("NonexistentSource");
+        let result = install_via_staging(&source, &dest_path, &mods_dir);
+        assert!(result.is_err(), "Should fail when source doesn't exist");
+
+        assert!(dest_path.exists(), "Original mod dir must still exist after failure");
+        assert!(important_file.exists(), "Important file must be preserved on failure");
+        assert_eq!(fs::read_to_string(&important_file).unwrap(), "I must not be lost");
+        assert!(!mods_dir.join(".ImportantMod.svl_backup").exists(), "Backup must be cleaned up on failure");
+    }
+
+    #[test]
+    fn test_install_via_staging_replaces_stale_backup_atomically() {
+        let tmp = TempDir::new().unwrap();
+        let mods_dir = tmp.path().join("Mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+
+        let stale_backup = mods_dir.join(".MyMod.svl_backup");
+        fs::create_dir_all(&stale_backup).unwrap();
+        fs::write(stale_backup.join("stale.txt"), "leftover from previous failed install").unwrap();
+
+        let source = tmp.path().join("MyMod");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("manifest.json"), r#"{"Name":"X","UniqueID":"x","Version":"1"}"#).unwrap();
+
+        let dest_path = mods_dir.join("MyMod");
+        fs::create_dir_all(&dest_path).unwrap();
+        fs::write(dest_path.join("current.txt"), "current mod content").unwrap();
+
+        install_via_staging(&source, &dest_path, &mods_dir).unwrap();
+
+        assert!(dest_path.exists());
+        assert!(dest_path.join("manifest.json").exists(), "New mod should be installed");
+        assert!(!stale_backup.exists(), "Stale backup should be removed when replaced by fresh backup");
     }
 }

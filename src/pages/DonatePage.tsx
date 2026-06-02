@@ -145,7 +145,7 @@ export default function DonatePage() {
           color: 'var(--svl-text-muted)',
         }}
       >
-        {t('donate.contact')}
+        QQ频道：<a href="https://pd.qq.com/s/pd68573550" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--svl-primary)' }}>pd68573550</a>
       </Paragraph>
 
       <Paragraph

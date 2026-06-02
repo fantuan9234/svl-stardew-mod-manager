@@ -208,6 +208,25 @@ export async function checkModDependencies(
   });
 }
 
+export interface InstallSourceSafety {
+  safe: boolean;
+  risk: string;
+  reason: string;
+  source_path: string;
+  mods_path: string;
+  conflicting_mod_name: string | null;
+}
+
+export async function checkInstallSourceSafety(
+  sourcePath: string,
+  modsPath: string
+): Promise<InstallSourceSafety> {
+  return invoke<InstallSourceSafety>('check_install_source_safety', {
+    sourcePath,
+    modsPath,
+  });
+}
+
 export async function installModFromFolder(
   sourcePath: string,
   modsPath: string
@@ -1141,6 +1160,30 @@ export async function scanTranslatableMods(
   targetLang: string
 ): Promise<ModTranslationStatus[]> {
   return invoke<ModTranslationStatus[]>('scan_translatable_mods', { gamePath, targetLang });
+}
+
+export interface UntranslatedEntry {
+  key: string;
+  source: string;
+  current: string;
+  status: string;
+}
+
+export interface ModTranslationDetail {
+  mod_name: string;
+  mod_path: string;
+  default_file: string | null;
+  target_file: string | null;
+  entries: UntranslatedEntry[];
+  total_entries: number;
+  untranslated_count: number;
+}
+
+export async function getModUntranslatedEntries(
+  modPath: string,
+  targetLang: string
+): Promise<ModTranslationDetail> {
+  return invoke<ModTranslationDetail>('get_mod_untranslated_entries', { modPath, targetLang });
 }
 
 export async function translateModFile(

@@ -44,10 +44,24 @@ fn find_smapi_exe(game_path: &str) -> Result<PathBuf, String> {
     ];
 
     #[cfg(not(target_os = "windows"))]
-    let smapi_paths = vec![
+    let mut smapi_paths = vec![
         game_dir.join("StardewModdingAPI"),
         game_dir.join("smapi"),
     ];
+
+    #[cfg(target_os = "macos")]
+    {
+        let app_inner = game_dir.join("Stardew Valley.app").join("Contents").join("MacOS");
+        if app_inner.exists() {
+            smapi_paths.insert(0, app_inner.join("StardewModdingAPI"));
+            smapi_paths.insert(1, app_inner.join("smapi"));
+        }
+        let contents_macos = game_dir.join("Contents").join("MacOS");
+        if contents_macos.exists() {
+            smapi_paths.insert(0, contents_macos.join("StardewModdingAPI"));
+            smapi_paths.insert(1, contents_macos.join("smapi"));
+        }
+    }
 
     for path in &smapi_paths {
         if path.exists() {
@@ -154,18 +168,27 @@ fn find_vanilla_exe(game_path: &str) -> Result<PathBuf, String> {
     ];
 
     #[cfg(target_os = "macos")]
-    let vanilla_paths = vec![
-        game_dir.join("Contents/MacOS/Stardew Valleys"),
+    let mut vanilla_paths = vec![
+        game_dir.join("Contents/MacOS/Stardew Valley"),
         game_dir.join("Stardew Valley"),
     ];
 
+    #[cfg(target_os = "macos")]
+    {
+        let app_inner = game_dir.join("Stardew Valley.app").join("Contents").join("MacOS");
+        if app_inner.exists() {
+            vanilla_paths.insert(0, app_inner.join("Stardew Valley"));
+        }
+    }
+
     #[cfg(target_os = "linux")]
+    // Linux support disabled (see .github/workflows/build.yml). Keep code for future re-enable.
     let vanilla_paths = vec![
         game_dir.join("Stardew Valley"),
         game_dir.join("StardewValley"),
     ];
 
-    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     let vanilla_paths: Vec<PathBuf> = vec![];
 
     for path in &vanilla_paths {

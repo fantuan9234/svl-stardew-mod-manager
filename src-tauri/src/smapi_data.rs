@@ -135,6 +135,31 @@ pub async fn init_smapi_cache() {
         NAME_CACHE.lock().unwrap().as_ref().map(|c| c.len()).unwrap_or(0));
 }
 
+pub fn ensure_loaded_sync() {
+    {
+        let cache = CACHE.lock().unwrap();
+        if cache.is_some() {
+            return;
+        }
+    }
+
+    eprintln!("[smapi_data] ensure_loaded_sync: attempting to load from disk");
+    if let Some(cached) = load_cache_from_disk() {
+        eprintln!("[smapi_data] Loaded {} mods from local cache", cached.len());
+        *CACHE.lock().unwrap() = Some(cached);
+        if let Ok(content) = fs::read_to_string(get_cache_path()) {
+            let content = content.strip_prefix('\u{FEFF}').unwrap_or(&content);
+            if let Ok(mods_map) = serde_json::from_str::<HashMap<String, u64>>(content) {
+                let mut name_map: HashMap<String, u64> = HashMap::new();
+                for (k, v) in &mods_map {
+                    name_map.insert(k.clone(), *v);
+                }
+                *NAME_CACHE.lock().unwrap() = Some(name_map);
+            }
+        }
+    }
+}
+
 pub fn get_mod_nexus_id(mod_unique_id: &str) -> Option<u64> {
     let cache = CACHE.lock().unwrap();
     if let Some(cached) = cache.as_ref() {
@@ -150,6 +175,19 @@ pub fn get_nexus_id_by_name(mod_name: &str) -> Option<u64> {
     if let Some(cached) = cache.as_ref() {
         if let Some(nexus_id) = cached.get(&mod_name.to_lowercase()) {
             return Some(*nexus_id);
+        }
+    }
+    None
+}
+
+pub fn lookup_unique_id_by_nexus_id(target: u64) -> Option<String> {
+    ensure_loaded_sync();
+    let cache = CACHE.lock().unwrap();
+    if let Some(cached) = cache.as_ref() {
+        for (uid, nexus_id) in cached {
+            if *nexus_id == target {
+                return Some(uid.clone());
+            }
         }
     }
     None

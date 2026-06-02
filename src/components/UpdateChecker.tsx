@@ -165,7 +165,12 @@ export default function UpdateChecker() {
         setDownloading(false);
         setInstalled(true);
         if (result.file_path) {
-          await invoke('run_installer', { path: result.file_path });
+          try {
+            await invoke('run_installer', { path: result.file_path });
+          } catch (err: any) {
+            console.error('Run installer failed:', err);
+            message.error(t('features.updater.downloadFailed'));
+          }
         } else {
           message.success(t('features.serverUpdater.downloadCompleteRestart'));
         }
@@ -173,7 +178,7 @@ export default function UpdateChecker() {
         setDownloading(false);
         message.error(result.message);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Server download failed:', err);
       setDownloading(false);
       message.error(t('features.updater.downloadFailed'));

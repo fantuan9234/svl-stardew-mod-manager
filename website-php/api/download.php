@@ -30,9 +30,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
     $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
     $ipHash = hash('sha256', $ip);
+    $versionStr = $version['version'] ?? '';
     try {
-        $stmt = $db->prepare("INSERT INTO downloads (ip_hash, platform) VALUES (?, ?)");
-        $stmt->execute([$ipHash, $platform]);
+        $stmt = $db->prepare("INSERT INTO downloads (ip_hash, version, platform) VALUES (?, ?, ?)");
+        $stmt->execute([$ipHash, $versionStr, $platform]);
+        // Increment version download count
+        if ($versionStr) {
+            $db->prepare("UPDATE versions SET download_count = download_count + 1 WHERE version = ? AND platform = ?")
+               ->execute([$versionStr, $platform]);
+        }
     } catch (Exception $e) {
     }
 
@@ -58,8 +64,8 @@ $ipHash = hash('sha256', $ip);
 
 try {
     $db = getDB();
-    $stmt = $db->prepare("INSERT INTO downloads (ip_hash, platform) VALUES (?, ?)");
-    $stmt->execute([$ipHash, $platform]);
+    $stmt = $db->prepare("INSERT INTO downloads (ip_hash, version, platform) VALUES (?, ?, ?)");
+    $stmt->execute([$ipHash, '', $platform]);
 
     $total = $db->query("SELECT COUNT(DISTINCT ip_hash) FROM downloads")->fetchColumn();
     echo json_encode(['success' => true, 'total' => (int)$total], JSON_UNESCAPED_UNICODE);

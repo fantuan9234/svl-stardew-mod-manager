@@ -39,6 +39,8 @@ pub async fn scan_all_missing_dependencies(
     mods_path: String,
 ) -> Result<DependencyScanResult, String> {
     tokio::task::spawn_blocking(move || {
+        crate::compatibility_list::ensure_loaded_sync();
+        crate::smapi_data::ensure_loaded_sync();
         scan_all_missing_dependencies_blocking(&mods_path)
     })
     .await
@@ -73,14 +75,22 @@ fn scan_all_missing_dependencies_blocking(mods_path: &str) -> Result<DependencyS
             if mf.exists() {
                 if let Ok(content) = fs::read_to_string(mf) {
                     let normalized = crate::mod_parser::normalize_smart_quotes(&content);
-                    let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                    let no_comments = crate::mod_parser::strip_json_comments(&normalized);
+                    let cleaned = crate::mod_parser::remove_trailing_commas(&no_comments);
                     let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
                     if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&cleaned) {
-                        if let Some(uid) = manifest["UniqueID"].as_str() {
+                        let uid_value = manifest.get("UniqueID")
+                            .or_else(|| manifest.get("UniqueId"));
+                        if let Some(uid) = uid_value.and_then(|v| v.as_str()) {
                             let uid_lower = uid.to_lowercase();
                             installed_ids.insert(uid_lower.clone());
-                            if let Some(ver) = manifest["Version"].as_str() {
-                                mod_versions.insert(uid_lower.clone(), ver.to_string());
+                            let ver = manifest.get("Version").and_then(|v| match v {
+                                serde_json::Value::String(s) => Some(s.clone()),
+                                serde_json::Value::Number(n) => Some(n.to_string()),
+                                _ => None,
+                            });
+                            if let Some(ver) = ver {
+                                mod_versions.insert(uid_lower.clone(), ver);
                             }
                             mod_manifests.insert(uid_lower, manifest);
                         }
@@ -98,7 +108,11 @@ fn scan_all_missing_dependencies_blocking(mods_path: &str) -> Result<DependencyS
 
         if let Some(deps) = manifest["Dependencies"].as_array() {
             for dep in deps {
-                let dep_id = dep["UniqueID"].as_str().unwrap_or("").to_string();
+                let dep_id = dep.get("UniqueID")
+                    .or_else(|| dep.get("UniqueId"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 if dep_id.is_empty() {
                     continue;
                 }
@@ -117,7 +131,11 @@ fn scan_all_missing_dependencies_blocking(mods_path: &str) -> Result<DependencyS
                 if !is_required {
                     continue;
                 }
-                let min_version = dep["MinimumVersion"].as_str().map(|s| s.to_string());
+                let min_version = dep.get("MinimumVersion").and_then(|v| match v {
+                    serde_json::Value::String(s) => Some(s.clone()),
+                    serde_json::Value::Number(n) => Some(n.to_string()),
+                    _ => None,
+                });
 
                 if !installed_ids.contains(&dep_id_lower) {
                     let display_name = resolve_mod_name(&dep_id);
@@ -161,7 +179,9 @@ fn scan_all_missing_dependencies_blocking(mods_path: &str) -> Result<DependencyS
             }
         }
 
-        if let Some(cpf) = manifest["ContentPackFor"]["UniqueID"].as_str() {
+        let cpf_value = manifest.get("ContentPackFor")
+            .and_then(|cpf| cpf.get("UniqueID").or_else(|| cpf.get("UniqueId")));
+        if let Some(cpf) = cpf_value.and_then(|v| v.as_str()) {
             let cpf_lower = cpf.to_lowercase();
             if !builtin_ids.contains(&cpf_lower)
                 && !cpf_lower.starts_with("pathoschild.smapi.")
@@ -171,11 +191,19 @@ fn scan_all_missing_dependencies_blocking(mods_path: &str) -> Result<DependencyS
                 let display_name = resolve_mod_name(cpf);
                 let link = build_nexus_link(cpf, Some(&display_name), None);
 
+                let cpf_min_ver = manifest.get("ContentPackFor")
+                    .and_then(|cpf| cpf.get("MinimumVersion"))
+                    .and_then(|v| match v {
+                        serde_json::Value::String(s) => Some(s.clone()),
+                        serde_json::Value::Number(n) => Some(n.to_string()),
+                        _ => None,
+                    });
+
                 missing_map.insert(cpf_lower.clone(), MissingDependency {
                     unique_id: cpf.to_string(),
                     display_name,
                     is_required: true,
-                    minimum_version: manifest["ContentPackFor"]["MinimumVersion"].as_str().map(|s| s.to_string()),
+                    minimum_version: cpf_min_ver,
                     nexus_mod_id: link.mod_id,
                     nexus_url: link.url,
                     required_by: vec![mod_name],
@@ -387,5 +415,40 @@ mod tests {
         assert_eq!(outdated.unique_id, "Test.ModB");
         assert_eq!(outdated.installed_version, "1.5.0");
         assert_eq!(outdated.minimum_version, "2.0.0");
+    }
+
+    #[test]
+    fn test_manifest_with_comments_and_numeric_version() {
+        let tmp = create_temp_mods_dir();
+        let mod_a_dir = tmp.path().join("ModA");
+        let mod_b_dir = tmp.path().join("ModB");
+        std::fs::create_dir_all(&mod_a_dir).unwrap();
+        std::fs::create_dir_all(&mod_b_dir).unwrap();
+
+        write_manifest(&mod_a_dir, r#"{
+            // This is a comment
+            "Name": "Mod A",
+            "UniqueID": "Test.ModA",
+            "Version": 2,
+            "Dependencies": [
+                {
+                    "UniqueID": "Test.ModB",
+                    "IsRequired": true
+                }
+            ]
+        }"#);
+
+        write_manifest(&mod_b_dir, r#"{
+            /* Another comment */
+            "Name": "Mod B",
+            "UniqueId": "Test.ModB",
+            "Version": 1.5
+        }"#);
+
+        let result = scan_all_missing_dependencies_blocking(tmp.path().to_str().unwrap());
+        assert!(result.is_ok(), "Should parse manifests with comments");
+        let scan = result.unwrap();
+        assert_eq!(scan.total_installed, 2, "Both mods should be found");
+        assert_eq!(scan.total_missing, 0, "No missing dependencies");
     }
 }

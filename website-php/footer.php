@@ -58,30 +58,118 @@
         s.parentNode.insertBefore(bp, s);
     })();
 
-    // Visitor tracking
+    // Visitor tracking with offline cache
     (function(){
+        var CACHE_KEY = 'svl_track_queue';
         var page = window.location.pathname.split('/').pop() || 'index.php';
-        try {
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', 'api/index.php?action=track', true);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-            xhr.send(JSON.stringify({page: page}));
-        } catch(e) {}
+
+        function getQueue() {
+            try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '[]'); }
+            catch(e) { return []; }
+        }
+        function saveQueue(q) {
+            try { localStorage.setItem(CACHE_KEY, JSON.stringify(q)); } catch(e) {}
+        }
+        function addToQueue(item) {
+            var q = getQueue();
+            q.push(item);
+            if (q.length > 500) q = q.slice(-500);
+            saveQueue(q);
+        }
+        function sendQueue() {
+            var q = getQueue();
+            if (!q.length) return;
+            try {
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', 'api/track.php', true);
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        saveQueue([]);
+                    }
+                };
+                xhr.send(JSON.stringify({batch: q}));
+            } catch(e) {}
+        }
+        function trackPage(pg) {
+            var item = {page: pg, t: Date.now()};
+            try {
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', 'api/track.php', true);
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.onerror = function() { addToQueue(item); };
+                xhr.onload = function() {
+                    if (xhr.status < 200 || xhr.status >= 300) {
+                        addToQueue(item);
+                    } else {
+                        sendQueue();
+                    }
+                };
+                xhr.send(JSON.stringify(item));
+            } catch(e) {
+                addToQueue(item);
+            }
+        }
+
+        trackPage(page);
     })();
 
-    // Download tracking
+    // Download tracking with offline cache
     function recordDownload(platform) {
+        var CACHE_KEY = 'svl_download_queue';
+        function getQueue() {
+            try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '[]'); }
+            catch(e) { return []; }
+        }
+        function saveQueue(q) {
+            try { localStorage.setItem(CACHE_KEY, JSON.stringify(q)); } catch(e) {}
+        }
+        function addToQueue(item) {
+            var q = getQueue();
+            q.push(item);
+            if (q.length > 100) q = q.slice(-100);
+            saveQueue(q);
+        }
+        function sendQueue() {
+            var q = getQueue();
+            if (!q.length) return;
+            try {
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', 'api/download.php', true);
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        saveQueue([]);
+                    }
+                };
+                xhr.send(JSON.stringify({batch: q}));
+            } catch(e) {}
+        }
+
+        var item = {platform: platform, t: Date.now()};
         try {
-            var data = JSON.stringify({platform: platform});
+            var data = JSON.stringify(item);
             if (navigator.sendBeacon) {
-                navigator.sendBeacon('api/index.php?action=download', new Blob([data], {type: 'application/json'}));
+                var sent = navigator.sendBeacon('api/download.php', new Blob([data], {type: 'application/json'}));
+                if (!sent) addToQueue(item);
+                else sendQueue();
             } else {
                 var xhr = new XMLHttpRequest();
-                xhr.open('POST', 'api/index.php?action=download', false);
+                xhr.open('POST', 'api/download.php', false);
                 xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.onerror = function() { addToQueue(item); };
+                xhr.onload = function() {
+                    if (xhr.status < 200 || xhr.status >= 300) {
+                        addToQueue(item);
+                    } else {
+                        sendQueue();
+                    }
+                };
                 xhr.send(data);
             }
-        } catch(e) {}
+        } catch(e) {
+            addToQueue(item);
+        }
     }
 
     // Hero particle canvas

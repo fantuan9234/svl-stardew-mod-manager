@@ -17,6 +17,7 @@ fn get_saves_bindings_path() -> Option<PathBuf> {
     }
 
     #[cfg(target_os = "linux")]
+    // Linux support disabled (see .github/workflows/build.yml). Keep code for future re-enable.
     {
         std::env::var("HOME").ok().map(|home| {
             PathBuf::from(home)
@@ -40,7 +41,7 @@ fn get_saves_bindings_path() -> Option<PathBuf> {
         })
     }
 
-    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         None::<PathBuf>
     }

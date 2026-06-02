@@ -1,15 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Upload, Button, message, Modal, Tag, List } from 'antd';
-import { InboxOutlined, FolderOpenOutlined, CheckCircleOutlined, WarningOutlined, LoadingOutlined } from '@ant-design/icons';
+import { InboxOutlined, FolderOpenOutlined, CheckCircleOutlined, WarningOutlined, LoadingOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { open } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   installMod,
   installModFromFolder,
   checkModDependencies,
+  checkInstallSourceSafety,
   type InstallResult,
   type ModDependencyCheck,
+  type InstallSourceSafety,
 } from '../utils/tauri-api';
 
 const { Dragger } = Upload;
@@ -93,6 +95,14 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
   const doInstall = async (filePath: string, index: number) => {
     const isFolder = !filePath.match(/\.(zip|7z|rar)$/i);
 
+    if (isFolder) {
+      const proceed = await confirmRiskySource(filePath);
+      if (!proceed) {
+        updateProgress(index, { status: 'error', message: '用户取消安装（源路径不安全）' });
+        return;
+      }
+    }
+
     updateProgress(index, { status: 'installing', message: t('app.modInstall.installing') });
 
     try {
@@ -113,6 +123,56 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
         message: err?.toString() || t('app.modInstall.installFailed'),
       });
     }
+  };
+
+  const confirmRiskySource = async (filePath: string): Promise<boolean> => {
+    let safety: InstallSourceSafety | null = null;
+    try {
+      safety = await checkInstallSourceSafety(filePath, modsPath);
+    } catch {
+      return true;
+    }
+    if (safety.safe) return true;
+    if (safety.risk === 'missing' || safety.risk === 'not_dir') {
+      message.error(safety.reason);
+      return false;
+    }
+    return new Promise<boolean>(resolve => {
+      const displayName = safety.conflicting_mod_name || filePath.split(/[/\\]/).pop() || filePath;
+      Modal.confirm({
+        title: (
+          <span>
+            <ExclamationCircleOutlined style={{ color: 'var(--svl-warning)', marginRight: 8 }} />
+            源文件夹位于 Mods 目录内部
+          </span>
+        ),
+        content: (
+          <div>
+            <p style={{ marginBottom: 8 }}>{safety.reason}</p>
+            <p style={{ marginBottom: 8 }}>
+              <strong>源文件夹：</strong> <code>{displayName}</code>
+            </p>
+            <p style={{ marginBottom: 8 }}>
+              <strong>Mods 目录：</strong> <code>{modsPath}</code>
+            </p>
+            {safety.conflicting_mod_name && (
+              <p style={{ color: 'var(--svl-warning)', marginBottom: 8 }}>
+                目标 Mods 文件夹中已存在同名文件夹 <code>{safety.conflicting_mod_name}</code>，
+                安装过程会用新版替换旧版（系统已做备份，旧版会保留到 <code>.{safety.conflicting_mod_name}.svl_backup</code>，安装成功后自动清理）。
+              </p>
+            )}
+            <p style={{ marginBottom: 0, color: 'var(--svl-text-muted)' }}>
+              如果你只是想重新启用这个 MOD 而不是安装新版本，请直接关闭此窗口。
+            </p>
+          </div>
+        ),
+        okText: '我已确认，继续安装',
+        cancelText: '取消',
+        okButtonProps: { danger: true },
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
   };
 
   const processFile = async (filePath: string) => {

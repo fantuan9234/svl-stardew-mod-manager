@@ -51,6 +51,7 @@ fn get_saves_directory() -> Option<PathBuf> {
     }
 
     #[cfg(target_os = "linux")]
+    // Linux support disabled (see .github/workflows/build.yml). Keep code for future re-enable.
     {
         if let Ok(home) = std::env::var("HOME") {
             let saves = PathBuf::from(home)
@@ -99,6 +100,7 @@ fn get_bindings_path() -> Option<PathBuf> {
         }
 
         #[cfg(target_os = "linux")]
+        // Linux support disabled (see .github/workflows/build.yml). Keep code for future re-enable.
         {
             std::env::var("HOME").ok().map(|home| {
                 PathBuf::from(home)
@@ -120,7 +122,7 @@ fn get_bindings_path() -> Option<PathBuf> {
             })
         }
 
-        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
         {
             None::<PathBuf>
         }
@@ -632,9 +634,35 @@ pub fn open_save_location() -> Result<bool, String> {
 #[tauri::command]
 pub fn open_backup_dialog() -> Result<String, String> {
     use std::env;
-    if let Some(desktop) = env::var("USERPROFILE").ok() {
-        let default_backup = PathBuf::from(desktop).join("SVL_SaveBackups");
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(desktop) = env::var("USERPROFILE").ok() {
+            let default_backup = PathBuf::from(desktop).join("SVL_SaveBackups");
+            return Ok(default_backup.to_string_lossy().to_string());
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(home) = env::var("HOME") {
+            let default_backup = PathBuf::from(home)
+                .join("Documents")
+                .join("SVL_SaveBackups");
+            return Ok(default_backup.to_string_lossy().to_string());
+        }
+        if let Some(desktop) = dirs::desktop_dir() {
+            let default_backup = desktop.join("SVL_SaveBackups");
+            return Ok(default_backup.to_string_lossy().to_string());
+        }
+    }
+
+    if let Ok(home) = env::var("HOME") {
+        let default_backup = PathBuf::from(home)
+            .join("Documents")
+            .join("SVL_SaveBackups");
         return Ok(default_backup.to_string_lossy().to_string());
     }
+
     Err("Cannot get default backup path".to_string())
 }

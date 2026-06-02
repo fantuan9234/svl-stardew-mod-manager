@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SVL",
+  "app": {
+    "windows": [
+      {
+        "titleBarStyle": "Transparent"
+      }
+    ]
+  },
+  "bundle": {
+    "macOS": {
+      "minimumSystemVersion": "10.13"
+    }
+  }
+}
