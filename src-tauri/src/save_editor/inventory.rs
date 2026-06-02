@@ -96,6 +96,7 @@ fn serialize_item(item: &ItemInfo) -> String {
     out
 }
 
+#[allow(dead_code)]
 pub fn update_item(inv: &mut Inventory, index: usize, stack: i32) -> Result<()> {
     let item = inv
         .items
@@ -108,6 +109,7 @@ pub fn update_item(inv: &mut Inventory, index: usize, stack: i32) -> Result<()> 
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn remove_item(inv: &mut Inventory, index: usize) -> Result<()> {
     let pos = inv
         .items
@@ -120,6 +122,7 @@ pub fn remove_item(inv: &mut Inventory, index: usize) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn add_item(inv: &mut Inventory, item_id: i32, stack: i32, name: String) {
     let new_index = inv.items.iter().map(|i| i.index).max().unwrap_or(0) + 1;
     inv.items.push(ItemInfo {
