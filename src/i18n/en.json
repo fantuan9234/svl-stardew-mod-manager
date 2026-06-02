@@ -1137,7 +1137,14 @@
       "saveEditorQuestReward": "Gold Reward",
       "saveEditorQuestCompleted": "Completed",
       "saveEditorQuestDaysLeft": "Days Left",
-      "saveEditorQuestEmpty": "No active quests"
+      "saveEditorQuestEmpty": "No active quests",
+      "saveEditorBuildingLocation": "Location",
+      "saveEditorBuildingType": "Type",
+      "saveEditorBuildingTileX": "Tile X",
+      "saveEditorBuildingTileY": "Tile Y",
+      "saveEditorBuildingMaxOccupants": "Max Occupants",
+      "saveEditorBuildingCurrentOccupants": "Current Occupants",
+      "saveEditorBuildingEmpty": "No buildings"
     },
     "translator": {
       "title": "AI Mod Translation",

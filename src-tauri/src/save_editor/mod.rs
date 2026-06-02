@@ -5,6 +5,7 @@ pub mod character;
 pub mod skills;
 pub mod inventory;
 pub mod quests;
+pub mod buildings;
 
 use save_file::SaveFile;
 use std::path::PathBuf;
@@ -154,6 +155,27 @@ pub fn save_editor_save_quests(
     let mut save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
     let backup_path = save.backup().map_err(|e| e.to_string())?;
     let new_xml = quests::apply(&save.raw_xml, &log).map_err(|e| e.to_string())?;
+    save.set_xml(new_xml);
+    save.write().map_err(|e| e.to_string())?;
+    Ok(backup_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn save_editor_load_buildings(
+    save_path: String,
+) -> std::result::Result<buildings::BuildingList, String> {
+    let save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
+    buildings::parse(&save.raw_xml).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_editor_save_buildings(
+    save_path: String,
+    list: buildings::BuildingList,
+) -> std::result::Result<String, String> {
+    let mut save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
+    let backup_path = save.backup().map_err(|e| e.to_string())?;
+    let new_xml = buildings::apply(&save.raw_xml, &list).map_err(|e| e.to_string())?;
     save.set_xml(new_xml);
     save.write().map_err(|e| e.to_string())?;
     Ok(backup_path.to_string_lossy().to_string())

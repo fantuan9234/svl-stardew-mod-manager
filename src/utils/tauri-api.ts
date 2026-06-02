@@ -1309,6 +1309,22 @@ export interface SaveEditorQuestLog {
   quests: SaveEditorQuestInfo[];
 }
 
+export interface SaveEditorBuildingInfo {
+  index: number;
+  location: string;
+  building_type: string;
+  tile_x: number;
+  tile_y: number;
+  upgrade_level: number;
+  max_occupants: number;
+  current_occupants: number;
+  raw_xml: string;
+}
+
+export interface SaveEditorBuildingList {
+  buildings: SaveEditorBuildingInfo[];
+}
+
 export async function openSaveInEditor(savePath: string): Promise<SaveEditorSummary> {
   return invoke<SaveEditorSummary>('open_save_in_editor', { savePath });
 }
@@ -1343,4 +1359,12 @@ export async function loadEditorQuests(savePath: string): Promise<SaveEditorQues
 
 export async function saveEditorQuests(savePath: string, log: SaveEditorQuestLog): Promise<string> {
   return invoke<string>('save_editor_save_quests', { savePath, log });
+}
+
+export async function loadEditorBuildings(savePath: string): Promise<SaveEditorBuildingList> {
+  return invoke<SaveEditorBuildingList>('save_editor_load_buildings', { savePath });
+}
+
+export async function saveEditorBuildings(savePath: string, list: SaveEditorBuildingList): Promise<string> {
+  return invoke<string>('save_editor_save_buildings', { savePath, list });
 }

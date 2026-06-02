@@ -11,6 +11,10 @@ import {
   saveEditorSkills,
   loadEditorInventory,
   saveEditorInventory,
+  loadEditorQuests,
+  saveEditorQuests,
+  loadEditorBuildings,
+  saveEditorBuildings,
   type SaveInfo,
   type SaveEditorSummary,
   type SaveEditorCharacterInfo,
@@ -19,6 +23,8 @@ import {
   type SaveEditorItemInfo,
   type SaveEditorQuestLog,
   type SaveEditorQuestInfo,
+  type SaveEditorBuildingList,
+  type SaveEditorBuildingInfo,
 } from '../utils/tauri-api';
 
 export default function SaveEditorView({ onBack }: { onBack: () => void }) {
@@ -30,6 +36,7 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
   const [skills, setSkills] = useState<SaveEditorSkillSet | null>(null);
   const [inventory, setInventory] = useState<SaveEditorInventory | null>(null);
   const [quests, setQuests] = useState<SaveEditorQuestLog | null>(null);
+  const [buildings, setBuildings] = useState<SaveEditorBuildingList | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -45,18 +52,20 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
     setLoading(true);
     setDirty(false);
     try {
-      const [s, c, sk, inv, q] = await Promise.all([
+      const [s, c, sk, inv, q, b] = await Promise.all([
         openSaveInEditor(path),
         loadEditorCharacter(path),
         loadEditorSkills(path),
         loadEditorInventory(path),
         loadEditorQuests(path),
+        loadEditorBuildings(path),
       ]);
       setSummary(s);
       setCharacter(c);
       setSkills(sk);
       setInventory(inv);
       setQuests(q);
+      setBuildings(b);
     } catch (e: any) {
       message.error(e?.toString() || t('app.toolbox.saveEditorLoadFailed'));
     } finally {
@@ -65,7 +74,7 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
   };
 
   const handleSaveAll = async () => {
-    if (!selectedSave || !character || !skills || !inventory || !quests) return;
+    if (!selectedSave || !character || !skills || !inventory || !quests || !buildings) return;
     Modal.confirm({
       title: t('app.toolbox.saveEditorConfirmTitle'),
       content: t('app.toolbox.saveEditorConfirmContent'),
@@ -78,6 +87,7 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
           await saveEditorSkills(selectedSave, skills);
           await saveEditorInventory(selectedSave, inventory);
           await saveEditorQuests(selectedSave, quests);
+          await saveEditorBuildings(selectedSave, buildings);
           message.success(t('app.toolbox.saveEditorSaveSuccess'));
           setDirty(false);
         } catch (e: any) {
@@ -136,7 +146,7 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
           <Spin />
         ) : !selectedSave ? (
           <Empty description={t('app.toolbox.saveEditorSelectSave')} />
-        ) : !character || !skills || !inventory || !quests ? null : (
+        ) : !character || !skills || !inventory || !quests || !buildings ? null : (
           <Tabs
             items={[
               {
@@ -214,7 +224,15 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
                     <HomeOutlined /> {t('app.toolbox.saveEditorTabBuildings')}
                   </span>
                 ),
-                children: <Empty description={t('app.toolbox.saveEditorNotImplemented')} />,
+                children: (
+                  <BuildingForm
+                    value={buildings!}
+                    onChange={(v) => {
+                      setBuildings(v);
+                      setDirty(true);
+                    }}
+                  />
+                ),
               },
             ]}
           />
@@ -593,7 +611,8 @@ function QuestForm({
       dataIndex: 'completed',
       width: 100,
       render: (val: boolean, record: SaveEditorQuestInfo) => (
-        <Checkbox
+        <input
+          type="checkbox"
           checked={val}
           onChange={(e) => updateField(record.index, { completed: e.target.checked })}
         />
@@ -623,6 +642,88 @@ function QuestForm({
           rowKey="index"
           size="small"
           dataSource={value.quests}
+          columns={columns}
+          pagination={{ pageSize: 30, showSizeChanger: false }}
+        />
+      )}
+    </div>
+  );
+}
+
+function BuildingForm({
+  value,
+  onChange,
+}: {
+  value: SaveEditorBuildingList;
+  onChange: (v: SaveEditorBuildingList) => void;
+}) {
+  const { t } = useTranslation();
+  const updateField = (i: number, patch: Partial<SaveEditorBuildingInfo>) => {
+    onChange({
+      buildings: value.buildings.map((b, j) => (j === i ? { ...b, ...patch } : b)),
+    });
+  };
+
+  const columns = [
+    {
+      title: t('app.toolbox.saveEditorBuildingLocation'),
+      dataIndex: 'location',
+      width: 130,
+      render: (val: string) => <code>{val}</code>,
+    },
+    {
+      title: t('app.toolbox.saveEditorBuildingType'),
+      dataIndex: 'building_type',
+      width: 110,
+      render: (val: string) => <code>{val}</code>,
+    },
+    {
+      title: t('app.toolbox.saveEditorBuildingTileX'),
+      dataIndex: 'tile_x',
+      width: 90,
+      render: (val: number, record: SaveEditorBuildingInfo) => (
+        <InputNumber
+          size="small"
+          value={val}
+          onChange={(v) => updateField(record.index, { tile_x: v ?? 0 })}
+        />
+      ),
+    },
+    {
+      title: t('app.toolbox.saveEditorBuildingTileY'),
+      dataIndex: 'tile_y',
+      width: 90,
+      render: (val: number, record: SaveEditorBuildingInfo) => (
+        <InputNumber
+          size="small"
+          value={val}
+          onChange={(v) => updateField(record.index, { tile_y: v ?? 0 })}
+        />
+      ),
+    },
+    {
+      title: t('app.toolbox.saveEditorBuildingMaxOccupants'),
+      dataIndex: 'max_occupants',
+      width: 100,
+      render: (val: number) => <code>{val}</code>,
+    },
+    {
+      title: t('app.toolbox.saveEditorBuildingCurrentOccupants'),
+      dataIndex: 'current_occupants',
+      width: 100,
+      render: (val: number) => <code>{val}</code>,
+    },
+  ];
+
+  return (
+    <div>
+      {value.buildings.length === 0 ? (
+        <Empty description={t('app.toolbox.saveEditorBuildingEmpty')} />
+      ) : (
+        <Table
+          rowKey="index"
+          size="small"
+          dataSource={value.buildings}
           columns={columns}
           pagination={{ pageSize: 30, showSizeChanger: false }}
         />

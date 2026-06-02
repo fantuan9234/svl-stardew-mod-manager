@@ -137,7 +137,14 @@
       "saveEditorQuestReward": "奖励金币",
       "saveEditorQuestCompleted": "已完成",
       "saveEditorQuestDaysLeft": "剩余天数",
-      "saveEditorQuestEmpty": "无进行中的任务"
+      "saveEditorQuestEmpty": "无进行中的任务",
+      "saveEditorBuildingLocation": "位置",
+      "saveEditorBuildingType": "类型",
+      "saveEditorBuildingTileX": "X 坐标",
+      "saveEditorBuildingTileY": "Y 坐标",
+      "saveEditorBuildingMaxOccupants": "最大容量",
+      "saveEditorBuildingCurrentOccupants": "当前数量",
+      "saveEditorBuildingEmpty": "暂无建筑"
     },
     "translator": {
       "title": "AI 模组翻译",
