@@ -1122,7 +1122,15 @@
       "saveEditorSave": "Save",
       "saveEditorConfirmTitle": "Confirm save",
       "saveEditorConfirmContent": "Saving will modify the original save file. A backup has been created in SVL_Backups. Continue?",
-      "saveEditorNotImplemented": "This module will be implemented in a later phase"
+      "saveEditorNotImplemented": "This module will be implemented in a later phase",
+      "saveEditorItemId": "Item ID",
+      "saveEditorItemName": "Name",
+      "saveEditorItemStack": "Stack",
+      "saveEditorItemQuality": "Quality",
+      "saveEditorItemAdd": "Add Item",
+      "saveEditorItemDelete": "Delete",
+      "saveEditorItemEmpty": "Inventory is empty",
+      "saveEditorCommonItems": "Common items"
     },
     "translator": {
       "title": "AI Mod Translation",

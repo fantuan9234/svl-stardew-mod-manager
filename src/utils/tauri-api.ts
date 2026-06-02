@@ -1280,6 +1280,19 @@ export interface SaveEditorSkillSet {
   skills: SaveEditorSkillInfo[];
 }
 
+export interface SaveEditorItemInfo {
+  index: number;
+  item_id: number;
+  stack: number;
+  name: string;
+  quality: number;
+  raw_xml: string;
+}
+
+export interface SaveEditorInventory {
+  items: SaveEditorItemInfo[];
+}
+
 export async function openSaveInEditor(savePath: string): Promise<SaveEditorSummary> {
   return invoke<SaveEditorSummary>('open_save_in_editor', { savePath });
 }
@@ -1298,4 +1311,12 @@ export async function loadEditorSkills(savePath: string): Promise<SaveEditorSkil
 
 export async function saveEditorSkills(savePath: string, set: SaveEditorSkillSet): Promise<string> {
   return invoke<string>('save_editor_save_skills', { savePath, set });
+}
+
+export async function loadEditorInventory(savePath: string): Promise<SaveEditorInventory> {
+  return invoke<SaveEditorInventory>('save_editor_load_inventory', { savePath });
+}
+
+export async function saveEditorInventory(savePath: string, inv: SaveEditorInventory): Promise<string> {
+  return invoke<string>('save_editor_save_inventory', { savePath, inv });
 }

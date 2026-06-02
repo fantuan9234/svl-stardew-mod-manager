@@ -109,7 +109,15 @@
       "saveEditorSave": "儲存",
       "saveEditorConfirmTitle": "確認儲存",
       "saveEditorConfirmContent": "儲存將修改原存檔檔案。已自動備份到 SVL_Backups 目錄。確定繼續嗎？",
-      "saveEditorNotImplemented": "該模組將在後續 Phase 實現"
+      "saveEditorNotImplemented": "該模組將在後續 Phase 實現",
+      "saveEditorItemId": "物品 ID",
+      "saveEditorItemName": "名稱",
+      "saveEditorItemStack": "數量",
+      "saveEditorItemQuality": "品質",
+      "saveEditorItemAdd": "新增物品",
+      "saveEditorItemDelete": "刪除",
+      "saveEditorItemEmpty": "背包為空",
+      "saveEditorCommonItems": "常用物品"
     },
     "translator": {
       "title": "AI 模組翻譯",

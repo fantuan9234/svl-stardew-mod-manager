@@ -3,6 +3,7 @@ pub mod xml_utils;
 pub mod save_file;
 pub mod character;
 pub mod skills;
+pub mod inventory;
 
 use save_file::SaveFile;
 use std::path::PathBuf;
@@ -110,6 +111,27 @@ pub fn save_editor_save_skills(
     let mut save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
     let backup_path = save.backup().map_err(|e| e.to_string())?;
     let new_xml = skills::apply(&save.raw_xml, &set).map_err(|e| e.to_string())?;
+    save.set_xml(new_xml);
+    save.write().map_err(|e| e.to_string())?;
+    Ok(backup_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn save_editor_load_inventory(
+    save_path: String,
+) -> std::result::Result<inventory::Inventory, String> {
+    let save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
+    inventory::parse(&save.raw_xml).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_editor_save_inventory(
+    save_path: String,
+    inv: inventory::Inventory,
+) -> std::result::Result<String, String> {
+    let mut save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
+    let backup_path = save.backup().map_err(|e| e.to_string())?;
+    let new_xml = inventory::apply(&save.raw_xml, &inv).map_err(|e| e.to_string())?;
     save.set_xml(new_xml);
     save.write().map_err(|e| e.to_string())?;
     Ok(backup_path.to_string_lossy().to_string())
