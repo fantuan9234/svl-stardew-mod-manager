@@ -1246,3 +1246,52 @@ export async function deleteModNameTranslation(uniqueId: string, folderPath: str
 export async function clearAllModNameTranslations(mods: Array<[string, string]>): Promise<boolean> {
   return invoke<boolean>('clear_all_mod_name_translations', { mods });
 }
+
+export interface SaveEditorSummary {
+  folder_path: string;
+  character_name: string;
+  farm_name: string;
+  money: number;
+  current_date: string;
+  play_time_hours: number;
+}
+
+export interface SaveEditorCharacterInfo {
+  name: string;
+  farm_name: string;
+  money: number;
+  health: number;
+  max_health: number;
+  stamina: number;
+  max_stamina: number;
+}
+
+export interface SaveEditorSkillInfo {
+  name: string;
+  level: number;
+  experience: number;
+}
+
+export interface SaveEditorSkillSet {
+  skills: SaveEditorSkillInfo[];
+}
+
+export async function openSaveInEditor(savePath: string): Promise<SaveEditorSummary> {
+  return invoke<SaveEditorSummary>('open_save_in_editor', { savePath });
+}
+
+export async function loadEditorCharacter(savePath: string): Promise<SaveEditorCharacterInfo> {
+  return invoke<SaveEditorCharacterInfo>('save_editor_load_character', { savePath });
+}
+
+export async function saveEditorCharacter(savePath: string, info: SaveEditorCharacterInfo): Promise<string> {
+  return invoke<string>('save_editor_save_character', { savePath, info });
+}
+
+export async function loadEditorSkills(savePath: string): Promise<SaveEditorSkillSet> {
+  return invoke<SaveEditorSkillSet>('save_editor_load_skills', { savePath });
+}
+
+export async function saveEditorSkills(savePath: string, set: SaveEditorSkillSet): Promise<string> {
+  return invoke<string>('save_editor_save_skills', { savePath, set });
+}

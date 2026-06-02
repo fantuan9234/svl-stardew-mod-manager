@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PieChartOutlined, ControlOutlined, SaveOutlined, FileTextOutlined, TranslationOutlined } from '@ant-design/icons';
+import { PieChartOutlined, ControlOutlined, SaveOutlined, FileTextOutlined, TranslationOutlined, BugOutlined, EditOutlined } from '@ant-design/icons';
 import StorageAnalyzerView from '../components/StorageAnalyzerView';
 import ConfigManager from '../components/ConfigManager';
 import SnapshotManager from '../components/SnapshotManager';
 import AppLogViewer from '../components/AppLogViewer';
 import ModTranslatorView from '../components/ModTranslatorView';
+import SmapiLogAnalyzer from '../components/SmapiLogAnalyzer';
+import SaveEditorView from '../components/SaveEditorView';
 
-type ToolView = 'home' | 'storage' | 'config' | 'snapshot' | 'logs' | 'translate';
+type ToolView = 'home' | 'storage' | 'config' | 'snapshot' | 'logs' | 'translate' | 'smapiAnalyzer' | 'saveEditor';
 
 const tools: {
   key: ToolView;
@@ -19,6 +21,8 @@ const tools: {
   { key: 'snapshot', icon: <SaveOutlined />, color: '#1890ff' },
   { key: 'translate', icon: <TranslationOutlined />, color: '#722ed1' },
   { key: 'logs', icon: <FileTextOutlined />, color: '#ff4d4f' },
+  { key: 'smapiAnalyzer', icon: <BugOutlined />, color: '#eb2f96' },
+  { key: 'saveEditor', icon: <EditOutlined />, color: '#13c2c2' },
 ];
 
 export default function Toolbox() {
@@ -30,6 +34,8 @@ export default function Toolbox() {
   if (view === 'snapshot') return <SnapshotManager onBack={() => setView('home')} />;
   if (view === 'logs') return <AppLogViewer onBack={() => setView('home')} />;
   if (view === 'translate') return <ModTranslatorView onBack={() => setView('home')} />;
+  if (view === 'smapiAnalyzer') return <SmapiLogAnalyzer onBack={() => setView('home')} />;
+  if (view === 'saveEditor') return <SaveEditorView onBack={() => setView('home')} />;
 
   return (
     <div className="svl-toolbox-home">
