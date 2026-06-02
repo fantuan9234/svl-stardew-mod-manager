@@ -1264,6 +1264,10 @@ export interface SaveEditorCharacterInfo {
   max_health: number;
   stamina: number;
   max_stamina: number;
+  day_of_month: number;
+  current_season: string;
+  year: number;
+  time_of_day: number;
 }
 
 export interface SaveEditorSkillInfo {

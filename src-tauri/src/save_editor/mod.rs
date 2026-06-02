@@ -27,6 +27,10 @@ pub struct CharacterInfo {
     pub max_health: i32,
     pub stamina: i32,
     pub max_stamina: i32,
+    pub day_of_month: u32,
+    pub current_season: String,
+    pub year: u32,
+    pub time_of_day: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

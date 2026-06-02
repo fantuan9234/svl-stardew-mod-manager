@@ -242,6 +242,47 @@ function CharacterForm({
           onChange={(v) => onChange({ ...value, stamina: v ?? 0 })}
         />
       </Form.Item>
+      <Form.Item label={t('app.toolbox.saveEditorDay')}>
+        <InputNumber
+          value={value.day_of_month}
+          min={1}
+          max={28}
+          style={{ width: '100%' }}
+          onChange={(v) => onChange({ ...value, day_of_month: v ?? 1 })}
+        />
+      </Form.Item>
+      <Form.Item label={t('app.toolbox.saveEditorSeason')}>
+        <Select
+          value={value.current_season}
+          style={{ width: '100%' }}
+          onChange={(v) => onChange({ ...value, current_season: v })}
+          options={[
+            { value: 'spring', label: t('app.toolbox.saveEditorSpring') },
+            { value: 'summer', label: t('app.toolbox.saveEditorSummer') },
+            { value: 'fall', label: t('app.toolbox.saveEditorFall') },
+            { value: 'winter', label: t('app.toolbox.saveEditorWinter') },
+          ]}
+        />
+      </Form.Item>
+      <Form.Item label={t('app.toolbox.saveEditorYear')}>
+        <InputNumber
+          value={value.year}
+          min={1}
+          max={999}
+          style={{ width: '100%' }}
+          onChange={(v) => onChange({ ...value, year: v ?? 1 })}
+        />
+      </Form.Item>
+      <Form.Item label={t('app.toolbox.saveEditorTime')}>
+        <InputNumber
+          value={value.time_of_day}
+          min={0}
+          max={2400}
+          step={10}
+          style={{ width: '100%' }}
+          onChange={(v) => onChange({ ...value, time_of_day: v ?? 600 })}
+        />
+      </Form.Item>
     </Form>
   );
 }
