@@ -68,3 +68,25 @@ fn extract_current_date(xml: &str) -> String {
         format!("Y{} {} D{}", year, season, day)
     }
 }
+
+#[tauri::command]
+pub fn save_editor_load_character(
+    save_path: String,
+) -> std::result::Result<CharacterInfo, String> {
+    let save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
+    character::parse_character(&save.raw_xml).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_editor_save_character(
+    save_path: String,
+    info: CharacterInfo,
+) -> std::result::Result<String, String> {
+    let mut save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
+    let backup_path = save.backup().map_err(|e| e.to_string())?;
+    let new_xml = character::apply_character_edits(&save.raw_xml, &info)
+        .map_err(|e| e.to_string())?;
+    save.set_xml(new_xml);
+    save.write().map_err(|e| e.to_string())?;
+    Ok(backup_path.to_string_lossy().to_string())
+}

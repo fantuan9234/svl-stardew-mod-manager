@@ -58,7 +58,7 @@ use storage_analyzer::analyze_mod_storage;
 use app_logger::{get_app_logs, export_app_logs, clear_old_app_logs, get_log_dir_path};
 use mod_translator::{scan_translatable_mods, translate_mod_file, test_ai_connection, restore_translation_backup, scan_translation_backups, get_mod_untranslated_entries};
 use mod_name_translator::{get_mod_name_translations, translate_mod_name, batch_translate_mod_names, delete_mod_name_translation, clear_all_mod_name_translations};
-use save_editor::open_save_in_editor;
+use save_editor::{open_save_in_editor, save_editor_load_character, save_editor_save_character};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -232,6 +232,8 @@ pub fn run() {
             delete_mod_name_translation,
             clear_all_mod_name_translations,
             open_save_in_editor,
+            save_editor_load_character,
+            save_editor_save_character,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
