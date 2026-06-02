@@ -1293,6 +1293,22 @@ export interface SaveEditorInventory {
   items: SaveEditorItemInfo[];
 }
 
+export interface SaveEditorQuestInfo {
+  index: number;
+  id: string;
+  title: string;
+  description: string;
+  current_objective: string;
+  money_reward: number;
+  completed: boolean;
+  days_left: number;
+  raw_xml: string;
+}
+
+export interface SaveEditorQuestLog {
+  quests: SaveEditorQuestInfo[];
+}
+
 export async function openSaveInEditor(savePath: string): Promise<SaveEditorSummary> {
   return invoke<SaveEditorSummary>('open_save_in_editor', { savePath });
 }
@@ -1319,4 +1335,12 @@ export async function loadEditorInventory(savePath: string): Promise<SaveEditorI
 
 export async function saveEditorInventory(savePath: string, inv: SaveEditorInventory): Promise<string> {
   return invoke<string>('save_editor_save_inventory', { savePath, inv });
+}
+
+export async function loadEditorQuests(savePath: string): Promise<SaveEditorQuestLog> {
+  return invoke<SaveEditorQuestLog>('save_editor_load_quests', { savePath });
+}
+
+export async function saveEditorQuests(savePath: string, log: SaveEditorQuestLog): Promise<string> {
+  return invoke<string>('save_editor_save_quests', { savePath, log });
 }

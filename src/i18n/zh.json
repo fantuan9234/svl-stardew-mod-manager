@@ -130,7 +130,14 @@
       "saveEditorItemAdd": "添加物品",
       "saveEditorItemDelete": "删除",
       "saveEditorItemEmpty": "背包为空",
-      "saveEditorCommonItems": "常用物品"
+      "saveEditorCommonItems": "常用物品",
+      "saveEditorQuestId": "任务 ID",
+      "saveEditorQuestTitle": "任务",
+      "saveEditorQuestObjective": "当前目标",
+      "saveEditorQuestReward": "奖励金币",
+      "saveEditorQuestCompleted": "已完成",
+      "saveEditorQuestDaysLeft": "剩余天数",
+      "saveEditorQuestEmpty": "无进行中的任务"
     },
     "translator": {
       "title": "AI 模组翻译",

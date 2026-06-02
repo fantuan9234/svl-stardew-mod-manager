@@ -17,6 +17,8 @@ import {
   type SaveEditorSkillSet,
   type SaveEditorInventory,
   type SaveEditorItemInfo,
+  type SaveEditorQuestLog,
+  type SaveEditorQuestInfo,
 } from '../utils/tauri-api';
 
 export default function SaveEditorView({ onBack }: { onBack: () => void }) {
@@ -27,6 +29,7 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
   const [character, setCharacter] = useState<SaveEditorCharacterInfo | null>(null);
   const [skills, setSkills] = useState<SaveEditorSkillSet | null>(null);
   const [inventory, setInventory] = useState<SaveEditorInventory | null>(null);
+  const [quests, setQuests] = useState<SaveEditorQuestLog | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -42,16 +45,18 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
     setLoading(true);
     setDirty(false);
     try {
-      const [s, c, sk, inv] = await Promise.all([
+      const [s, c, sk, inv, q] = await Promise.all([
         openSaveInEditor(path),
         loadEditorCharacter(path),
         loadEditorSkills(path),
         loadEditorInventory(path),
+        loadEditorQuests(path),
       ]);
       setSummary(s);
       setCharacter(c);
       setSkills(sk);
       setInventory(inv);
+      setQuests(q);
     } catch (e: any) {
       message.error(e?.toString() || t('app.toolbox.saveEditorLoadFailed'));
     } finally {
@@ -60,7 +65,7 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
   };
 
   const handleSaveAll = async () => {
-    if (!selectedSave || !character || !skills || !inventory) return;
+    if (!selectedSave || !character || !skills || !inventory || !quests) return;
     Modal.confirm({
       title: t('app.toolbox.saveEditorConfirmTitle'),
       content: t('app.toolbox.saveEditorConfirmContent'),
@@ -72,6 +77,7 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
           await saveEditorCharacter(selectedSave, character);
           await saveEditorSkills(selectedSave, skills);
           await saveEditorInventory(selectedSave, inventory);
+          await saveEditorQuests(selectedSave, quests);
           message.success(t('app.toolbox.saveEditorSaveSuccess'));
           setDirty(false);
         } catch (e: any) {
@@ -130,7 +136,7 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
           <Spin />
         ) : !selectedSave ? (
           <Empty description={t('app.toolbox.saveEditorSelectSave')} />
-        ) : !character || !skills || !inventory ? null : (
+        ) : !character || !skills || !inventory || !quests ? null : (
           <Tabs
             items={[
               {
@@ -191,7 +197,15 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
                     <TrophyOutlined /> {t('app.toolbox.saveEditorTabQuests')}
                   </span>
                 ),
-                children: <Empty description={t('app.toolbox.saveEditorNotImplemented')} />,
+                children: (
+                  <QuestForm
+                    value={quests!}
+                    onChange={(v) => {
+                      setQuests(v);
+                      setDirty(true);
+                    }}
+                  />
+                ),
               },
               {
                 key: 'buildings',
@@ -513,6 +527,104 @@ function InventoryForm({
           dataSource={value.items}
           columns={columns}
           pagination={{ pageSize: 50, showSizeChanger: false }}
+        />
+      )}
+    </div>
+  );
+}
+
+function QuestForm({
+  value,
+  onChange,
+}: {
+  value: SaveEditorQuestLog;
+  onChange: (v: SaveEditorQuestLog) => void;
+}) {
+  const { t } = useTranslation();
+  const updateField = (i: number, patch: Partial<SaveEditorQuestInfo>) => {
+    onChange({
+      quests: value.quests.map((q, j) => (j === i ? { ...q, ...patch } : q)),
+    });
+  };
+
+  const removeQuest = (i: number) => {
+    onChange({ quests: value.quests.filter((_, j) => j !== i) });
+  };
+
+  const columns = [
+    {
+      title: t('app.toolbox.saveEditorQuestId'),
+      dataIndex: 'id',
+      width: 70,
+      render: (val: string) => <code>{val}</code>,
+    },
+    {
+      title: t('app.toolbox.saveEditorQuestTitle'),
+      dataIndex: 'title',
+      width: 200,
+      render: (val: string) => val || '(无标题)',
+    },
+    {
+      title: t('app.toolbox.saveEditorQuestObjective'),
+      dataIndex: 'current_objective',
+      render: (val: string) => val || '-',
+    },
+    {
+      title: t('app.toolbox.saveEditorQuestReward'),
+      dataIndex: 'money_reward',
+      width: 100,
+      render: (val: number, record: SaveEditorQuestInfo) => (
+        <InputNumber
+          size="small"
+          min={0}
+          value={val}
+          onChange={(v) => updateField(record.index, { money_reward: v ?? 0 })}
+        />
+      ),
+    },
+    {
+      title: t('app.toolbox.saveEditorQuestDaysLeft'),
+      dataIndex: 'days_left',
+      width: 90,
+      render: (val: number) => <code>{val}</code>,
+    },
+    {
+      title: t('app.toolbox.saveEditorQuestCompleted'),
+      dataIndex: 'completed',
+      width: 100,
+      render: (val: boolean, record: SaveEditorQuestInfo) => (
+        <Checkbox
+          checked={val}
+          onChange={(e) => updateField(record.index, { completed: e.target.checked })}
+        />
+      ),
+    },
+    {
+      title: '',
+      key: 'action',
+      width: 60,
+      render: (_: any, record: SaveEditorQuestInfo) => (
+        <Popconfirm
+          title={t('app.toolbox.saveEditorItemDelete')}
+          onConfirm={() => removeQuest(record.index)}
+        >
+          <Button size="small" danger icon={<DeleteOutlined />} />
+        </Popconfirm>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      {value.quests.length === 0 ? (
+        <Empty description={t('app.toolbox.saveEditorQuestEmpty')} />
+      ) : (
+        <Table
+          rowKey="index"
+          size="small"
+          dataSource={value.quests}
+          columns={columns}
+          pagination={{ pageSize: 30, showSizeChanger: false }}
         />
       )}
     </div>

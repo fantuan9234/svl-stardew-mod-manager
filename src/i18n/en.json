@@ -1130,7 +1130,14 @@
       "saveEditorItemAdd": "Add Item",
       "saveEditorItemDelete": "Delete",
       "saveEditorItemEmpty": "Inventory is empty",
-      "saveEditorCommonItems": "Common items"
+      "saveEditorCommonItems": "Common items",
+      "saveEditorQuestId": "Quest ID",
+      "saveEditorQuestTitle": "Quest",
+      "saveEditorQuestObjective": "Current Objective",
+      "saveEditorQuestReward": "Gold Reward",
+      "saveEditorQuestCompleted": "Completed",
+      "saveEditorQuestDaysLeft": "Days Left",
+      "saveEditorQuestEmpty": "No active quests"
     },
     "translator": {
       "title": "AI Mod Translation",
