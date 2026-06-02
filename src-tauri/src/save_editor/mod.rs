@@ -90,3 +90,24 @@ pub fn save_editor_save_character(
     save.write().map_err(|e| e.to_string())?;
     Ok(backup_path.to_string_lossy().to_string())
 }
+
+#[tauri::command]
+pub fn save_editor_load_skills(
+    save_path: String,
+) -> std::result::Result<SkillSet, String> {
+    let save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
+    skills::parse(&save.raw_xml).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_editor_save_skills(
+    save_path: String,
+    set: SkillSet,
+) -> std::result::Result<String, String> {
+    let mut save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
+    let backup_path = save.backup().map_err(|e| e.to_string())?;
+    let new_xml = skills::apply(&save.raw_xml, &set).map_err(|e| e.to_string())?;
+    save.set_xml(new_xml);
+    save.write().map_err(|e| e.to_string())?;
+    Ok(backup_path.to_string_lossy().to_string())
+}
