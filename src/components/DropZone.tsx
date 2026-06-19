@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Upload, Button, message, Modal, Tag, List } from 'antd';
-import { InboxOutlined, FolderOpenOutlined, CheckCircleOutlined, WarningOutlined, LoadingOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import { InboxOutlined, FolderOpenOutlined, CheckCircleOutlined, WarningOutlined, LoadingOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { open } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
@@ -36,6 +36,7 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
   const [pendingFile, setPendingFile] = useState<string | null>(null);
   const [showDepModal, setShowDepModal] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const progressRef = useRef<InstallProgress[]>([]);
   const installingRef = useRef(false);
   const processFileRef = useRef<(filePath: string) => Promise<void>>(async () => {});
@@ -47,6 +48,7 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
       if (disposed) return;
       if (event.payload.type === 'over') {
         setIsDragOver(true);
+        if (!expanded) setExpanded(true);
       } else if (event.payload.type === 'leave') {
         setIsDragOver(false);
       } else if (event.payload.type === 'drop') {
@@ -92,7 +94,7 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
     });
   };
 
-  const doInstall = async (filePath: string, index: number) => {
+  const doInstall = async (filePath: string, index: number, variant: string | null = null, nexusDescription: string | null = null) => {
     const isFolder = !filePath.match(/\.(zip|7z|rar)$/i);
 
     if (isFolder) {
@@ -110,7 +112,7 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
       if (isFolder) {
         result = await installModFromFolder(filePath, modsPath);
       } else {
-        result = await installMod(filePath, modsPath);
+        result = await installMod(filePath, modsPath, null, variant, nexusDescription);
       }
 
       updateProgress(index, {
@@ -200,7 +202,7 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
     await executeInstall([filePath]);
   };
 
-  const executeInstall = async (filePaths: string[]) => {
+  const executeInstall = async (filePaths: string[], variant: string | null = null, nexusDescription: string | null = null) => {
     if (!modsPath) {
       message.error(t('app.modInstall.noModsPath'));
       return;
@@ -220,7 +222,7 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
 
     for (let i = 0; i < filePaths.length; i++) {
       updateProgress(i, { status: 'installing', message: t('app.modInstall.installing') });
-      await doInstall(filePaths[i], i);
+      await doInstall(filePaths[i], i, variant, nexusDescription);
     }
 
     installingRef.current = false;
@@ -298,6 +300,15 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
     setDepCheckResult(null);
   };
 
+  const handleExpandOrPick = async () => {
+    if (installing) return;
+    if (!modsPath) {
+      message.error(t('app.modInstall.noModsPath'));
+      return;
+    }
+    setExpanded(true);
+  };
+
   const getStatusIcon = (status: InstallProgress['status']) => {
     switch (status) {
       case 'checking':
@@ -313,49 +324,76 @@ export default function DropZone({ modsPath, onInstallSuccess }: DropZoneProps) 
 
   return (
     <>
-      <div
-        className={`svl-dropzone-wrapper ${isDragOver ? 'svl-dropzone-wrapper--dragover' : ''}`}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          handleDraggerClick();
-        }}
-      >
-        <Dragger
-          multiple
-          showUploadList={false}
-          accept=".zip,.7z"
-          customRequest={({ onSuccess }) => {
-            if (onSuccess) onSuccess('ok');
+      {!expanded ? (
+        <div
+          className={`svl-install-banner ${isDragOver ? 'svl-install-banner--dragover' : ''}`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleExpandOrPick();
           }}
-          className={`svl-dropzone ${isDragOver ? 'svl-dropzone--dragover' : ''}`}
-          disabled={installing}
-          openFileDialogOnClick={false}
         >
-          <p className="ant-upload-drag-icon">
-            <InboxOutlined />
-          </p>
-          <p className="ant-upload-text">
-            {installing
-              ? t('app.modInstall.installing')
-              : t('app.pages.modManager.dropzoneTitle')}
-          </p>
-          <p className="ant-upload-hint">
-            {t('app.pages.modManager.dropzoneDesc')}
-          </p>
-        </Dragger>
-      </div>
+          <PlusOutlined className="svl-install-banner-icon" />
+          <span className="svl-install-banner-text">{t('app.pages.modManager.installMod')}</span>
+          <span className="svl-install-banner-hint">{t('app.pages.modManager.installBannerHint', '拖放 ZIP / 7z 文件或点击展开')}</span>
+        </div>
+      ) : (
+        <>
+          <div
+            className={`svl-dropzone-wrapper ${isDragOver ? 'svl-dropzone-wrapper--dragover' : ''}`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDraggerClick();
+            }}
+          >
+            <Dragger
+              multiple
+              showUploadList={false}
+              accept=".zip,.7z"
+              customRequest={({ onSuccess }) => {
+                if (onSuccess) onSuccess('ok');
+              }}
+              className={`svl-dropzone ${isDragOver ? 'svl-dropzone--dragover' : ''}`}
+              disabled={installing}
+              openFileDialogOnClick={false}
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">
+                {installing
+                  ? t('app.modInstall.installing')
+                  : t('app.pages.modManager.dropzoneTitle')}
+              </p>
+              <p className="ant-upload-hint">
+                {t('app.pages.modManager.dropzoneDesc')}
+              </p>
+            </Dragger>
+            <button
+              className="svl-collapse-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded(false);
+              }}
+              title={t('app.pages.modManager.collapseDropzone')}
+            >
+              ▲
+            </button>
+          </div>
 
-      <div className="svl-dropzone-folder-btn">
-        <Button
-          icon={<FolderOpenOutlined />}
-          onClick={handleFolderSelect}
-          disabled={installing}
-          block
-        >
-          {t('app.pages.modManager.importFromFolder')}
-        </Button>
-      </div>
+          <div className="svl-dropzone-folder-btn">
+            <Button
+              icon={<FolderOpenOutlined />}
+              onClick={handleFolderSelect}
+              disabled={installing}
+              block
+            >
+              {t('app.pages.modManager.importFromFolder')}
+            </Button>
+          </div>
+        </>
+      )}
 
       {showProgress && progressList.length > 0 && (
         <div className="svl-install-progress">

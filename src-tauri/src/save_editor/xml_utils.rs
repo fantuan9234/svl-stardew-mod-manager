@@ -1,8 +1,8 @@
 use crate::save_editor::error::{Result, SaveEditorError};
 use quick_xml::events::Event;
 use quick_xml::Reader;
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
 pub fn read_xml_file(path: &Path) -> Result<String> {
     let content = fs::read_to_string(path)?;

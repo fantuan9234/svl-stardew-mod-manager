@@ -171,9 +171,14 @@ export default function DependencyResolver({ open, onClose, modsPath, apiKey, on
       width={720}
       footer={[
         <Button key="close" onClick={onClose}>{t('app.depResolver.close')}</Button>,
-        !scanResult && (
+        !scanResult && !scanning && (
           <Button key="scan" type="primary" loading={scanning} onClick={handleScan}>
             {t('app.depResolver.scan')}
+          </Button>
+        ),
+        scanResult && !scanning && (
+          <Button key="rescan" type="default" onClick={handleScan}>
+            {t('app.depResolver.rescan')}
           </Button>
         ),
         scanResult && scanResult.total_missing > 0 && (

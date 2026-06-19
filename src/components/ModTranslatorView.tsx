@@ -54,7 +54,7 @@ const AI_PRESETS = [
   {
     name: 'app.translator.providerGlm',
     baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-    model: 'glm-4-flash',
+    model: 'glm-4-0724',
     models: [
       { value: 'glm-5.1', label: 'GLM-5.1 (旗舰)' },
       { value: 'glm-4.5', label: 'GLM-4.5' },
@@ -62,6 +62,7 @@ const AI_PRESETS = [
       { value: 'glm-4-air', label: 'GLM-4 Air' },
       { value: 'glm-4-airx', label: 'GLM-4 AirX' },
       { value: 'glm-4-flash', label: 'GLM-4 Flash' },
+      { value: 'glm-4-0724', label: 'GLM-4.7 Flash' },
       { value: 'glm-4-flashx', label: 'GLM-4 FlashX' },
       { value: 'glm-z1-air', label: 'GLM-Z1 Air (推理)' },
       { value: 'glm-z1-airx', label: 'GLM-Z1 AirX (推理)' },

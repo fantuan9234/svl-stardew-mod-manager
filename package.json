@@ -1,7 +1,7 @@
 {
   "name": "svl",
   "private": true,
-  "version": "1.3.8",
+  "version": "1.4.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,13 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test:frontend": "vitest run",
+    "test:frontend:watch": "vitest",
+    "test:frontend:coverage": "vitest run --coverage",
+    "test:backend": "cd src-tauri && cargo test --lib --tests",
+    "test:e2e": "npx playwright test",
+    "test:e2e:ui": "npx playwright test --ui",
+    "test:all": "npm run test:frontend && npm run test:backend",
+    "test:report": "node scripts/generate-test-report.mjs",
     "build:tauri": "cmd /c \"set CI=false&& tauri build\"",
     "build:tauri:watch": "cmd /c \"set CI=false&& npm run build && tauri build\""
   },

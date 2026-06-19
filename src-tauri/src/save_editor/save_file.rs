@@ -37,34 +37,37 @@ impl SaveFile {
         use chrono::Local;
         let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
         let backup_root = self.folder_path.join("SVL_Backups");
-        let backup_dir = backup_root.join(format!("EditorAuto_{}", timestamp));
+
+        // 每次都创建独立时间戳目录，毫秒级冲突自动加后缀
+        let mut backup_dir = backup_root.join(format!("EditorAuto_{}", timestamp));
+        let mut suffix = 0u32;
+        while backup_dir.exists() {
+            suffix += 1;
+            backup_dir = backup_root.join(format!("EditorAuto_{}_{}", timestamp, suffix));
+        }
         std::fs::create_dir_all(&backup_dir)?;
 
         let save_name = self
-            .folder_path
+            .main_save_path
             .file_name()
             .ok_or_else(|| {
-                crate::save_editor::error::SaveEditorError::NotFound("folder name".to_string())
+                crate::save_editor::error::SaveEditorError::NotFound("save name".to_string())
             })?
             .to_string_lossy()
             .to_string();
 
         let target = backup_dir.join(&save_name);
-        fs_extra::dir::copy(
-            &self.folder_path,
-            &backup_root,
-            &fs_extra::dir::CopyOptions::new()
-                .overwrite(true)
-                .content_only(false),
-        )
-        .map_err(|e| {
+        // 只复制存档主文件到备份目录，不复制整个文件夹
+        std::fs::copy(&self.main_save_path, &target).map_err(|e| {
             crate::save_editor::error::SaveEditorError::BackupFailed(e.to_string())
         })?;
 
-        let copied = backup_root.join(&save_name);
-        if copied.exists() && copied != target {
-            std::fs::rename(&copied, &target)?;
+        // 同时复制 SaveGameInfo（如果有）方便完整恢复
+        let info_src = self.folder_path.join("SaveGameInfo");
+        if info_src.exists() {
+            let _ = std::fs::copy(&info_src, backup_dir.join("SaveGameInfo"));
         }
+
         Ok(target)
     }
 
@@ -93,14 +96,27 @@ fn locate_main_save_file(folder_path: &Path) -> Result<PathBuf> {
         .to_string_lossy()
         .to_string();
 
-    let entries = std::fs::read_dir(folder_path)?;
-    for entry in entries.flatten() {
+    let entries: Vec<_> = std::fs::read_dir(folder_path)?
+        .flatten()
+        .filter(|e| e.path().is_file())
+        .collect();
+
+    // 第1遍：精确匹配文件名（优先），排除 SaveGameInfo
+    for entry in &entries {
         let path = entry.path();
-        if path.is_file() {
-            if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
-                if name != "SaveGameInfo" && name.ends_with(&folder_name) {
-                    return Ok(path);
-                }
+        if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+            if name == folder_name {
+                return Ok(path);
+            }
+        }
+    }
+
+    // 第2遍：降级使用 ends_with 匹配（兼容旧版或备份文件命名）
+    for entry in &entries {
+        let path = entry.path();
+        if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+            if name != "SaveGameInfo" && name.ends_with(&folder_name) {
+                return Ok(path);
             }
         }
     }

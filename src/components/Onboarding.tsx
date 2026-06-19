@@ -72,7 +72,7 @@ export default function Onboarding({ visible, onComplete, gamePath, smapiInstall
 
           {current === 2 && !smapiInstalled && (
             <Button type="primary" onClick={onInstallSmapi} block>
-              {t('app.pages.modManager.downloadSmapi')}
+              {t('app.pages.modManager.autoInstallSmapi')}
             </Button>
           )}
         </div>

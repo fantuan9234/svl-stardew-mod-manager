@@ -29,18 +29,20 @@ mod storage_analyzer;
 mod app_logger;
 mod mod_translator;
 mod mod_name_translator;
-mod save_editor;
+mod save_backup;
+pub mod save_editor;
 
 use smapi::{detect_game_path, check_smapi_status, set_custom_game_path, open_smapi_installer, restore_svl_window};
-use smapi_installer::{install_smapi_local, open_smapi_zip_dialog};
+use smapi_installer::{install_smapi_local, open_smapi_zip_dialog, auto_install_smapi};
 use smapi_launcher::{launch_game, launch_game_vanilla, get_game_session_info, stop_game};
 use mod_parser::{scan_mods, toggle_mod_enabled};
 use mod_installer::{install_mod_from_archive, install_mod_from_folder, uninstall_mod, install_mod, check_mod_dependencies, check_install_source_safety};
 use profiles::{profile_create, profile_list, profile_get_active, profile_switch, profile_delete, profile_update_mods, profile_toggle_mod, profile_get_mod_states, profile_clear_active, profile_copy, profile_export, profile_import, profile_scan_mods, get_profile_bindings, set_profile_binding, get_essential_mod_ids};
-use log_parser::{analyze_log, parse_smapi_log, read_log_file, check_smapi_log, get_appdata_path, analyze_ftm_errors, open_path, fix_all_log_errors, fix_single_log_error, check_dotnet_status, analyze_pasted_smapi_log};
+use log_parser::{analyze_log, analyze_pasted_smapi_log, parse_smapi_log, read_log_file, check_smapi_log, get_appdata_path, analyze_ftm_errors, open_path, fix_all_log_errors, fix_single_log_error, check_dotnet_status};
 use sync_manager::{export_sync_environment, import_sync_environment, apply_sync_environment, open_save_dialog, open_open_dialog, export_sync_package, compare_sync_diff};
-use saves_manager::{scan_saves, backup_save, restore_save, list_save_backups, link_save_to_profile, unlink_save_from_profile, get_save_profile_binding, launch_game_with_save_profile, open_save_location, open_backup_dialog};
-use nexus_api::{verify_nexus_api_key, parse_nxm_link, handle_nxm_link, register_nxm_protocol, check_mod_updates, endorse_mod, get_nexus_mod_files, get_nexus_download_url, download_mod_from_nexus, search_nexus_mods, get_trending_nexus_mods, get_recently_updated_nexus_mods, get_monthly_top_nexus_mods, browse_nexus_category, get_nexus_categories, open_nexus_browser, close_nexus_browser, download_mod_from_cdn_link, diagnose_network, test_nexus_connection};
+use saves_manager::{scan_saves, backup_save, restore_save, list_save_backups, link_save_to_profile, unlink_save_from_profile, get_save_profile_binding, launch_game_with_save_profile, open_save_location, open_backup_dialog, get_save_details};
+use save_backup::{create_save_backup, list_save_file_backups, restore_save_file_backup, delete_save_file_backup, get_save_backup_dir_cmd};
+use nexus_api::{verify_nexus_api_key, parse_nxm_link, handle_nxm_link, register_nxm_protocol, check_mod_updates, endorse_mod, get_nexus_mod_files, get_nexus_download_url, download_mod_from_nexus, search_nexus_mods, get_trending_nexus_mods, get_recently_updated_nexus_mods, get_monthly_top_nexus_mods, browse_nexus_category, get_nexus_categories, open_nexus_browser, close_nexus_browser, download_mod_from_cdn_link, diagnose_network, test_nexus_connection, fetch_nexus_mod_description};
 use mod_dict_updater::{update_mod_dict, auto_update_mod_dict};
 use compatibility_list::{update_compatibility_list, get_compatibility_status, init_compatibility_cache, auto_update_compatibility_list};
 use profile_archive::{export_profile_to_zip, import_modpack_from_zip, import_modpack_from_folder};
@@ -53,12 +55,12 @@ use mod_config::{read_mod_config, update_mod_config, list_mod_configs};
 use mod_backup::{backup_mod_before_update, restore_mod_from_backup, list_mod_backups, delete_mod_backup, create_snapshot, list_snapshots, restore_snapshot, delete_snapshot};
 use mod_security::{start_game_monitor, stop_game_monitor, get_monitor_status, check_mod_security, batch_check_mod_security};
 use app_updater::{check_app_update_from_server, check_app_update_github, download_app_update_from_server, get_update_server_url, get_current_app_version, run_installer, auto_check_app_update};
-use dep_resolver::{scan_all_missing_dependencies, auto_install_missing_dependency};
+use dep_resolver::{scan_all_missing_dependencies, auto_install_missing_dependency, check_mod_prerequisites};
 use storage_analyzer::analyze_mod_storage;
 use app_logger::{get_app_logs, export_app_logs, clear_old_app_logs, get_log_dir_path};
 use mod_translator::{scan_translatable_mods, translate_mod_file, test_ai_connection, restore_translation_backup, scan_translation_backups, get_mod_untranslated_entries};
 use mod_name_translator::{get_mod_name_translations, translate_mod_name, batch_translate_mod_names, delete_mod_name_translation, clear_all_mod_name_translations};
-use save_editor::{open_save_in_editor, save_editor_load_character, save_editor_save_character, save_editor_load_skills, save_editor_save_skills, save_editor_load_inventory, save_editor_save_inventory, save_editor_load_quests, save_editor_save_quests, save_editor_load_buildings, save_editor_save_buildings};
+use save_editor::{open_save_in_editor, save_editor_load_character, save_editor_save_character, save_editor_load_skills, save_editor_save_skills, save_editor_load_inventory, save_editor_save_inventory, save_editor_load_quests, save_editor_save_quests, save_editor_load_buildings, save_editor_save_buildings, save_editor_load_friendships, save_editor_save_friendships, save_editor_load_recipes, save_editor_save_recipes};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -102,6 +104,7 @@ pub fn run() {
             open_smapi_installer,
             install_smapi_local,
             open_smapi_zip_dialog,
+            auto_install_smapi,
             install_mod_from_archive,
             install_mod_from_folder,
             uninstall_mod,
@@ -124,6 +127,7 @@ pub fn run() {
             get_profile_bindings,
             set_profile_binding,
             analyze_log,
+            analyze_pasted_smapi_log,
             parse_smapi_log,
             read_log_file,
             check_smapi_log,
@@ -133,7 +137,6 @@ pub fn run() {
             fix_all_log_errors,
             fix_single_log_error,
             check_dotnet_status,
-            analyze_pasted_smapi_log,
             export_sync_environment,
             import_sync_environment,
             apply_sync_environment,
@@ -151,6 +154,12 @@ pub fn run() {
             launch_game_with_save_profile,
             open_save_location,
             open_backup_dialog,
+            get_save_details,
+            create_save_backup,
+            list_save_file_backups,
+            restore_save_file_backup,
+            delete_save_file_backup,
+            get_save_backup_dir_cmd,
             get_game_session_info,
             stop_game,
             restore_svl_window,
@@ -208,6 +217,7 @@ pub fn run() {
             download_mod_from_cdn_link,
             diagnose_network,
             test_nexus_connection,
+            fetch_nexus_mod_description,
             check_app_update_from_server,
             check_app_update_github,
             download_app_update_from_server,
@@ -216,6 +226,7 @@ pub fn run() {
             run_installer,
             scan_all_missing_dependencies,
             auto_install_missing_dependency,
+            check_mod_prerequisites,
             analyze_mod_storage,
             get_app_logs,
             export_app_logs,
@@ -243,6 +254,10 @@ pub fn run() {
             save_editor_save_quests,
             save_editor_load_buildings,
             save_editor_save_buildings,
+            save_editor_load_friendships,
+            save_editor_save_friendships,
+            save_editor_load_recipes,
+            save_editor_save_recipes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

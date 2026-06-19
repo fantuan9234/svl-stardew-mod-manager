@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Typography, Button, Space, Divider, Progress, Tag, message, Slider } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { CloudDownloadOutlined, CheckCircleOutlined, SyncOutlined, LinkOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -20,9 +21,11 @@ const { Title, Text, Paragraph } = Typography;
 
 export default function Settings() {
   const { t } = useTranslation();
-  const { theme, switchTheme, customColors, updateCustomColors, setBackgroundImage, clearBackgroundImage, setCustomChickenImage, clearCustomChickenImage } = useTheme();
+  const location = useLocation();
+  const { theme, switchTheme, customColors, updateCustomColors, setBackgroundImage, clearBackgroundImage, setCustomChickenImage, clearCustomChickenImage, setSidebarLogoMode, setCustomSidebarImage, clearCustomSidebarImage } = useTheme();
   const bgInputRef = useRef<HTMLInputElement>(null);
   const chickenInputRef = useRef<HTMLInputElement>(null);
+  const sidebarImgInputRef = useRef<HTMLInputElement>(null);
 
   const [appVersion, setAppVersion] = useState('');
   const [pendingColor, setPendingColor] = useState<string | null>(null);
@@ -37,6 +40,21 @@ export default function Settings() {
   const [checkError, setCheckError] = useState<string | null>(null);
 
   const progressUnlistenRef = useRef<(() => void) | null>(null);
+  const updateSectionRef = useRef<HTMLDivElement>(null);
+
+  // 接收从 AppLayout 导航传递的更新信息
+  useEffect(() => {
+    const state = location.state as { updateInfo?: AppUpdateInfo } | null;
+    if (state?.updateInfo) {
+      setUpdateInfo(state.updateInfo);
+      // 清除导航 state，避免刷新时重复触发
+      window.history.replaceState({}, '');
+      // 滚动到更新区域
+      setTimeout(() => {
+        updateSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     getCurrentAppVersion().then(v => setAppVersion(v)).catch(() => setAppVersion('?.?.?'));
@@ -143,7 +161,8 @@ export default function Settings() {
         <div className="svl-theme-grid">
           {([
             { key: 'oceanBlue', color: '#2563EB', label: t('app.theme.oceanBlue') },
-            { key: 'mintGreen', color: '#10B981', label: t('app.theme.mintGreen') },
+            { key: 'parchment', color: '#8b6914', label: t('app.theme.parchment') },
+            { key: 'mintGreen', color: '#E8A5B0', label: t('app.theme.mintGreen') },
             { key: 'custom', color: customColors.primary, label: t('app.theme.custom') },
           ] as const).map(item => (
             <div
@@ -341,6 +360,89 @@ export default function Settings() {
               }}
             />
 
+            <div className="svl-theme-section-title" style={{ marginTop: 16 }}>
+              {t('app.theme.sidebarLogo')}
+            </div>
+
+            <div className="svl-theme-color-row" style={{ alignItems: 'center' }}>
+              <span className="svl-theme-color-label">{t('app.theme.sidebarLogoMode')}</span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {([
+                  { key: 'daynight', label: t('app.theme.logoDaynight') },
+                  { key: 'farm', label: t('app.theme.logoFarm') },
+                  { key: 'custom', label: t('app.theme.logoCustom') },
+                ] as const).map(item => (
+                  <Button
+                    key={item.key}
+                    size="small"
+                    type={customColors.sidebarLogoMode === item.key ? 'primary' : 'default'}
+                    onClick={() => setSidebarLogoMode(item.key)}
+                  >
+                    {item.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {customColors.sidebarLogoMode === 'custom' && (
+              <div className="svl-theme-color-row" style={{ marginTop: 8, alignItems: 'center' }}>
+                <span className="svl-theme-color-label">{t('app.theme.sidebarLogoImage')}</span>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {customColors.customSidebarImage && (
+                    <img
+                      src={customColors.customSidebarImage}
+                      alt="sidebar logo preview"
+                      style={{
+                        width: 48,
+                        height: 32,
+                        objectFit: 'cover',
+                        borderRadius: 4,
+                        border: '1px solid var(--svl-border)',
+                      }}
+                    />
+                  )}
+                  <Button
+                    size="small"
+                    icon={<UploadOutlined />}
+                    onClick={() => sidebarImgInputRef.current?.click()}
+                  >
+                    {t('app.theme.uploadImage')}
+                  </Button>
+                  {customColors.customSidebarImage && (
+                    <Button
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={clearCustomSidebarImage}
+                    >
+                      {t('app.theme.removeImage')}
+                    </Button>
+                  )}
+                </div>
+                <input
+                  ref={sidebarImgInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 5 * 1024 * 1024) {
+                      message.warning(t('app.theme.imageTooLarge'));
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const dataUrl = ev.target?.result as string;
+                      if (dataUrl) setCustomSidebarImage(dataUrl);
+                    };
+                    reader.readAsDataURL(file);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+            )}
+
           </div>
         )}
       </div>
@@ -377,7 +479,7 @@ export default function Settings() {
 
       <Divider style={{ marginTop: 32, marginBottom: 24 }} />
 
-      <div>
+      <div ref={updateSectionRef}>
         <Text strong style={{ display: 'block', marginBottom: 16, fontSize: 15 }}>
           {t('app.pages.settings.about')}
         </Text>

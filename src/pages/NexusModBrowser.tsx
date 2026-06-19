@@ -463,13 +463,16 @@ export default function NexusModBrowser() {
       message.error(t('features.nexus.noApiKey'));
       return;
     }
+    doDownload(mod, currentApiKey);
+  };
 
+  const doDownload = async (mod: NexusModSearchResult, apiKey: string) => {
     setDownloadingModId(mod.mod_id);
     setDownloadProgress(0);
     setDownloadStatus(t('features.nexus.downloading'));
 
     try {
-      const result = await downloadModFromNexus(mod.mod_id, currentApiKey, null);
+      const result = await downloadModFromNexus(mod.mod_id, apiKey, null);
       if (result.success) {
         message.success(t('features.nexus.downloadSuccess', { name: result.mod_name }));
       } else {

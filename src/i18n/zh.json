@@ -2,10 +2,12 @@
   "app": {
     "title": "SVL",
     "common": {
-      "ok": "确定",
+      "confirm": "确定",
       "cancel": "取消",
+      "unknownError": "未知错误",
       "close": "关闭",
-      "delete": "删除"
+      "delete": "删除",
+      "ok": "确定"
     },
     "toolbox": {
       "title": "工具箱",
@@ -42,7 +44,7 @@
       "configNoChanges": "没有修改",
       "configSaveSuccess": "配置保存成功",
       "configSaveFailed": "配置保存失败",
-      "snapshotTitle": "备份管理",
+      "snapshotTitle": "模组备份",
       "snapshotDesc": "一键备份所有模组，支持创建多个快照以便随时回滚",
       "snapshotCreate": "创建快照",
       "snapshotRefresh": "刷新",
@@ -91,12 +93,18 @@
       "logExportFailed": "导出日志失败",
       "logClearSuccess": "日志清理完成",
       "logEmpty": "暂无日志记录",
-      "translateTitle": "一键翻译",
+      "translateTitle": "模组翻译",
       "translateDesc": "使用 AI 翻译模组 i18n 内容，自动检测翻译进度",
       "smapiAnalyzerTitle": "SMAPI 日志检测",
       "smapiAnalyzerDesc": "粘贴 SMAPI 红色报错日志，自动识别问题并给出解决方案",
+      "saveBackupTitle": "存档备份",
+      "saveBackupDesc": "一键备份所有存档，支持创建多个快照以便随时回滚",
       "saveEditorTitle": "存档编辑器",
       "saveEditorDesc": "在线编辑存档中的角色、背包、技能、任务、建筑",
+      "groupMod": "模组维护",
+      "groupSave": "存档管理",
+      "groupDiag": "诊断与日志",
+      "recent": "最近使用",
       "saveEditorSelectSave": "选择存档",
       "saveEditorLoadFailed": "读取存档失败",
       "saveEditorSaveSuccess": "存档保存成功，已自动备份到",
@@ -144,7 +152,28 @@
       "saveEditorBuildingTileY": "Y 坐标",
       "saveEditorBuildingMaxOccupants": "最大容量",
       "saveEditorBuildingCurrentOccupants": "当前数量",
-      "saveEditorBuildingEmpty": "暂无建筑"
+      "saveEditorBuildingEmpty": "暂无建筑",
+      "logClearFailed": "清理旧日志失败",
+      "logFilter": "过滤",
+      "logLoadFailed": "加载日志失败",
+      "logOpenDirFailed": "打开日志目录失败",
+      "saveEditorBuildingAction": "操作",
+      "saveEditorBuildingDelete": "拆除",
+      "saveEditorBuildingDeleteConfirm": "确定拆除此建筑？",
+      "saveEditorCookingRecipes": "烹饪食谱",
+      "saveEditorCraftingRecipes": "制作食谱",
+      "saveEditorFriendshipGiftsToday": "今日送礼",
+      "saveEditorFriendshipGiftsWeek": "本周送礼",
+      "saveEditorFriendshipHearts": "好感度",
+      "saveEditorFriendshipNpc": "NPC",
+      "saveEditorFriendshipStatus": "关系",
+      "saveEditorFriendshipTalked": "今日是否交谈",
+      "saveEditorRecipeEmpty": "暂无食谱数据",
+      "saveEditorRecipeName": "食谱名称",
+      "saveEditorRecipeTimesCrafted": "已制作次数",
+      "saveEditorRecipeUnlocked": "是否解锁",
+      "saveEditorTabFriendships": "NPC好感",
+      "saveEditorTabRecipes": "食谱"
     },
     "translator": {
       "title": "AI 模组翻译",
@@ -260,11 +289,118 @@
       "sync": "联机同步",
       "settings": "设置",
       "nexusBrowser": "N 网模组",
-      "toolbox": "工具箱"
+      "toolbox": "工具箱",
+      "website": "访问官网"
     },
     "sync": {
-      "comingSoon": "联机同步功能即将上线",
-      "comingSoonDesc": "与朋友共享模组配置，一键同步联机环境"
+      "title": "联机环境同步",
+      "modpack": {
+        "title": "整合包管理"
+      },
+      "openUrlFailed": "打开链接失败",
+      "noUrlAvailable": "该 MOD 没有可用的下载链接",
+      "profilesLoadFailed": "加载档案列表失败",
+      "loadTimeout": "加载超时，请检查网络或稍后重试。您也可以尝试在档案管理中创建新档案。",
+      "mods": "个模组",
+      "export": {
+        "tab": "从档案导出",
+        "description": "选择一个 MOD 档案，将其包含的模组清单（名称、版本、唯一ID）打包成 .svl_sync 同步包文件，分享给朋友实现联机环境同步。",
+        "profileLabel": "选择档案",
+        "profilePlaceholder": "请选择要导出的档案",
+        "selectProfile": "请先选择一个档案",
+        "noProfiles": "暂无档案，请先在档案管理中创建",
+        "loading": "加载中...",
+        "hostNameLabel": "主机名称",
+        "hostNamePlaceholder": "输入您的玩家名称（如：小明）",
+        "hostNameRequired": "请输入主机名称",
+        "noGamePath": "未找到游戏路径",
+        "exportButton": "导出为同步包",
+        "exporting": "导出中...",
+        "success": "同步包导出成功：{{path}}",
+        "failed": "导出失败，请重试",
+        "modCount": "包含 {{count}} 个模组"
+      },
+      "import": {
+        "tab": "导入与对比",
+        "description": "选择朋友分享的 .svl_sync 文件，再选择您的本地档案作为对比基准，SVL 将自动对比差异并帮助您补齐缺失的 MOD。",
+        "fileLabel": "同步包文件",
+        "selectFileButton": "选择文件",
+        "selectFile": "请先选择一个同步包文件",
+        "profileLabel": "对比基准档案",
+        "profilePlaceholder": "选择本地档案进行对比",
+        "selectProfile": "请选择本地档案作为对比基准",
+        "compareButton": "开始对比",
+        "comparing": "对比中...",
+        "noGamePath": "未找到游戏路径",
+        "failed": "导入失败，请检查文件格式",
+        "compareFailed": "对比失败，请重试",
+        "emptyHint": "选择同步包文件并指定本地档案后，点击「开始对比」查看差异",
+        "importButton": "导入并对比",
+        "importing": "导入中..."
+      },
+      "exportModpack": {
+        "title": "导出为整合包",
+        "description": "将当前档案的所有 MOD 打包成一个 .zip 文件，方便分享给朋友。",
+        "profileLabel": "选择要导出的档案",
+        "profilePlaceholder": "选择档案",
+        "selectProfile": "请先选择一个档案",
+        "noGamePath": "未找到游戏路径",
+        "exportButton": "导出为整合包 (.zip)",
+        "exporting": "导出中...",
+        "success": "成功导出 {{count}} 个 MOD 到 {{path}}",
+        "failed": "导出失败，请重试"
+      },
+      "importModpack": {
+        "title": "导入整合包",
+        "description": "拖入或选择朋友分享的整合包（支持 .zip 文件或文件夹），SVL 将自动导入并创建新档案。",
+        "dragText": "点击或拖入整合包文件或文件夹",
+        "hint": "支持 .zip 格式文件或包含 MOD 的文件夹",
+        "selectButton": "选择文件",
+        "useSelectButton": "拖拽文件无法获取路径，请使用「选择文件」按钮",
+        "selectFailed": "选择文件失败",
+        "invalidFormat": "仅支持 .zip 文件或 MOD 文件夹",
+        "modalTitle": "为新档案命名",
+        "modalDesc": "导入的 MOD 将保存为一个新档案，请为其命名：",
+        "modalPlaceholder": "例如：朋友的整合包",
+        "modalOk": "确认导入",
+        "nameRequired": "请输入档案名称",
+        "noFile": "未选择文件",
+        "noGamePath": "未找到游戏路径",
+        "success": "成功导入 {{count}} 个 MOD 到档案「{{name}}」",
+        "failed": "导入失败，请检查文件格式",
+        "supportedFormats": "支持格式：.zip 压缩包或包含 MOD 的文件夹"
+      },
+      "diff": {
+        "modName": "MOD 名称",
+        "uniqueId": "唯一ID",
+        "requiredVersion": "所需版本",
+        "localVersion": "本地版本",
+        "currentVersion": "当前版本",
+        "author": "作者",
+        "action": "操作",
+        "suggestion": "建议",
+        "installGuide": "一键安装",
+        "updateSuggestion": "建议更新到所需版本",
+        "localMissing": "我方缺失的 MOD（{{count}}个）",
+        "remoteMissing": "对方缺失的 MOD（{{count}}个）",
+        "localMissingCount": "我方缺失",
+        "remoteMissingCount": "对方缺失",
+        "mismatchCount": "版本不一致",
+        "mismatch": "版本不匹配（{{count}}个）",
+        "configs": "配置不同（{{count}}个）",
+        "configMissing": "缺少配置",
+        "configMismatch": "配置不同",
+        "perfect": "环境完全匹配，无需同步！",
+        "missing": "缺失"
+      },
+      "apply": {
+        "applyButton": "一键补齐",
+        "applying": "补齐中...",
+        "failed": "同步失败，请重试",
+        "appliedMods": "已补齐的MOD",
+        "configsApplied": "已应用的配置",
+        "restartNotice": "请重启游戏以使所有更改生效。"
+      }
     },
     "pages": {
       "modManager": {
@@ -274,6 +410,8 @@
         "filterEnabled": "已启用",
         "filterDisabled": "已禁用",
         "sortLabel": "排序",
+        "categoryLabel": "分类",
+        "statusFilterLabel": "状态",
         "sortNameAZ": "名称 A-Z",
         "sortNameZA": "名称 Z-A",
         "sortAuthor": "作者",
@@ -284,7 +422,9 @@
         "installSmapiPrompt": "请先安装 SMAPI 以管理模组",
         "unsupportedLayoutTitle": "Mods 目录使用说明",
         "unsupportedLayoutDesc": "请不要在 Mods 目录下再创建分类子文件夹。\n\nMods 目录下的所有内容都必须直接放在根目录里，不支持嵌套分类目录。如果你用「美化合集」「UI 整合」这样的子文件夹来分类，文件夹下的 mod 不会在主列表显示。\n\n✅ 正确：Mods/ModA/、Mods/ModB/、Mods/ModC/\n❌ 错误：Mods/美化合集/ModA/、Mods/UI 整合/ModB/",
-        "unsupportedLayoutDismiss": "我已了解，不再提醒",
+        "unsupportedLayoutDismiss": "我已了解",
+        "unsupportedLayoutNeverRemind": "永远不再提醒",
+        "unsupportedLayoutSnoozeToday": "今日不再提醒",
         "installSmapiLink": "下载 SMAPI",
         "installSmapi": "下载 SMAPI",
         "downloadSmapi": "下载 SMAPI",
@@ -296,7 +436,7 @@
         "gameRootDirHint": "游戏根目录是星露谷物语安装的位置，通常包含 Stardew Valley.exe 文件。Steam 默认路径一般为 Steam\\steamapps\\common\\Stardew Valley。",
         "findGameDir": "帮我找到游戏目录",
         "commonSteamPaths": "常见 Steam 路径：",
-          "detectFailed": "游戏路径检测失败，请手动指定路径",
+        "detectFailed": "游戏路径检测失败，请手动指定路径",
         "change": "更改",
         "selectGameDir": "选择游戏目录",
         "gamePathChanged": "游戏路径已更新",
@@ -309,10 +449,20 @@
         "dropzoneTitle": "拖拽MOD压缩包到这里",
         "dropzoneDesc": "支持 .zip, .7z 格式",
         "importFromFolder": "从本地文件夹安装",
+        "installMod": "安装模组",
+        "installBannerHint": "拖放 ZIP / 7z 文件或点击展开",
+        "collapseDropzone": "收起",
         "installing": "安装中...",
         "selectProfile": "选择档案",
         "manageProfiles": "管理档案",
-        "modsEnabled": "个模组已启用"
+        "modsEnabled": "个模组已启用",
+        "gamePathRequired": "请先设置游戏路径",
+        "autoInstallSmapi": "自动安装 SMAPI",
+        "autoInstallSmapiProgress": "正在下载安装 SMAPI...",
+        "autoInstallSmapiSuccess": "SMAPI 安装成功",
+        "autoInstallSmapiFailed": "SMAPI 自动安装失败",
+        "autoInstallSmapiDesc": "自动下载并安装最新版 SMAPI 模组加载器",
+        "autoInstallSmapiProgressTitle": "SMAPI 安装进度"
       },
       "conflictScanner": {
         "title": "冲突检测",
@@ -395,8 +545,7 @@
       "openFolder": "打开文件夹",
       "checkUpdate": "检查更新",
       "upToDate": "已是最新版本",
-      "checkUpdateFailed": "检查更新失败，请检查网络连接",
-      "uninstall": "卸载"
+      "checkUpdateFailed": "检查更新失败，请检查网络连接"
     },
     "modList": {
       "subMods": "个子包",
@@ -427,7 +576,6 @@
       "autoDownloadSuccess": "{{name}} 已下载并安装完成",
       "autoDownloadFailed": "{{name}} 下载失败",
       "autoDownloadNoNexusId": "{{name}} 没有 N 网 ID，无法自动下载",
-      "noModsToUpdate": "没有需要更新的 MOD",
       "foundUpdates": "发现 {{count}} 个模组有可用更新",
       "allUpToDate": "所有模组已是最新版本",
       "checkUpdatesFailed": "检查更新失败，请检查网络连接",
@@ -438,7 +586,9 @@
       "disableAll": "全部禁用",
       "batchDeleteConfirm": "确定要删除 {{count}} 个模组吗？",
       "batchDeleteWarning": "此操作不可撤销，将删除所有选中模组的文件",
-      "batchDeleteSuccess": "已删除 {{count}} 个模组"
+      "batchDeleteSuccess": "已删除 {{count}} 个模组",
+      "batchDisable": "批量禁用",
+      "batchEnable": "批量启用"
     },
     "statusbar": {
       "brand": "为星露谷而生 ❤️",
@@ -450,7 +600,8 @@
     "theme": {
       "title": "界面主题",
       "oceanBlue": "深海蓝",
-      "mintGreen": "薄荷绿",
+      "parchment": "暖棕农场",
+      "mintGreen": "淡粉色",
       "custom": "自定义",
       "smartColor": "智能配色",
       "customPrimary": "主题色",
@@ -467,7 +618,13 @@
       "opacity": "透明度",
       "imageTooLarge": "图片不能超过 5MB",
       "customImages": "自定义图片",
-      "chickenImage": "小鸡图片"
+      "chickenImage": "小鸡图片",
+      "sidebarLogo": "侧边栏图标",
+      "sidebarLogoMode": "显示模式",
+      "logoDaynight": "太阳月亮",
+      "logoFarm": "农场图片",
+      "logoCustom": "自定义图片",
+      "sidebarLogoImage": "图标图片"
     },
     "language": {
       "switch": "切换语言",
@@ -502,7 +659,9 @@
       "selectAll": "全选",
       "deselectAll": "全不选",
       "totalSelected": "已选 {{count}}/{{total}} 个模组",
-      "empty": "暂无档案，请点击上方按钮创建"
+      "empty": "暂无档案，请点击上方按钮创建",
+      "confirmDelete": "确定要删除档案「{{name}}」吗？",
+      "loading": "加载中..."
     },
     "profilesPage": {
       "title": "MOD 档案管理",
@@ -564,7 +723,8 @@
       "colModId": "模组尾号",
       "cardSaved": "卡片已保存为图片: {{path}}",
       "saveCancelled": "已取消保存",
-      "saveFailed": "保存失败: {{error}}"
+      "saveFailed": "保存失败: {{error}}",
+      "copy": "复制档案"
     },
     "health": {
       "goToNexus": "前往Nexus"
@@ -685,112 +845,6 @@
       "faqUpdateKey": "UpdateKey 是什么？",
       "faqUpdateKeyAnswer": "UpdateKey 是 MOD 作者用来标识 MOD 更新来源的标记，通常包含 Nexus Mods 的 MOD ID。SVL 可以通过它自动检测 MOD 是否有新版本。"
     },
-    "sync": {
-      "title": "联机环境同步",
-      "modpack": {
-        "title": "整合包管理"
-      },
-      "openUrlFailed": "打开链接失败",
-      "noUrlAvailable": "该 MOD 没有可用的下载链接",
-      "profilesLoadFailed": "加载档案列表失败",
-      "loadTimeout": "加载超时，请检查网络或稍后重试。您也可以尝试在档案管理中创建新档案。",
-      "mods": "个模组",
-      "export": {
-        "tab": "从档案导出",
-        "description": "选择一个 MOD 档案，将其包含的模组清单（名称、版本、唯一ID）打包成 .svl_sync 同步包文件，分享给朋友实现联机环境同步。",
-        "profileLabel": "选择档案",
-        "profilePlaceholder": "请选择要导出的档案",
-        "selectProfile": "请先选择一个档案",
-        "noProfiles": "暂无档案，请先在档案管理中创建",
-        "loading": "加载中...",
-        "hostNameLabel": "主机名称",
-        "hostNamePlaceholder": "输入您的玩家名称（如：小明）",
-        "hostNameRequired": "请输入主机名称",
-        "noGamePath": "未找到游戏路径",
-        "exportButton": "导出为同步包",
-        "exporting": "导出中...",
-        "success": "同步包导出成功：{{path}}",
-        "failed": "导出失败，请重试"
-      },
-      "import": {
-        "tab": "导入与对比",
-        "description": "选择朋友分享的 .svl_sync 文件，再选择您的本地档案作为对比基准，SVL 将自动对比差异并帮助您补齐缺失的 MOD。",
-        "fileLabel": "同步包文件",
-        "selectFileButton": "选择文件",
-        "selectFile": "请先选择一个同步包文件",
-        "profileLabel": "对比基准档案",
-        "profilePlaceholder": "选择本地档案进行对比",
-        "selectProfile": "请选择本地档案作为对比基准",
-        "compareButton": "开始对比",
-        "comparing": "对比中...",
-        "noGamePath": "未找到游戏路径",
-        "failed": "导入失败，请检查文件格式",
-        "compareFailed": "对比失败，请重试",
-        "emptyHint": "选择同步包文件并指定本地档案后，点击「开始对比」查看差异"
-      },
-      "exportModpack": {
-        "title": "导出为整合包",
-        "description": "将当前档案的所有 MOD 打包成一个 .zip 文件，方便分享给朋友。",
-        "profileLabel": "选择要导出的档案",
-        "profilePlaceholder": "选择档案",
-        "selectProfile": "请先选择一个档案",
-        "noGamePath": "未找到游戏路径",
-        "exportButton": "导出为整合包 (.zip)",
-        "exporting": "导出中...",
-        "success": "成功导出 {{count}} 个 MOD 到 {{path}}",
-        "failed": "导出失败，请重试"
-      },
-      "importModpack": {
-        "title": "导入整合包",
-        "description": "拖入或选择朋友分享的整合包（支持 .zip 文件或文件夹），SVL 将自动导入并创建新档案。",
-        "dragText": "点击或拖入整合包文件或文件夹",
-        "hint": "支持 .zip 格式文件或包含 MOD 的文件夹",
-        "selectButton": "选择文件",
-        "useSelectButton": "拖拽文件无法获取路径，请使用「选择文件」按钮",
-        "selectFailed": "选择文件失败",
-        "invalidFormat": "仅支持 .zip 文件或 MOD 文件夹",
-        "modalTitle": "为新档案命名",
-        "modalDesc": "导入的 MOD 将保存为一个新档案，请为其命名：",
-        "modalPlaceholder": "例如：朋友的整合包",
-        "modalOk": "确认导入",
-        "nameRequired": "请输入档案名称",
-        "noFile": "未选择文件",
-        "noGamePath": "未找到游戏路径",
-        "success": "成功导入 {{count}} 个 MOD 到档案「{{name}}」",
-        "failed": "导入失败，请检查文件格式",
-        "supportedFormats": "支持格式：.zip 压缩包或包含 MOD 的文件夹"
-      },
-      "diff": {
-        "modName": "MOD 名称",
-        "uniqueId": "唯一ID",
-        "requiredVersion": "所需版本",
-        "localVersion": "本地版本",
-        "currentVersion": "当前版本",
-        "author": "作者",
-        "action": "操作",
-        "suggestion": "建议",
-        "installGuide": "一键安装",
-        "updateSuggestion": "建议更新到所需版本",
-        "localMissing": "我方缺失的 MOD（{{count}}个）",
-        "remoteMissing": "对方缺失的 MOD（{{count}}个）",
-        "localMissingCount": "我方缺失",
-        "remoteMissingCount": "对方缺失",
-        "mismatchCount": "版本不一致",
-        "mismatch": "版本不匹配（{{count}}个）",
-        "configs": "配置不同（{{count}}个）",
-        "configMissing": "缺少配置",
-        "configMismatch": "配置不同",
-        "perfect": "环境完全匹配，无需同步！"
-      },
-      "apply": {
-        "applyButton": "一键补齐",
-        "applying": "补齐中...",
-        "failed": "同步失败，请重试",
-        "appliedMods": "已补齐的MOD",
-        "configsApplied": "已应用的配置",
-        "restartNotice": "请重启游戏以使所有更改生效。"
-      }
-    },
     "smapiInstaller": {
       "noGamePath": "未找到游戏路径，请先检测游戏路径",
       "installing": "正在安装 SMAPI...",
@@ -858,10 +912,41 @@
       "title": "存档管理",
       "refresh": "刷新",
       "openSaveLocation": "打开存档目录",
+      "expandAll": "展开全部",
+      "collapseAll": "收起全部",
+      "details": "详情",
       "noSaves": "未找到存档，请确保已运行过游戏",
+      "detailsTitle": "存档详情",
+      "detailsLoadFailed": "存档详情加载失败",
+      "detailsLoadFailedContinue": "存档详情加载失败",
       "farmName": "农场名称",
+      "currentDate": "游戏内日期",
+      "money": "金币",
       "playTime": "游戏时间",
-      "lastModified": "最后游玩",
+      "totalSkills": "总技能等级",
+      "spouse": "配偶",
+      "single": "单身",
+      "mineLevel": "最深矿层",
+      "skullCavernLevel": "骷髅洞穴最深",
+      "floorN": "第 {{n}} 层",
+      "fileSize": "存档大小",
+      "saveFileSize": "原始 XML 大小",
+      "farmSize": "农场大小",
+      "lastModified": "最后修改",
+      "requiredMods": "必需模组",
+      "ccCompleted": "社区中心已完成",
+      "ccNotCompleted": "社区中心未完成",
+      "jojaCompleted": "Joja 路线已完成",
+      "gingerIsland": "姜岛已解锁",
+      "gingerIslandLocked": "姜岛未解锁",
+      "goldenParrot": "金鹦鹉已激活",
+      "stardrops": "{{count}} 个星之果实",
+      "stardropsFound": "星之果实",
+      "grandpaCandles": "{{count}} 支蜡烛评分",
+      "treasureTotems": "{{count}} 次宝藏图腾",
+      "raccoonsFed": "{{count}} 次投喂浣熊",
+      "perfectionScore": "完美度",
+      "perfectionWaivers": "豁免次数",
       "backups": "备份数",
       "linkedProfile": "关联档案",
       "boundProfile": "绑定的 MOD 档案",
@@ -873,12 +958,45 @@
       "backup": "备份",
       "restore": "恢复",
       "linkProfile": "关联档案",
+      "linkProfileDesc": "为存档「{{name}}」绑定一个 MOD 档案",
+      "selectProfile": "选择档案",
+      "mods": "个MOD",
+      "profileMismatch": "与当前档案不一致",
+      "modEnabled": "个模组已启用",
+      "statMoney": "当前金币",
+      "statTotalEarned": "总收入",
+      "statDaysPlayed": "游戏天数",
+      "days": "天",
+      "progressSection": "进度概览",
+      "skillsSection": "技能",
+      "skillFarming": "农业",
+      "skillMining": "采矿",
+      "skillForaging": "采集",
+      "skillFishing": "钓鱼",
+      "skillCombat": "战斗",
+      "socialSection": "社交",
+      "friendshipCount": "好感度总数",
+      "maxFriendship": "最高好感度",
+      "worldSection": "世界进度",
+      "grandpaScore": "爷爷评分",
+      "collectionsSection": "收集",
+      "buildingCount": "建筑数",
+      "cabinCount": "小木屋数",
+      "itemCount": "物品数",
+      "questCount": "任务进度",
+      "cookingRecipes": "烹饪食谱",
+      "craftingRecipes": "制作食谱",
+      "totalRecipes": "总食谱",
+      "systemSection": "系统信息",
+      "gameVersion": "游戏版本",
+      "health": "生命值",
+      "stamina": "体力",
+      "timeOfDay": "游戏内时间",
       "backupConfirm": "确定要备份存档「{{name}}」吗？",
       "restoreConfirm": "确定要从此备份恢复存档吗？这将覆盖当前存档。",
       "backupFailed": "备份失败",
       "backupFailedContinue": "备份失败，将继续安装",
       "restoreFailed": "恢复失败",
-      "backupHistory": "历史备份",
       "listBackupsFailed": "获取备份列表失败",
       "selectBackupDir": "选择备份保存目录",
       "loadFailed": "加载存档列表失败",
@@ -889,16 +1007,14 @@
       "unlinkSuccess": "已解除绑定",
       "unlinkFailed": "解除绑定失败",
       "launchFailed": "启动游戏失败",
-      "linkProfileDesc": "为存档「{{name}}」绑定一个 MOD 档案",
-      "selectProfile": "选择档案",
-      "mods": "个MOD",
-      "profileMismatch": "与当前档案不一致",
-      "requiredMods": "必选模组"
-    },
-    "common": {
-      "confirm": "确定",
-      "cancel": "取消",
-      "unknownError": "未知错误"
+      "farmTypeStandard": "标准农场",
+      "farmTypeRiverland": "沿河农场",
+      "farmTypeForest": "森林农场",
+      "farmTypeHilltop": "山顶农场",
+      "farmTypeWilderness": "荒野农场",
+      "farmTypeFourCorners": "四角农场",
+      "farmTypeBeach": "海滩农场",
+      "farmTypeCustom": "自定义农场"
     },
     "modDetail": {
       "title": "MOD 详情",
@@ -1020,7 +1136,8 @@
       "gameRunning": "游戏运行中",
       "gameExited": "游戏已退出",
       "launchNotification": "游戏正在通过 SMAPI 启动",
-      "duration": "已运行 {{duration}}"
+      "duration": "已运行 {{duration}}",
+      "launchFailed": "启动游戏失败"
     },
     "onboarding": {
       "title": "欢迎使用 SVL",
@@ -1058,9 +1175,11 @@
       "installComplete": "安装完成",
       "success": "成功",
       "failed": "失败",
-      "close": "关闭"
+      "close": "关闭",
+      "noModsPath": "未设置 Mods 路径，请先设置游戏路径",
+      "unsupportedFormat": "不支持的文件格式，仅支持 .zip 和 .7z"
     },
-"modBackup": {
+    "modBackup": {
       "title": "备份模组",
       "desc": "更新前建议备份当前模组版本",
       "modName": "模组名称",
@@ -1143,6 +1262,12 @@
     },
     "noDescription": "暂无描述",
     "optional": "可选",
+    "modStatus": {
+      "missingDeps": "缺少前置",
+      "updateAvailable": "有更新",
+      "enabled": "已启用",
+      "disabled": "已禁用"
+    },
     "modified": "已修改",
     "arrayNotSupported": "数组 ({{count}} 项) - 不支持手动编辑",
     "objectNotSupported": "对象 ({{count}} 个键) - 不支持手动编辑",
@@ -1185,7 +1310,10 @@
       "openLogFolder": "打开日志文件夹",
       "badgeText": "检测到 {{count}} 个 MOD 错误",
       "autoCheckHint": "游戏退出后自动检测",
-      "gameExitErrors": "游戏退出后检测到 {{count}} 个 MOD 错误"
+      "gameExitErrors": "游戏退出后检测到 {{count}} 个 MOD 错误",
+      "infoDetected": "检测到 {{count}} 条 INFO 日志",
+      "logNotFound": "未找到 SMAPI 日志文件",
+      "smapiNotInstalled": "未检测到 SMAPI 安装"
     },
     "depResolver": {
       "title": "依赖自动补全",
@@ -1211,7 +1339,8 @@
       "batchInstall": "一键安装 ({{count}})",
       "batchComplete": "批量安装完成",
       "noInstallable": "没有可自动安装的依赖",
-      "close": "关闭"
+      "close": "关闭",
+      "rescan": "重新扫描"
     },
     "smapiAnalyzer": {
       "inputLabel": "SMAPI 日志内容",
@@ -1245,6 +1374,27 @@
       "copySummary": "复制诊断结果",
       "copyFailed": "复制失败",
       "copied": "已复制"
+    },
+    "features": {
+      "loadOrder": {
+        "layerContent": "内容包",
+        "layerCore": "核心模组",
+        "layerExpansion": "扩展模组",
+        "layerFramework": "前置框架",
+        "layerLibrary": "库文件",
+        "layerOverride": "覆盖模组"
+      },
+      "security": {
+        "checkDll": "DLL 检测",
+        "checkEntryPoint": "入口点验证",
+        "checkFileIntegrity": "文件完整性",
+        "checkManifest": "清单文件检查",
+        "checkNexusAuth": "Nexus 认证",
+        "criticalRisk": "极高风险",
+        "highRisk": "高风险",
+        "lowRisk": "低风险",
+        "mediumRisk": "中风险"
+      }
     }
   },
   "sidebar": {
@@ -1446,7 +1596,27 @@
         "3718": "音乐音效",
         "3719": "其他",
         "3720": "优化"
-      }
+      },
+      "downloads": "下载量",
+      "prereqTitle": "「{{name}}」前置检测",
+      "prereqDescription": "以下模组是安装该模组的前置依赖，未安装的前置可能影响模组正常运行。勾选需要安装的前置后点击下载按钮。",
+      "prereqMissingCount": "检测到 {{count}} 个未安装前置",
+      "selectAllMissing": "全选未安装",
+      "deselectAll": "取消全选",
+      "required": "必须",
+      "optional": "可选",
+      "clickToInstall": "勾选后一键安装",
+      "manualInstallRequired": "需手动搜索安装",
+      "alreadyInstalled": "已安装",
+      "installingPrerequisite": "正在安装前置: {{name}}...",
+      "prereqInstallResult": "前置安装完成：{{success}} 成功，{{fail}} 失败",
+      "skipPrereq": "跳过，直接下载",
+      "installSelectedAndDownload": "安装选中 ({{count}}) 并下载",
+      "installing": "安装中...",
+      "prereqChecking": "检测前置中...",
+      "prereqAllInstalled": "前置检查完成：{{name}} 的所有前置已安装",
+      "prereqNoneDetected": "未检测到 {{name}} 的前置依赖",
+      "prereqCheckFailed": "前置检查失败：{{name}} ({{error}})，将直接下载"
     }
   },
   "home": {
@@ -1461,5 +1631,92 @@
       "sponsorNote": "以上广告为本站赞助商，感谢支持",
       "dontShowAgain": "今天不再提示"
     }
+  },
+  "common": {
+    "close": "关闭",
+    "delete": "删除",
+    "ok": "确定",
+    "back": "返回",
+    "confirm": "确定",
+    "cancel": "取消"
+  },
+  "log": {
+    "infoDetected": "检测到 {{count}} 条 INFO 日志",
+    "logNotFound": "未找到 SMAPI 日志文件",
+    "smapiNotInstalled": "未检测到 SMAPI 安装"
+  },
+  "modList": {
+    "batchDisable": "批量禁用",
+    "batchEnable": "批量启用"
+  },
+  "profiles": {
+    "confirmDelete": "确定要删除档案「{{name}}」吗？",
+    "loading": "加载中..."
+  },
+  "profilesPage": {
+    "copy": "复制档案"
+  },
+  "sync": {
+    "diff": {
+      "missing": "缺失"
+    },
+    "export": {
+      "modCount": "包含 {{count}} 个模组"
+    },
+    "import": {
+      "importButton": "导入并对比",
+      "importing": "导入中..."
+    }
+  },
+  "toolbox": {
+    "logClearFailed": "清理旧日志失败",
+    "logFilter": "过滤",
+    "logLoadFailed": "加载日志失败",
+    "logOpenDirFailed": "打开日志目录失败",
+    "logClearOld": "清理旧日志",
+    "logClearSuccess": "日志清理完成",
+    "logEmpty": "暂无日志记录",
+    "logExport": "导出全部日志",
+    "logExportFailed": "导出日志失败",
+    "logExportSuccess": "日志已导出到：{{path}}",
+    "logLines": "共 {{count}} 行日志",
+    "logOpenDir": "打开目录",
+    "logsTitle": "应用日志",
+    "saveBackupTitle": "存档备份",
+    "saveBackupDesc": "一键备份所有存档，支持创建多个快照以便随时回滚",
+    "saveEditorBuildingAction": "操作",
+    "saveEditorBuildingDelete": "拆除",
+    "saveEditorBuildingDeleteConfirm": "确定拆除此建筑？",
+    "saveEditorCookingRecipes": "烹饪食谱",
+    "saveEditorCraftingRecipes": "制作食谱",
+    "saveEditorFriendshipGiftsToday": "今日送礼",
+    "saveEditorFriendshipGiftsWeek": "本周送礼",
+    "saveEditorFriendshipHearts": "好感度",
+    "saveEditorFriendshipNpc": "NPC",
+    "saveEditorFriendshipStatus": "关系",
+    "saveEditorFriendshipTalked": "今日是否交谈",
+    "saveEditorRecipeEmpty": "暂无食谱数据",
+    "saveEditorRecipeName": "食谱名称",
+    "saveEditorRecipeTimesCrafted": "已制作次数",
+    "saveEditorRecipeUnlocked": "是否解锁",
+    "saveEditorTabFriendships": "NPC好感",
+    "saveEditorTabRecipes": "食谱"
+  },
+  "saveBackup": {
+    "title": "存档备份",
+    "openFolder": "打开备份目录",
+    "goToSaveEditor": "去存档编辑器",
+    "total": "总计",
+    "totalSize": "总大小",
+    "empty": "暂无存档备份",
+    "emptyHint": "使用存档编辑器修改存档时，会自动在此创建备份",
+    "unknown": "未知角色",
+    "confirmRestore": "确定要恢复此备份吗？当前存档将被覆盖。",
+    "restore": "恢复",
+    "confirmDelete": "确定要删除此备份吗？",
+    "deleteSuccess": "备份已删除",
+    "restoreSuccess": "存档已恢复",
+    "sourceAuto": "自动",
+    "sourceManual": "手动"
   }
 }

@@ -1,11 +1,14 @@
 pub mod error;
 pub mod xml_utils;
 pub mod save_file;
+pub mod save_details;
 pub mod character;
 pub mod skills;
 pub mod inventory;
 pub mod quests;
 pub mod buildings;
+pub mod friendships;
+pub mod recipes;
 
 use save_file::SaveFile;
 use std::path::PathBuf;
@@ -176,6 +179,48 @@ pub fn save_editor_save_buildings(
     let mut save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
     let backup_path = save.backup().map_err(|e| e.to_string())?;
     let new_xml = buildings::apply(&save.raw_xml, &list).map_err(|e| e.to_string())?;
+    save.set_xml(new_xml);
+    save.write().map_err(|e| e.to_string())?;
+    Ok(backup_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn save_editor_load_friendships(
+    save_path: String,
+) -> std::result::Result<friendships::FriendshipList, String> {
+    let save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
+    friendships::parse(&save.raw_xml).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_editor_save_friendships(
+    save_path: String,
+    list: friendships::FriendshipList,
+) -> std::result::Result<String, String> {
+    let mut save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
+    let backup_path = save.backup().map_err(|e| e.to_string())?;
+    let new_xml = friendships::apply(&save.raw_xml, &list).map_err(|e| e.to_string())?;
+    save.set_xml(new_xml);
+    save.write().map_err(|e| e.to_string())?;
+    Ok(backup_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn save_editor_load_recipes(
+    save_path: String,
+) -> std::result::Result<recipes::RecipeData, String> {
+    let save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
+    recipes::parse(&save.raw_xml).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_editor_save_recipes(
+    save_path: String,
+    data: recipes::RecipeData,
+) -> std::result::Result<String, String> {
+    let mut save = SaveFile::load(&PathBuf::from(&save_path)).map_err(|e| e.to_string())?;
+    let backup_path = save.backup().map_err(|e| e.to_string())?;
+    let new_xml = recipes::apply(&save.raw_xml, &data).map_err(|e| e.to_string())?;
     save.set_xml(new_xml);
     save.write().map_err(|e| e.to_string())?;
     Ok(backup_path.to_string_lossy().to_string())

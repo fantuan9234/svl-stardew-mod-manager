@@ -1,18 +1,20 @@
-import { useState, useEffect, useRef, lazy, Suspense, startTransition } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense, startTransition, memo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { MinusOutlined, BorderOutlined, CloseOutlined, SwitcherOutlined, LoadingOutlined } from '@ant-design/icons';
-import { Badge, Modal, Button, Typography, Progress, Tag, message, Spin } from 'antd';
-import { CloudDownloadOutlined, CheckCircleOutlined, SyncOutlined, FolderOutlined, SaveOutlined, CoffeeOutlined, SearchOutlined, GlobalOutlined, ToolOutlined } from '@ant-design/icons';
+import { Badge, Modal, Button, Typography, Tag, message, Spin } from 'antd';
+import { CloudDownloadOutlined, SyncOutlined, FolderOutlined, SaveOutlined, CoffeeOutlined, SearchOutlined, ToolOutlined, AppstoreOutlined, GlobalOutlined } from '@ant-design/icons';
 import chickenImg from '../assets/chicken.png';
 import sunIcon from '../assets/sv-sun-icon.png';
 import moonIcon from '../assets/sv-moon-icon.png';
 import HomeModal from './HomeModal';
 import { openUrl } from '../utils/openUrl';
-import { downloadAppUpdateFromServer, AppUpdateInfo, AppUpdateProgress, getCurrentAppVersion } from '../utils/tauri-api';
+import { AppUpdateInfo, getCurrentAppVersion } from '../utils/tauri-api';
 import { useTheme } from '../hooks/useTheme';
+import { useSplashDone } from '../hooks/useSplashDone';
+import { PageActiveProvider } from '../hooks/usePageActive';
 
 const ModManager = lazy(() => import('../pages/ModManager'));
 const NexusModBrowser = lazy(() => import('../pages/NexusModBrowser'));
@@ -23,6 +25,18 @@ const Settings = lazy(() => import('../pages/Settings'));
 const DonatePage = lazy(() => import('../pages/DonatePage'));
 const LogViewer = lazy(() => import('../pages/LogViewer'));
 const Toolbox = lazy(() => import('../pages/Toolbox'));
+
+const lazyLoaders: Record<string, () => Promise<any>> = {
+  '/mod-manager': () => import('../pages/ModManager'),
+  '/nexus-browser': () => import('../pages/NexusModBrowser'),
+  '/profiles': () => import('../pages/ProfilesPage'),
+  '/saves': () => import('../pages/SavesManager'),
+  '/sync': () => import('../pages/SyncPage'),
+  '/settings': () => import('../pages/Settings'),
+  '/donate': () => import('../pages/DonatePage'),
+  '/log-viewer': () => import('../pages/LogViewer'),
+  '/toolbox': () => import('../pages/Toolbox'),
+};
 
 function isTauriEnvironment(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -47,7 +61,7 @@ const pageMap: Record<string, React.LazyExoticComponent<React.ComponentType<any>
 };
 
 const navItems = [
-  { key: '/mod-manager', icon: '', label: 'app.nav.mods' },
+  { key: '/mod-manager', icon: <AppstoreOutlined />, label: 'app.nav.mods' },
   { key: '/nexus-browser', icon: <SearchOutlined />, label: 'app.nav.nexusBrowser' },
   { key: '/profiles', icon: <FolderOutlined />, label: 'app.nav.profiles' },
   { key: '/saves', icon: <SaveOutlined />, label: 'app.nav.saves' },
@@ -211,47 +225,165 @@ function DayNightIcon() {
   );
 }
 
+const Sidebar = memo(function Sidebar({
+  activePath,
+  errorCount,
+  customChickenImage,
+  sidebarLogoMode,
+  customSidebarImage,
+  appVersion,
+  onNavigate,
+  onLogClick,
+}: {
+  activePath: string;
+  errorCount: number;
+  customChickenImage: string | null;
+  sidebarLogoMode: string;
+  customSidebarImage: string;
+  appVersion: string;
+  onNavigate: (path: string) => void;
+  onLogClick: () => void;
+}) {
+  const { t } = useTranslation();
+
+  const logoContent = (() => {
+    if (sidebarLogoMode === 'farm') {
+      return (
+        <div className="svl-sidebar-farm-logo">
+          <img src="/images/stardew-farm-screenshot.jpg" alt="" className="svl-sidebar-farm-img" />
+          <div className="svl-sidebar-farm-overlay" />
+          <div className="svl-logo-text" style={{ color: 'var(--svl-text-primary)' }}>SVL</div>
+        </div>
+      );
+    }
+    if (sidebarLogoMode === 'custom' && customSidebarImage) {
+      return (
+        <div className="svl-sidebar-farm-logo">
+          <img src={customSidebarImage} alt="" className="svl-sidebar-farm-img" />
+          <div className="svl-sidebar-farm-overlay" />
+          <div className="svl-logo-text" style={{ color: 'var(--svl-text-primary)' }}>SVL</div>
+        </div>
+      );
+    }
+    return <DayNightIcon />;
+  })();
+
+  return (
+    <aside className="svl-sidebar">
+      <div className="svl-logo">
+        {logoContent}
+      </div>
+
+      <nav className="svl-nav">
+        {navItems.filter(item => !item.hidden).map((item) => {
+          const isActive = activePath === item.key;
+          return (
+            <div
+              key={item.key}
+              className={`svl-nav-item ${isActive ? 'active' : ''}`}
+              onClick={() => onNavigate(item.key)}
+            >
+              <span className="svl-nav-icon">{item.icon}</span>
+              <span>{t(item.label)}</span>
+            </div>
+          );
+        })}
+        {errorCount > 0 && (
+          <div
+            className="svl-nav-item svl-nav-item-error"
+            onClick={onLogClick}
+          >
+            <Badge count={errorCount} style={{ backgroundColor: 'var(--svl-error)' }}>
+              <span style={{ color: 'var(--svl-error)' }}>⚠️</span>
+            </Badge>
+            <span style={{ color: 'var(--svl-error)', fontSize: 12 }}>{t('app.log.badgeText', { count: errorCount })}</span>
+          </div>
+        )}
+
+        <div
+          className="svl-nav-item svl-nav-item-website"
+          onClick={() => openUrl('https://svlmod.cn')}
+        >
+          <span className="svl-nav-icon"><GlobalOutlined /></span>
+          <span>{t('app.nav.website') || '访问官网'}</span>
+        </div>
+      </nav>
+
+      <div className="svl-sidebar-footer">
+        <img
+          src={customChickenImage || chickenImg}
+          alt={t('app.altChicken')}
+          className="svl-chicken"
+        />
+        {appVersion && (
+          <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--svl-text-muted)', marginTop: 4 }}>
+            v{appVersion}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+});
+
+const PageWrapper = memo(function PageWrapper({
+  path,
+  isActive,
+  children,
+}: {
+  path: string;
+  isActive: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div key={path} style={{ display: isActive ? 'contents' : 'none' }}>
+      {children}
+    </div>
+  );
+});
+
 export default function AppLayout() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { customColors } = useTheme();
+  const splashDone = useSplashDone();
   const [isMaximized, setIsMaximized] = useState(false);
   const [errorCount, setErrorCount] = useState(0);
   const [appVersion, setAppVersion] = useState('');
   const logCheckUnlistenRef = useRef<(() => void) | null>(null);
 
   const [forceUpdateInfo, setForceUpdateInfo] = useState<AppUpdateInfo | null>(null);
-  const [forceDownloading, setForceDownloading] = useState(false);
-  const [forceProgress, setForceProgress] = useState(0);
-  const [forceDownloadedBytes, setForceDownloadedBytes] = useState(0);
-  const [forceTotalBytes, setForceTotalBytes] = useState(0);
-  const [forceInstalled, setForceInstalled] = useState(false);
-  const [forceInstallerPath, setForceInstallerPath] = useState<string | null>(null);
+  const pendingUpdateInfoRef = useRef<AppUpdateInfo | null>(null);
 
   useEffect(() => {
     let unlisten: (() => void) | null = null;
     listen<AppUpdateInfo>('app-update-available', (event) => {
       const info = event.payload;
-      if (info.force_update) {
-        setForceUpdateInfo(info);
-      } else {
-        message.info(t('features.serverUpdater.newVersionAvailable', { version: info.latest_version }));
-      }
+      pendingUpdateInfoRef.current = info;
     }).then(fn => { unlisten = fn; });
-
-    let progressUnlisten: (() => void) | null = null;
-    listen<AppUpdateProgress>('app-update-progress', (event) => {
-      setForceDownloadedBytes(event.payload.downloaded);
-      setForceTotalBytes(event.payload.total);
-      setForceProgress(Math.min(Math.round(event.payload.percent), 100));
-    }).then(fn => { progressUnlisten = fn; });
 
     return () => {
       unlisten?.();
-      progressUnlisten?.();
     };
   }, []);
+
+  useEffect(() => {
+    if (!splashDone) return;
+    const info = pendingUpdateInfoRef.current;
+    if (!info) return;
+    pendingUpdateInfoRef.current = null;
+    if (info.force_update) {
+      setForceUpdateInfo(info);
+    } else {
+      message.info({
+        content: t('features.serverUpdater.newVersionAvailable', { version: info.latest_version }),
+        duration: 5,
+        onClick: () => {
+          startTransition(() => navigate('/settings', { state: { updateInfo: info } }));
+        },
+      });
+    }
+  }, [splashDone, navigate, t]);
 
   useEffect(() => {
     if (location.pathname === '/') {
@@ -261,6 +393,13 @@ export default function AppLayout() {
 
   useEffect(() => {
     getCurrentAppVersion().then(v => setAppVersion(v)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const loaders = Object.values(lazyLoaders);
+    loaders.forEach((loader, i) => {
+      setTimeout(() => loader().catch(() => {}), i * 300);
+    });
   }, []);
 
   const checkLog = async () => {
@@ -329,6 +468,9 @@ export default function AppLayout() {
             setTimeout(() => {
               checkLog();
             }, 1500);
+            try {
+              window.dispatchEvent(new CustomEvent('svl:mod-list-refresh'));
+            } catch {}
           }
         });
 
@@ -367,68 +509,36 @@ export default function AppLayout() {
     }).catch(() => {});
   };
 
-  const handleLogClick = () => {
+  const handleLogClick = useCallback(() => {
     startTransition(() => navigate('/log-viewer'));
-  };
+  }, [navigate]);
 
-  const handleForceDownload = async () => {
+  const handleNavClick = useCallback((path: string) => {
+    startTransition(() => navigate(path));
+  }, [navigate]);
+
+  const handleForceDownload = () => {
     if (!forceUpdateInfo) return;
-    setForceDownloading(true);
-    setForceProgress(0);
-    setForceDownloadedBytes(0);
-    setForceTotalBytes(0);
-    try {
-      const result = await downloadAppUpdateFromServer(forceUpdateInfo.download_url);
-      if (result.success) {
-        setForceDownloading(false);
-        setForceInstalled(true);
-        if (result.file_path) {
-          setForceInstallerPath(result.file_path);
-        }
-      } else {
-        setForceDownloading(false);
-        message.error(result.message || t('features.updater.downloadFailed'), 5);
-      }
-    } catch (err: any) {
-      console.error('Force download failed:', err);
-      setForceDownloading(false);
-      const errMsg = err?.message || err?.toString() || t('features.updater.downloadFailed');
-      message.error(errMsg, 5);
-    }
+    const info = forceUpdateInfo;
+    setForceUpdateInfo(null);
+    startTransition(() => navigate('/settings', { state: { updateInfo: info } }));
   };
 
-  const handleForceRestart = async () => {
-    if (!forceInstallerPath) return;
-    try {
-      await invoke('run_installer', { path: forceInstallerPath });
-    } catch (err: any) {
-      console.error('Force restart installer failed:', err);
-      message.error(t('features.updater.downloadFailed'));
-    }
-  };
-
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  };
-
-  const [renderedPages, setRenderedPages] = useState<Set<string>>(new Set());
+  const renderedPagesRef = useRef<Set<string>>(new Set());
+  const [, setRenderTick] = useState(0);
   const prevPathRef = useRef<string>('');
 
   useEffect(() => {
     if (location.pathname !== '/') {
-      setRenderedPages(() => {
-        const next = new Set<string>();
-        next.add(location.pathname);
-        if (prevPathRef.current && prevPathRef.current !== '/' && prevPathRef.current !== location.pathname) {
-          next.add(prevPathRef.current);
-        }
-        return next;
-      });
+      const isNew = !renderedPagesRef.current.has(location.pathname);
+      renderedPagesRef.current.add(location.pathname);
+      if (prevPathRef.current && prevPathRef.current !== '/' && prevPathRef.current !== location.pathname) {
+        renderedPagesRef.current.add(prevPathRef.current);
+      }
       prevPathRef.current = location.pathname;
+      if (isNew) {
+        setRenderTick(t => t + 1);
+      }
     }
   }, [location.pathname]);
 
@@ -452,106 +562,41 @@ export default function AppLayout() {
       </div>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <aside className="svl-sidebar">
-          <div className="svl-logo">
-            <DayNightIcon />
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              padding: '7px 12px',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              color: 'var(--svl-primary-light)',
-              fontWeight: 600,
-              fontSize: 13,
-              background: 'rgba(196, 154, 59, 0.08)',
-              border: '1px solid rgba(196, 154, 59, 0.25)',
-              transition: 'all 0.2s ease',
-              userSelect: 'none',
-              margin: '0 12px 6px',
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLDivElement).style.background = 'rgba(196, 154, 59, 0.15)';
-              (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(196, 154, 59, 0.45)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLDivElement).style.background = 'rgba(196, 154, 59, 0.08)';
-              (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(196, 154, 59, 0.25)';
-            }}
-            onClick={() => openUrl('https://svlmod.cn')}
-          >
-            <GlobalOutlined style={{ fontSize: 16 }} />
-            <span>访问官网</span>
-          </div>
-
-          <nav className="svl-nav">
-            {navItems.filter(item => !item.hidden).map((item) => {
-              const isActive = location.pathname === item.key;
-              return (
-                <div
-                  key={item.key}
-                  className={`svl-nav-item ${isActive ? 'active' : ''}`}
-                  onClick={() => startTransition(() => navigate(item.key))}
-                >
-                  <span className="svl-nav-icon">{item.icon}</span>
-                  <span>{t(item.label)}</span>
-                </div>
-              );
-            })}
-            {errorCount > 0 && (
-              <div
-                className="svl-nav-item svl-nav-item-error"
-                onClick={handleLogClick}
-              >
-                <Badge count={errorCount} style={{ backgroundColor: 'var(--svl-error)' }}>
-                  <span style={{ color: 'var(--svl-error)' }}>⚠️</span>
-                </Badge>
-                <span style={{ color: 'var(--svl-error)', fontSize: 12 }}>{t('app.log.badgeText', { count: errorCount })}</span>
-              </div>
-            )}
-          </nav>
-
-          <div className="svl-sidebar-footer">
-            <img
-              src={customColors.customChickenImage || chickenImg}
-              alt={t('app.altChicken')}
-              className="svl-chicken"
-            />
-            {appVersion && (
-              <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--svl-text-muted)', marginTop: 4 }}>
-                v{appVersion}
-              </div>
-            )}
-          </div>
-        </aside>
+        <Sidebar
+          activePath={location.pathname}
+          errorCount={errorCount}
+          customChickenImage={customColors.customChickenImage}
+          sidebarLogoMode={customColors.sidebarLogoMode}
+          customSidebarImage={customColors.customSidebarImage}
+          appVersion={appVersion}
+          onNavigate={handleNavClick}
+          onLogClick={handleLogClick}
+        />
 
         <main className="svl-main">
+          <PageActiveProvider value={location.pathname}>
           <Suspense fallback={
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
               <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} spin />} />
             </div>
           }>
-            {Array.from(renderedPages).map((path) => {
+            {Array.from(renderedPagesRef.current).map((path) => {
               const PageComponent = pageMap[path];
               if (!PageComponent) return null;
               const isActive = path === location.pathname;
               return (
-                <div key={path} style={{ display: isActive ? 'contents' : 'none' }}>
+                <PageWrapper key={path} path={path} isActive={isActive}>
                   <PageComponent />
-                </div>
+                </PageWrapper>
               );
             })}
             {(() => {
-              if (renderedPages.has(location.pathname)) return null;
+              if (renderedPagesRef.current.has(location.pathname)) return null;
               const PageComponent = pageMap[location.pathname];
               return PageComponent ? <PageComponent /> : null;
             })()}
           </Suspense>
+          </PageActiveProvider>
         </main>
       </div>
       <HomeModal />
@@ -607,36 +652,11 @@ export default function AppLayout() {
               </div>
             )}
 
-            {forceDownloading && (
-              <div style={{ marginTop: 16 }}>
-                <Progress percent={forceProgress} status="active" strokeColor={{ '0%': 'var(--svl-primary)', '100%': 'var(--svl-primary-light)' }} />
-                {forceTotalBytes > 0 && (
-                  <Text style={{ fontSize: 12, color: 'var(--svl-text-muted)' }}>
-                    {formatBytes(forceDownloadedBytes)} / {formatBytes(forceTotalBytes)}
-                  </Text>
-                )}
-              </div>
-            )}
-
-            {forceInstalled && (
-              <div style={{ marginTop: 16, textAlign: 'center' }}>
-                <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 20, marginRight: 8 }} />
-                <Text style={{ color: '#52c41a' }}>{t('features.serverUpdater.downloadCompleteRestart')}</Text>
-              </div>
-            )}
-
             <div style={{ marginTop: 20, textAlign: 'center' }}>
-              {!forceDownloading && !forceInstalled && (
-                <Button type="primary" size="large" onClick={handleForceDownload} style={{ background: 'var(--svl-primary)', borderColor: 'var(--svl-primary)' }}>
-                  <CloudDownloadOutlined />
-                  {t('features.updater.downloadButton')}
-                </Button>
-              )}
-              {forceInstalled && (
-                <Button type="primary" size="large" danger onClick={handleForceRestart}>
-                  {t('features.updater.restartButton')}
-                </Button>
-              )}
+              <Button type="primary" size="large" onClick={handleForceDownload} style={{ background: 'var(--svl-primary)', borderColor: 'var(--svl-primary)' }}>
+                <CloudDownloadOutlined />
+                {t('features.updater.downloadButton')}
+              </Button>
             </div>
           </div>
         )}

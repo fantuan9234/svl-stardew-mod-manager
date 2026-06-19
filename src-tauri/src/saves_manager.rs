@@ -3,18 +3,49 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::fs;
 use chrono::{DateTime, Local};
+use crate::save_editor::save_details::{self, SaveDetailedInfo};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SaveInfo {
     pub name: String,
     pub farm_name: String,
     pub farm_type: String,
+    pub farm_type_id: i32,
+    pub game_version: String,
     pub hours_played: u64,
+    pub days_played: u32,
+    pub money: i64,
+    pub total_money_earned: i64,
+    pub day_of_month: u32,
+    pub current_season: String,
+    pub year: u32,
+    pub time_of_day: u32,
+    pub deepest_mine_level: i32,
+    pub grandpa_score: i32,
+    pub perfection_score: i32,
+    pub total_skill_levels: i32,
+    pub farming_level: i32,
+    pub mining_level: i32,
+    pub foraging_level: i32,
+    pub fishing_level: i32,
+    pub combat_level: i32,
+    pub spouse: String,
+    pub friendship_count: usize,
+    pub building_count: usize,
+    pub quest_count: usize,
+    pub item_count: usize,
+    pub recipes_known: usize,
+    pub has_finished_community_center: bool,
+    pub ginger_island_unlocked: bool,
+    pub stardrops_found: i32,
+    pub activated_golden_parrot: bool,
+    pub file_size_mb: f64,
     pub last_modified: String,
     pub save_path: String,
     pub backup_count: usize,
     pub linked_profile: Option<String>,
     pub character_name: String,
+    pub details_loadable: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -263,7 +294,105 @@ fn parse_save_folder(folder_path: &PathBuf) -> Option<SaveInfo> {
         farm_name
     };
 
-    let farm_type = "Standard".to_string();
+    let detailed = save_details::parse_detailed_save(folder_path).ok();
+    let has_detailed = detailed.is_some();
+
+    let (
+        game_version,
+        farm_type,
+        farm_type_id,
+        money,
+        total_money_earned,
+        day_of_month,
+        current_season,
+        year,
+        time_of_day,
+        days_played,
+        deepest_mine_level,
+        grandpa_score,
+        perfection_score,
+        farming_level,
+        mining_level,
+        foraging_level,
+        fishing_level,
+        combat_level,
+        spouse,
+        friendship_count,
+        building_count,
+        quest_count,
+        item_count,
+        recipes_known,
+        has_finished_community_center,
+        ginger_island_unlocked,
+        stardrops_found,
+        activated_golden_parrot,
+    ) = if let Some(d) = detailed.as_ref() {
+        (
+            d.game_version.clone(),
+            d.farm_type.clone(),
+            d.farm_type_id,
+            d.money,
+            d.total_money_earned,
+            d.day_of_month,
+            d.current_season.clone(),
+            d.year,
+            d.time_of_day,
+            d.days_played as u32,
+            d.deepest_mine_level,
+            d.grandpa_score,
+            d.perfection_score,
+            d.farming_level,
+            d.mining_level,
+            d.foraging_level,
+            d.fishing_level,
+            d.combat_level,
+            d.spouse.clone(),
+            d.friendship_count,
+            d.building_count,
+            d.quest_count,
+            d.item_count,
+            d.recipes_known,
+            d.has_finished_community_center,
+            d.ginger_island_unlocked,
+            d.stardrops_found,
+            d.activated_golden_parrot,
+        )
+    } else {
+        (
+            String::new(),
+            "Standard".to_string(),
+            0i32,
+            0i64,
+            0i64,
+            0u32,
+            String::new(),
+            0u32,
+            0u32,
+            0u32,
+            0i32,
+            0i32,
+            0i32,
+            0i32,
+            0i32,
+            0i32,
+            0i32,
+            0i32,
+            String::new(),
+            0usize,
+            0usize,
+            0usize,
+            0usize,
+            0usize,
+            false,
+            false,
+            0i32,
+            false,
+        )
+    };
+
+    let total_skill_levels = farming_level + mining_level + foraging_level + fishing_level + combat_level;
+
+    let file_size_mb = get_dir_size(folder_path) as f64 / (1024.0 * 1024.0);
 
     let last_modified = {
         let mut latest_time = String::new();
@@ -308,12 +437,42 @@ fn parse_save_folder(folder_path: &PathBuf) -> Option<SaveInfo> {
         name: display_character.clone(),
         farm_name: display_farm,
         farm_type,
+        farm_type_id,
+        game_version,
         hours_played,
+        days_played,
+        money,
+        total_money_earned,
+        day_of_month,
+        current_season,
+        year,
+        time_of_day,
+        deepest_mine_level,
+        grandpa_score,
+        perfection_score,
+        total_skill_levels,
+        farming_level,
+        mining_level,
+        foraging_level,
+        fishing_level,
+        combat_level,
+        spouse,
+        friendship_count,
+        building_count,
+        quest_count,
+        item_count,
+        recipes_known,
+        has_finished_community_center,
+        ginger_island_unlocked,
+        stardrops_found,
+        activated_golden_parrot,
+        file_size_mb,
         last_modified,
         save_path: folder_path.to_string_lossy().to_string(),
         backup_count,
         linked_profile,
         character_name: display_character,
+        details_loadable: has_detailed,
     })
 }
 
@@ -665,4 +824,13 @@ pub fn open_backup_dialog() -> Result<String, String> {
     }
 
     Err("Cannot get default backup path".to_string())
+}
+
+#[tauri::command]
+pub fn get_save_details(save_path: String) -> Result<SaveDetailedInfo, String> {
+    let folder = PathBuf::from(&save_path);
+    if !folder.exists() {
+        return Err("Save path does not exist".to_string());
+    }
+    save_details::parse_detailed_save(&folder)
 }

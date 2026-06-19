@@ -86,6 +86,17 @@ pub struct LogAnalysis {
     pub summary: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PastedLogAnalysis {
+    pub errors: Vec<LogError>,
+    pub warnings: Vec<LogWarning>,
+    pub error_count: usize,
+    pub warning_count: usize,
+    pub input_length: usize,
+    pub detected_issues: Vec<String>,
+    pub suggestions: Vec<String>,
+}
+
 struct Rule {
     error_type: String,
     pattern: Regex,
@@ -437,7 +448,7 @@ static ERROR_INDICATORS: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static WARN_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\[WARN\]").expect("Invalid regex: warn_re")
+    Regex::new(r"(?i)WARN\s+\w+\]").expect("Invalid regex: warn_re")
 });
 
 static UPDATE_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -446,6 +457,16 @@ static UPDATE_RE: LazyLock<Regex> = LazyLock::new(|| {
 
 static OBSOLETE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)(obsolete|deprecated|过时)").expect("Invalid regex: obsolete_re")
+});
+
+static NPC_PORTRAIT_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)NPC\s+(\w+)\s+can[''\u{2019}]t\s+load\s+portraits\s+from\s+'([^']+)'"#)
+        .expect("Invalid regex: npc_portrait_re")
+});
+
+static CONTENT_FILE_MISSING_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)ContentLoadException[^\n]*?['"]([^'"]+\.xnb)['"]|['"]([A-Za-z][\w/\\.-]*\.xnb)['"][^\n]*?not\s+found"#)
+        .expect("Invalid regex: content_file_missing_re")
 });
 
 fn extract_mod_from_dll(dll: &str) -> String {
@@ -1364,6 +1385,92 @@ pub fn analyze_log(log_path: Option<String>) -> Result<LogAnalysis, String> {
     })
 }
 
+#[tauri::command]
+pub fn analyze_pasted_smapi_log(content: String) -> Result<PastedLogAnalysis, String> {
+    if content.trim().is_empty() {
+        return Err("输入内容为空".to_string());
+    }
+
+    let errors = parse_errors_v2(&content);
+    let warnings = parse_warnings_v2(&content);
+
+    let mut detected_issues: Vec<String> = Vec::new();
+    let mut suggestions: Vec<String> = Vec::new();
+    let mut seen_issue: HashSet<String> = HashSet::new();
+    let mut seen_suggestion: HashSet<String> = HashSet::new();
+
+    for err in &errors {
+        let key = err.translated_message.clone();
+        if seen_issue.insert(key.clone()) {
+            detected_issues.push(format!("检测到错误: {}", err.translated_message));
+        }
+
+        if err.translated_message.starts_with("MissingDependency") {
+            let suggestion = "前往 Nexus Mods 或 smapi.io/mods 下载缺失的前置 MOD，并放入 Mods 文件夹。".to_string();
+            if seen_suggestion.insert(suggestion.clone()) {
+                suggestions.push(suggestion);
+            }
+        } else if err.translated_message.starts_with("DllLoadFailed")
+            || err.translated_message.starts_with("MissingDll")
+        {
+            let suggestion = "重新下载该 MOD 或安装最新的 .NET Desktop Runtime（https://dotnet.microsoft.com/download/dotnet）。".to_string();
+            if seen_suggestion.insert(suggestion.clone()) {
+                suggestions.push(suggestion);
+            }
+        } else if err.translated_message.starts_with("VersionMismatch")
+            || err.translated_message.starts_with("CompatibilityError")
+        {
+            let suggestion = "更新 SMAPI 到最新版本，并检查 MOD 是否支持当前游戏版本。".to_string();
+            if seen_suggestion.insert(suggestion.clone()) {
+                suggestions.push(suggestion);
+            }
+        } else if err.translated_message.starts_with("ManifestError") {
+            let suggestion = "重新下载该 MOD，可能是 manifest.json 损坏或格式错误。".to_string();
+            if seen_suggestion.insert(suggestion.clone()) {
+                suggestions.push(suggestion);
+            }
+        }
+    }
+
+    for warn in &warnings {
+        let key = warn.translated_message.clone();
+        if seen_issue.insert(key.clone()) {
+            detected_issues.push(format!("检测到警告: {}", warn.translated_message));
+        }
+
+        if warn.translated_message.starts_with("UpdateAvailable") {
+            let suggestion = "建议更新到 MOD 的最新版本以获得更好体验。".to_string();
+            if seen_suggestion.insert(suggestion.clone()) {
+                suggestions.push(suggestion);
+            }
+        } else if warn.translated_message.starts_with("ObsoleteApi") {
+            let suggestion = "该 MOD 使用了过时的 API，建议关注作者更新或寻找替代 MOD。".to_string();
+            if seen_suggestion.insert(suggestion.clone()) {
+                suggestions.push(suggestion);
+            }
+        }
+    }
+
+    if errors.is_empty() && warnings.is_empty() {
+        detected_issues.push("未在粘贴内容中检测到明显的 SMAPI 错误或警告。".to_string());
+        suggestions.push("如果游戏仍有问题，请尝试：\n1. 重启游戏观察是否复现\n2. 复制更完整的 SMAPI-latest.txt 内容（包含上下文行）\n3. 查看 SMAPI 官方文档 https://smapi.io/".to_string());
+    }
+
+    let error_count = errors.len();
+    let warning_count = warnings.len();
+    let input_length = content.chars().count();
+
+    Ok(PastedLogAnalysis {
+        errors,
+        warnings,
+        error_count,
+        warning_count,
+        input_length,
+        detected_issues,
+        suggestions,
+    })
+}
+
 fn parse_errors_v2(content: &str) -> Vec<LogError> {
     let mut errors = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
@@ -1389,6 +1496,10 @@ fn parse_errors_v2(content: &str) -> Vec<LogError> {
         }
 
         if trimmed.contains("[ERROR game]") || trimmed.contains("[error game]") {
+            continue;
+        }
+
+        if WARN_RE.is_match(trimmed) {
             continue;
         }
 
@@ -1558,6 +1669,32 @@ fn parse_warnings_v2(content: &str) -> Vec<LogWarning> {
                 raw_message: trimmed.to_string(),
                 translated_message: format!("ObsoleteApi: {}", resolved),
                 suggestion: format!("{} 使用了已过时的 SMAPI API，建议关注更新。", resolved),
+            });
+            continue;
+        }
+
+        if let Some(caps) = NPC_PORTRAIT_RE.captures(trimmed) {
+            let npc = caps.get(1).map(|m| m.as_str()).unwrap_or("NPC");
+            warnings.push(LogWarning {
+                raw_message: trimmed.to_string(),
+                translated_message: format!("MissingNpcPortrait: {}", npc),
+                suggestion: format!(
+                    "NPC {} 的肖像文件（Portraits/{}.xnb）丢失。常见原因：\n1. 肖像 mod 的目标路径与游戏实际路径不匹配（建议优先使用 Content Patcher 版本的肖像 mod）\n2. 卸载了某个肖像 mod 但残留了引用\n\n解决方法：\n• 重新下载支持 SDV 1.6 的肖像 mod\n• 在 Steam/GOG 验证游戏文件完整性（游戏属性 → 本地文件 → 验证完整性）",
+                    npc, npc
+                ),
+            });
+            continue;
+        }
+
+        if let Some(caps) = CONTENT_FILE_MISSING_RE.captures(trimmed) {
+            let path = caps.get(1).map(|m| m.as_str()).unwrap_or("Content 文件");
+            warnings.push(LogWarning {
+                raw_message: trimmed.to_string(),
+                translated_message: format!("MissingContentFile: {}", path),
+                suggestion: format!(
+                    "游戏无法加载内容文件：{}\n\n这通常表示：\n1. 某个 mod 引用了不存在的 .xnb 文件\n2. mod 与当前游戏版本不兼容（SDV 1.6 移除了部分原版 .xnb 文件）\n\n解决方法：\n• 在 Steam/GOG 验证游戏文件完整性\n• 重新下载支持 SDV 1.6 的同款 mod",
+                    path
+                ),
             });
             continue;
         }
@@ -2357,5 +2494,33 @@ mod tests {
         assert!(!errors.is_empty(), "Should detect rewriting dll failed");
         let found = errors.iter().any(|e| e.translated_message.contains("DllLoadFailed"));
         assert!(found, "Should classify as DllLoadFailed, got: {:?}", errors);
+    }
+
+    #[test]
+    fn test_parse_warnings_v2_detects_npc_portrait() {
+        let log = r#"[18:28:06 WARN  game] NPC MorrisTod can't load portraits from 'Portraits/MorrisTod': Microsoft.Xna.Framework.Content.ContentLoadException: The content file was not found.
+[18:28:06 WARN  game] NPC GuntherSilvian can't load portraits from 'Portraits/GuntherSilvian': Microsoft.Xna.Framework.Content.ContentLoadException: The content file was not found.
+[18:28:06 WARN  game] NPC MarlonFay can't load portraits from 'Portraits/MarlonFay': Microsoft.Xna.Framework.Content.ContentLoadException: The content file was not found.
+"#;
+        let warnings = parse_warnings_v2(log);
+        assert_eq!(warnings.len(), 3, "should detect 3 portrait warnings, got {}", warnings.len());
+        for w in &warnings {
+            assert!(w.translated_message.starts_with("MissingNpcPortrait:"), "expected MissingNpcPortrait, got: {}", w.translated_message);
+            assert!(w.suggestion.contains("Content Patcher"), "suggestion should mention Content Patcher");
+        }
+        let names: Vec<String> = warnings.iter().map(|w| w.translated_message.clone()).collect();
+        assert!(names.contains(&"MissingNpcPortrait: MorrisTod".to_string()));
+        assert!(names.contains(&"MissingNpcPortrait: GuntherSilvian".to_string()));
+        assert!(names.contains(&"MissingNpcPortrait: MarlonFay".to_string()));
+    }
+
+    #[test]
+    fn test_parse_errors_v2_skips_warn_npc_portrait() {
+        let log = r#"[19:23:51 WARN  game] NPC MorrisTod can't load portraits from 'Portraits/MorrisTod': Microsoft.Xna.Framework.Content.ContentLoadException: The content file was not found.
+[19:23:52 WARN  game] NPC GuntherSilvian can't load portraits from 'Portraits/GuntherSilvian': Microsoft.Xna.Framework.Content.ContentLoadException: The content file was not found.
+[19:23:52 WARN  game] NPC MarlonFay can't load portraits from 'Portraits/MarlonFay': Microsoft.Xna.Framework.Content.ContentLoadException: The content file was not found.
+"#;
+        let errors = parse_errors_v2(log);
+        assert_eq!(errors.len(), 0, "WARN-level NPC portrait lines should not be parsed as errors, got {} errors: {:?}", errors.len(), errors);
     }
 }

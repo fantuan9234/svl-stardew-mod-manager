@@ -4,8 +4,7 @@ import type { ModInfo } from '../utils/tauri-api';
 import type { ModNameTranslation } from '../utils/tauri-api';
 import { getModNameTranslations, translateModName, batchTranslateModNames, deleteModNameTranslation, clearAllModNameTranslations } from '../utils/tauri-api';
 import { Tooltip, Modal, Dropdown, message } from 'antd';
-import { FolderOpenOutlined, LinkOutlined, DeleteOutlined, SyncOutlined, CheckOutlined, CloseOutlined, SettingOutlined, HistoryOutlined, TranslationOutlined } from '@ant-design/icons';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { FolderOpenOutlined, LinkOutlined, DeleteOutlined, SyncOutlined, CheckOutlined, CloseOutlined, SettingOutlined, HistoryOutlined, TranslationOutlined, UnorderedListOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '../utils/openUrl';
 
@@ -52,18 +51,6 @@ interface ModListProps {
 }
 
 
-function getModStatus(mod: ModInfo): { icon: string; label: string; className: string } {
-  if (mod.has_conflict) {
-    return { icon: '❌', label: 'missingDeps', className: 'svl-tag-error' };
-  }
-  if (mod.has_update) {
-    return { icon: '🔄', label: 'updateAvailable', className: 'svl-tag-warning' };
-  }
-  if (mod.enabled) {
-    return { icon: '✅', label: 'enabled', className: 'svl-tag-success' };
-  }
-  return { icon: '⚠️', label: 'disabled', className: 'svl-tag-default' };
-}
 
 export default function ModList({
   mods,
@@ -89,6 +76,7 @@ export default function ModList({
   const [nameTranslations, setNameTranslations] = useState<Map<string, ModNameTranslation>>(new Map());
   const [translatingId, setTranslatingId] = useState<string | null>(null);
   const [batchTranslating, setBatchTranslating] = useState(false);
+  const [isGridLayout, setIsGridLayout] = useState(true); // true = grid (2列), false = list (单列)
   const parentRef = useRef<HTMLDivElement>(null);
 
   const isModTranslated = useCallback((mod: ModInfo) => {
@@ -114,15 +102,13 @@ export default function ModList({
   }, []);
 
   const filteredMods = useMemo(() => {
-    return mods;
+    // 根据 unique_id 去重，保留最后一个出现的模组
+    const seen = new Map<string, ModInfo>();
+    for (const mod of mods) {
+      seen.set(mod.unique_id.toLowerCase(), mod);
+    }
+    return Array.from(seen.values());
   }, [mods]);
-
-  const virtualizer = useVirtualizer({
-    count: filteredMods.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 80,
-    overscan: 5,
-  });
 
   const handleContextMenu = useCallback((mod: ModInfo, e: React.MouseEvent) => {
     e.preventDefault();
@@ -260,6 +246,10 @@ export default function ModList({
       message.error(err?.toString() || t('app.modNameTranslate.failed'));
     }
   }, [filteredMods, isModTranslated, t, onRefresh]);
+
+  const toggleLayout = useCallback(() => {
+    setIsGridLayout(prev => !prev);
+  }, []);
 
   const displayNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -411,6 +401,15 @@ export default function ModList({
             {t('app.modNameTranslate.clearAll')}
           </button>
         )}
+        <button
+          className="svl-batch-btn"
+          onClick={toggleLayout}
+          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+          title={isGridLayout ? '切换到列表视图' : '切换到网格视图'}
+        >
+          {isGridLayout ? <UnorderedListOutlined /> : <AppstoreOutlined />}
+          {isGridLayout ? '列表视图' : '网格视图'}
+        </button>
       </div>
 
       {selectedMods.size > 0 && (
@@ -433,49 +432,31 @@ export default function ModList({
         </div>
       )}
 
-      <div ref={parentRef} className="svl-mods-list" style={{ overflow: 'auto', height: '100%' }}>
-        <div
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            width: '100%',
-            position: 'relative',
-          }}
-        >
-          {virtualizer.getVirtualItems().map((virtualRow) => {
-            const mod = filteredMods[virtualRow.index];
-            const status = getModStatus(mod);
-            const isSelected = selectedMods.has(mod.unique_id);
-            const modTags = getTags?.(mod.unique_id) || [];
+      <div ref={parentRef} className={`svl-mods-list ${isGridLayout ? 'grid-layout' : 'list-layout'}`} style={{ overflow: 'auto', height: '100%' }}>
+        {filteredMods.map((mod) => {
+          const isSelected = selectedMods.has(mod.unique_id);
+          const modTags = getTags?.(mod.unique_id) || [];
 
-            return (
-              <div
-                key={mod.unique_id}
-                ref={virtualizer.measureElement}
-                data-index={virtualRow.index}
-                className={`svl-mod-card ${mod.has_conflict ? 'has-conflict' : ''} ${isSelected ? 'selected' : ''}`}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-                onClick={(e) => handleSelectMod(mod, e)}
+          return (
+            <div
+              key={mod.unique_id}
+              className={`svl-mod-card ${mod.has_conflict ? 'has-conflict' : ''} ${isSelected ? 'selected' : ''}`}
+              onClick={(e) => handleSelectMod(mod, e)}
                 onContextMenu={(e) => handleContextMenu(mod, e)}
               >
                 <div
                   className="svl-mod-icon"
                 >
                   {mod.thumbnail_path ? (
-                    <img src={`file:///${mod.thumbnail_path.replace(/\\/g, '/')}`} alt={mod.name} width={40} height={40} style={{ objectFit: 'cover' }} />
+                    <img src={`file:///${mod.thumbnail_path.replace(/\\/g, '/')}`} alt={mod.name} width={36} height={36} style={{ objectFit: 'cover' }} />
                   ) : mod.screenshot_path ? (
-                    <img src={`file:///${mod.screenshot_path.replace(/\\/g, '/')}`} alt={mod.name} width={40} height={40} style={{ objectFit: 'cover' }} />
+                    <img src={`file:///${mod.screenshot_path.replace(/\\/g, '/')}`} alt={mod.name} width={36} height={36} style={{ objectFit: 'cover' }} />
                   ) : (
                     <img
                       src="/mod-icon.png"
                       alt=""
-                      width={40}
-                      height={40}
+                      width={36}
+                      height={36}
                       style={{ objectFit: 'contain' }}
                     />
                   )}
@@ -489,11 +470,6 @@ export default function ModList({
                         {mod.sub_mods.length}{t('app.modList.subMods')}
                       </span>
                     )}
-                    <Tooltip title={t(`app.modStatus.${status.label}`)}>
-                      <span className={`${status.className} svl-status-badge`}>
-                        {status.icon}
-                      </span>
-                    </Tooltip>
                     {mod.has_update && (
                       <span className="svl-tag-danger svl-update-badge">
                         {t('app.modDetail.updateAvailable')}
@@ -567,42 +543,6 @@ export default function ModList({
                 </div>
 
                 <div className="svl-mod-actions">
-                  <Tooltip title={isModTranslated(mod)
-                    ? t('app.modNameTranslate.restoreName')
-                    : t('app.modNameTranslate.translateName')}>
-                    <button
-                      className="svl-link-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isModTranslated(mod)) {
-                          handleDeleteTranslation(mod);
-                        } else {
-                          handleTranslateName(mod);
-                        }
-                      }}
-                      disabled={translatingId === mod.unique_id}
-                      style={{ fontSize: 14, opacity: translatingId === mod.unique_id ? 0.5 : 1 }}
-                    >
-                      {translatingId === mod.unique_id ? '⏳' : '🌐'}
-                    </button>
-                  </Tooltip>
-                  <Tooltip title={t('app.modCard.openPage')}>
-                    <button
-                      className="svl-link-btn"
-                      onClick={(e) => { e.stopPropagation(); handleOpenNexusLink(mod); }}
-                      disabled={linkLoadingId === mod.unique_id}
-                      title={t('app.modCard.openPage')}
-                    >
-                      {linkLoadingId === mod.unique_id ? '⏳' : '🔗'}
-                    </button>
-                  </Tooltip>
-                  <button
-                    className="svl-uninstall-btn"
-                    onClick={(e) => { e.stopPropagation(); onDeleteMod?.(mod.unique_id); }}
-                    title={t('app.modCard.uninstall')}
-                  >
-                    🗑️
-                  </button>
                   <Tooltip title={mod.is_required && mod.enabled ? t('app.modCard.requiredMod') : ''}>
                     <div
                       className={`svl-switch ${mod.enabled ? 'active' : ''} ${mod.is_required ? 'required' : ''}`}
@@ -616,11 +556,48 @@ export default function ModList({
                       <div className="svl-switch-thumb" />
                     </div>
                   </Tooltip>
+
+                  <div className="svl-mod-toolbar">
+                    <Tooltip title={isModTranslated(mod)
+                      ? t('app.modNameTranslate.restoreName')
+                      : t('app.modNameTranslate.translateName')}>
+                      <button
+                        className="svl-action-icon-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isModTranslated(mod)) {
+                            handleDeleteTranslation(mod);
+                          } else {
+                            handleTranslateName(mod);
+                          }
+                        }}
+                        disabled={translatingId === mod.unique_id}
+                      >
+                        {translatingId === mod.unique_id ? '⏳' : '🌐'}
+                      </button>
+                    </Tooltip>
+                    <Tooltip title={t('app.modCard.openPage')}>
+                      <button
+                        className="svl-action-icon-btn"
+                        onClick={(e) => { e.stopPropagation(); handleOpenNexusLink(mod); }}
+                        disabled={linkLoadingId === mod.unique_id}
+                      >
+                        {linkLoadingId === mod.unique_id ? '⏳' : '🔗'}
+                      </button>
+                    </Tooltip>
+                    <Tooltip title={t('app.modCard.uninstall')}>
+                      <button
+                        className="svl-action-icon-btn svl-action-danger"
+                        onClick={(e) => { e.stopPropagation(); onDeleteMod?.(mod.unique_id); }}
+                      >
+                        🗑️
+                      </button>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
             );
           })}
-        </div>
       </div>
 
       <Dropdown

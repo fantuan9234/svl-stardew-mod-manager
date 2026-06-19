@@ -1,5 +1,5 @@
 (function() {
-    console.log('[SVL] Auto-download script v45 loaded');
+    console.log('[SVL] Auto-download script v46 loaded');
 
     var TARGET_MOD_ID = "SVL_TARGET_MOD_ID";
     var TARGET_FILE_ID = "SVL_TARGET_FILE_ID";
@@ -113,7 +113,7 @@
         if (newPhase >= 2) svlState.manualClicked = true;
         svlSaveState();
         var names = ['', '找Manual', '找SlowDownload'];
-        svlUpdateStatus('<b>SVL</b> v45<br>P' + newPhase + ': ' + (names[newPhase] || ''));
+        svlUpdateStatus('<b>SVL</b> v46<br>P' + newPhase + ': ' + (names[newPhase] || ''));
         svlLog('>>> Phase -> ' + newPhase);
     }
 
@@ -281,6 +281,34 @@
         return false;
     }
 
+    function svlIsDisabled(el) {
+        if (!el) return true;
+        try {
+            if (el.disabled) return true;
+            if (el.getAttribute('disabled') !== null) return true;
+            if (el.getAttribute('aria-disabled') === 'true') return true;
+            var style = window.getComputedStyle(el);
+            if (style.pointerEvents === 'none') return true;
+            if (parseFloat(style.opacity) < 0.5) return true;
+            if (style.cursor === 'not-allowed') return true;
+        } catch(e) {}
+        return false;
+    }
+
+    function svlIsInCountdown() {
+        var bodyText = (document.body.textContent || '').toLowerCase();
+        if (bodyText.indexOf('wait more') >= 0) return true;
+        if (bodyText.indexOf('please wait') >= 0) return true;
+        var headings = document.querySelectorAll('h1, h2, h3, h4, [class*="title"], [class*="heading"], [class*="countdown"]');
+        for (var h = 0; h < headings.length; h++) {
+            var ht = (headings[h].textContent || '').toLowerCase();
+            if ((ht.indexOf('slow') >= 0 && ht.indexOf('download') >= 0) && (ht.indexOf('wait') >= 0 || ht.indexOf('more') >= 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ===== Phase 2: Shadow DOM穿透搜索 Slow Download =====
     function svlSearchAllDOM(keywords, excludeWords) {
         function checkEl(el) {
@@ -322,6 +350,36 @@
     function p2_findSlowDownload() {
         var phaseTime = Date.now() - svlState.phaseStartTime;
 
+        // 检测是否在倒计时等待页面
+        if (svlIsInCountdown()) {
+            if (phaseTime % 5000 < 2000) {
+                svlLog('P2: Countdown detected, waiting... (' + Math.round(phaseTime/1000) + 's elapsed)');
+                svlUpdateStatus('<b>SVL</b><br>等待倒计时...<br>' + Math.round(phaseTime/1000) + 's', 'rgba(200,150,0,0.9)');
+            }
+            // 倒计时期间仍然尝试找按钮，但只在非禁用时点击
+            var dl = document.querySelector('MOD-FILE-DOWNLOAD');
+            if (dl && dl.shadowRoot && svlIsVisible(dl)) {
+                var srBtns = dl.shadowRoot.querySelectorAll('button, a, [role="button"]');
+                for (var b = 0; b < srBtns.length; b++) {
+                    var btn = srBtns[b];
+                    if (!svlIsVisible(btn)) continue;
+                    var bt = (btn.textContent || '').trim().toLowerCase();
+                    if (bt.indexOf('slow') >= 0 && bt.indexOf('download') >= 0) {
+                        if (!svlIsDisabled(btn)) {
+                            svlClickElement(btn, 'SlowDL-Shadow-Ready');
+                            svlUpdateStatus('<b>SVL</b><br>慢速下载!', 'rgba(0,184,148,0.9)');
+                            svlState.downloadStarted = true;
+                            svlSaveState();
+                            return true;
+                        } else {
+                            svlLog('P2: Slow DL button found but disabled, waiting for countdown...');
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
         if (phaseTime > 5000 && !svlState.didDump) {
             svlState.didDump = true;
             svlDumpElements('P2');
@@ -338,6 +396,10 @@
                 if (!svlIsVisible(btn)) continue;
                 var bt = (btn.textContent || '').trim().toLowerCase();
                 if (bt.indexOf('slow') >= 0 && bt.indexOf('download') >= 0) {
+                    if (svlIsDisabled(btn)) {
+                        svlLog('P2: Slow DL button disabled (shadow), retry later...');
+                        continue;
+                    }
                     svlClickElement(btn, 'SlowDL-Shadow');
                     svlUpdateStatus('<b>SVL</b><br>慢速下载!', 'rgba(0,184,148,0.9)');
                     svlState.downloadStarted = true;
@@ -353,6 +415,10 @@
             ['fast', 'premium', 'supporter', 'member', 'history']
         );
         if (found) {
+            if (svlIsDisabled(found)) {
+                svlLog('P2: Found slow DL element but disabled, retry...');
+                return false;
+            }
             svlClickElement(found, 'SlowDL-AllDOM');
             svlUpdateStatus('<b>SVL</b><br>慢速下载!', 'rgba(0,184,148,0.9)');
             svlState.downloadStarted = true;
@@ -376,6 +442,10 @@
                     if (!svlIsVisible(el)) continue;
                     var t = (el.textContent || '').trim().toLowerCase();
                     if (t.indexOf('slow') >= 0 && t.indexOf('download') >= 0) {
+                        if (svlIsDisabled(el)) {
+                            svlLog('P2: Desperate found but disabled');
+                            continue;
+                        }
                         svlClickElement(el, 'Desperate-' + allContexts[c].label);
                         svlState.downloadStarted = true;
                         svlSaveState();

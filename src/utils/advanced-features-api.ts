@@ -197,3 +197,40 @@ export async function checkModSecurity(modPath: string): Promise<ModSecurityRepo
 export async function batchCheckModSecurity(mods: { folder_path: string }[]): Promise<BatchSecurityReport> {
   return invoke<BatchSecurityReport>('batch_check_mod_security', { mods });
 }
+
+// --- Save Backup APIs ---
+
+export interface SaveBackupInfo {
+  backup_name: string;
+  character_name: string;
+  farm_name: string;
+  save_folder: string;
+  backup_path: string;
+  created_at: string;
+  size_mb: number;
+  source: string;
+  note: string;
+}
+
+export interface SaveBackupList {
+  backups: SaveBackupInfo[];
+  total_backups: number;
+  total_size_mb: number;
+}
+
+export interface SaveBackupOpResult {
+  success: boolean;
+  message: string;
+}
+
+export async function listSaveFileBackups(): Promise<SaveBackupList> {
+  return invoke<SaveBackupList>('list_save_file_backups');
+}
+
+export async function restoreSaveFileBackup(backupPath: string): Promise<SaveBackupOpResult> {
+  return invoke<SaveBackupOpResult>('restore_save_file_backup', { backupPath });
+}
+
+export async function deleteSaveFileBackup(backupPath: string): Promise<SaveBackupOpResult> {
+  return invoke<SaveBackupOpResult>('delete_save_file_backup', { backupPath });
+}

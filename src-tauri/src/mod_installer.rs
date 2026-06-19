@@ -8,6 +8,92 @@ use tauri::Emitter;
 
 use crate::mod_name_resolver::resolve_mod_name;
 use crate::dependency_patches::apply_final_patches;
+use crate::app_logger::get_svl_data_dir;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ModType {
+    Smapi,
+    ContentPack,
+    Unknown,
+}
+
+fn detect_mod_type(temp_dir: &Path) -> ModType {
+    let (has_manifest, is_content_pack) = check_manifest_in_dir(temp_dir);
+    if has_manifest {
+        if is_content_pack {
+            return ModType::ContentPack;
+        }
+        return ModType::Smapi;
+    }
+    ModType::Unknown
+}
+
+fn check_manifest_in_dir(dir: &Path) -> (bool, bool) {
+    if let Ok(entries) = fs::read_dir(dir) {
+        let dirs: Vec<_> = entries.filter_map(|e| e.ok()).filter(|e| e.path().is_dir()).collect();
+        if dirs.len() == 1 {
+            let single = &dirs[0];
+            if let Some(result) = check_manifest_at(&single.path()) {
+                return result;
+            }
+            if let Ok(sub_entries) = fs::read_dir(single.path()) {
+                for sub in sub_entries.flatten() {
+                    let sub_path = sub.path();
+                    if !sub_path.is_dir() {
+                        continue;
+                    }
+                    if let Some(result) = check_manifest_at(&sub_path) {
+                        return result;
+                    }
+                }
+            }
+        }
+        for entry in &dirs {
+            if let Some(result) = check_manifest_at(&entry.path()) {
+                return result;
+            }
+        }
+    }
+    check_manifest_at(dir).unwrap_or((false, false))
+}
+
+fn check_manifest_at(dir: &Path) -> Option<(bool, bool)> {
+    let manifest_path = dir.join("manifest.json");
+    if !manifest_path.exists() {
+        return None;
+    }
+    if let Ok(content) = fs::read_to_string(&manifest_path) {
+        let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+        let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+        let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+        if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(cleaned) {
+            let is_cp = manifest.get("ContentPackFor")
+                .and_then(|v| {
+                    if v.is_string() {
+                        Some(v.as_str().unwrap_or("").to_string())
+                    } else {
+                        v.get("UniqueID").or_else(|| v.get("UniqueId")).and_then(|u| u.as_str()).map(|s| s.to_string())
+                    }
+                })
+                .map(|uid| uid == "Pathoschild.ContentPatcher")
+                .unwrap_or(false);
+            return Some((true, is_cp));
+        }
+    }
+    None
+}
+
+fn extract_content_paths_from_description(description: &str) -> Vec<String> {
+    let re = regex::Regex::new(r"(?i)Content[/\\][\w./\\]+").unwrap();
+    let mut paths: Vec<String> = re
+        .find_iter(description)
+        .map(|m| m.as_str().replace('\\', "/"))
+        .collect();
+    paths.sort_by(|a, b| b.len().cmp(&a.len()));
+    paths.dedup();
+    paths
+}
+
 
 fn decode_zip_filename(raw: &[u8]) -> String {
     if let Ok(s) = std::str::from_utf8(raw) {
@@ -27,6 +113,37 @@ fn decode_zip_filename(raw: &[u8]) -> String {
     }
 
     String::from_utf8_lossy(raw).into_owned()
+}
+
+fn get_trash_dir() -> Option<PathBuf> {
+    let data_dir = get_svl_data_dir();
+    let trash = data_dir.join("trash");
+    if !trash.exists() {
+        let _ = fs::create_dir_all(&trash);
+    }
+    Some(trash)
+}
+
+fn cleanup_old_trash() {
+    let trash_dir = get_svl_data_dir();
+    let trash = trash_dir.join("trash");
+    if !trash.exists() {
+        return;
+    }
+    if let Ok(entries) = fs::read_dir(&trash) {
+        let now = std::time::SystemTime::now();
+        for entry in entries.flatten() {
+            if let Ok(metadata) = entry.metadata() {
+                if let Ok(modified) = metadata.modified() {
+                    if let Ok(duration) = now.duration_since(modified) {
+                        if duration.as_secs() > 7 * 24 * 3600 {
+                            let _ = fs::remove_dir_all(entry.path());
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn is_safe_to_delete(target: &Path, mods_dir: &Path) -> bool {
@@ -97,21 +214,44 @@ fn install_via_staging(
             ));
         }
 
-        let backup_name = format!(".{}.svl_backup", folder_name);
-        let backup = mods_dir.join(&backup_name);
-        if backup.exists() {
-            let _ = fs::remove_dir_all(&backup);
+        if let Some(trash_dir) = get_trash_dir() {
+            let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+            let trash_name = format!("{}_{}", folder_name, timestamp);
+            let trash_target = trash_dir.join(&trash_name);
+            if let Err(_) = fs::rename(dest_path, &trash_target) {
+                let backup_name = format!(".{}.svl_backup", folder_name);
+                let backup = mods_dir.join(&backup_name);
+                if backup.exists() {
+                    let _ = fs::remove_dir_all(&backup);
+                }
+                fs::rename(dest_path, &backup).map_err(|e| {
+                    format!(
+                        "备份已存在的 MOD 失败 ({} -> {}): {}",
+                        dest_path.display(),
+                        backup.display(),
+                        e
+                    )
+                })?;
+                backup_path = Some(backup);
+            } else {
+                eprintln!("[install_via_staging] Moved old mod to trash: {}", trash_name);
+            }
+        } else {
+            let backup_name = format!(".{}.svl_backup", folder_name);
+            let backup = mods_dir.join(&backup_name);
+            if backup.exists() {
+                let _ = fs::remove_dir_all(&backup);
+            }
+            fs::rename(dest_path, &backup).map_err(|e| {
+                format!(
+                    "备份已存在的 MOD 失败 ({} -> {}): {}",
+                    dest_path.display(),
+                    backup.display(),
+                    e
+                )
+            })?;
+            backup_path = Some(backup);
         }
-
-        fs::rename(dest_path, &backup).map_err(|e| {
-            format!(
-                "备份已存在的 MOD 失败 ({} -> {}): {}",
-                dest_path.display(),
-                backup.display(),
-                e
-            )
-        })?;
-        backup_path = Some(backup);
     }
 
     if let Err(e) = fs_extra::dir::copy(source, mods_dir, &fs_extra::dir::CopyOptions::new()) {
@@ -135,7 +275,18 @@ fn install_via_staging(
     }
 
     if let Some(backup) = backup_path {
-        let _ = fs::remove_dir_all(&backup);
+        if let Some(trash_dir) = get_trash_dir() {
+            let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+            let trash_name = format!("{}_{}", folder_name, timestamp);
+            let trash_target = trash_dir.join(&trash_name);
+            if fs::rename(&backup, &trash_target).is_ok() {
+                eprintln!("[install_via_staging] Moved backup to trash: {}", trash_name);
+            } else {
+                let _ = fs::remove_dir_all(&backup);
+            }
+        } else {
+            let _ = fs::remove_dir_all(&backup);
+        }
     }
 
     Ok(())
@@ -175,7 +326,7 @@ pub fn find_existing_mod_folder(mods_dir: &PathBuf, unique_id: &str) -> Option<P
     None
 }
 
-fn remove_old_mod_versions(mods_dir: &PathBuf, unique_id: &str) -> Vec<String> {
+fn remove_old_mod_versions(mods_dir: &PathBuf, unique_id: &str, new_folder_name: &str) -> Vec<String> {
     let mut removed = Vec::new();
     if let Ok(entries) = fs::read_dir(mods_dir) {
         let all_entries: Vec<_> = entries.flatten().collect();
@@ -185,7 +336,10 @@ fn remove_old_mod_versions(mods_dir: &PathBuf, unique_id: &str) -> Vec<String> {
                 continue;
             }
             let folder_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-            if folder_name.starts_with('.') && folder_name.len() <= 1 {
+            if folder_name.starts_with('.') || folder_name.starts_with('_') {
+                continue;
+            }
+            if folder_name == new_folder_name {
                 continue;
             }
             let mut matched = false;
@@ -201,8 +355,7 @@ fn remove_old_mod_versions(mods_dir: &PathBuf, unique_id: &str) -> Vec<String> {
                 }
             }
             if !matched {
-                let folder_name_stripped = folder_name.strip_prefix('.').unwrap_or(&folder_name);
-                let dot_manifest = path.join(format!("{}.manifest.json", folder_name_stripped));
+                let dot_manifest = path.join(".manifest.json");
                 if let Ok(content) = fs::read_to_string(&dot_manifest) {
                     let normalized = crate::mod_parser::normalize_smart_quotes(&content);
                     let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
@@ -219,11 +372,25 @@ fn remove_old_mod_versions(mods_dir: &PathBuf, unique_id: &str) -> Vec<String> {
                     eprintln!("[remove_old_mod_versions] SAFETY BLOCKED: {}", path.display());
                     continue;
                 }
-                eprintln!("[remove_old_mod_versions] Removing old version: {}", path.display());
-                if fs::remove_dir_all(&path).is_ok() {
-                    removed.push(folder_name);
+                if let Some(trash_dir) = get_trash_dir() {
+                    let trash_target = trash_dir.join(&folder_name);
+                    if trash_target.exists() {
+                        let _ = fs::remove_dir_all(&trash_target);
+                    }
+                    if fs::rename(&path, &trash_target).is_ok() {
+                        eprintln!("[remove_old_mod_versions] Moved old version to trash: {}", folder_name);
+                        removed.push(folder_name);
+                    } else {
+                        eprintln!("[remove_old_mod_versions] Failed to move to trash, removing: {}", path.display());
+                        if fs::remove_dir_all(&path).is_ok() {
+                            removed.push(folder_name);
+                        }
+                    }
                 } else {
-                    eprintln!("[remove_old_mod_versions] Failed to remove: {}", path.display());
+                    eprintln!("[remove_old_mod_versions] Removing old version: {}", path.display());
+                    if fs::remove_dir_all(&path).is_ok() {
+                        removed.push(folder_name);
+                    }
                 }
             }
         }
@@ -243,6 +410,8 @@ pub struct InstallResult {
     pub success: bool,
     pub mod_name: Option<String>,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub installed_mods: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -356,11 +525,13 @@ pub async fn install_mod_from_archive(
     archive_path: String,
     mods_path: String,
     old_unique_id: Option<String>,
+    variant_filter: Option<String>,
+    nexus_description: Option<String>,
 ) -> Result<InstallResult, String> {
     let archive_path = archive_path.clone();
     let mods_path = mods_path.clone();
     tokio::task::spawn_blocking(move || {
-        install_mod_from_archive_blocking(app, archive_path, mods_path, old_unique_id)
+        install_mod_from_archive_blocking(app, archive_path, mods_path, old_unique_id, variant_filter, nexus_description)
     })
     .await
     .map_err(|e| format!("安装任务执行失败: {}", e))?
@@ -371,12 +542,29 @@ pub(crate) fn install_mod_from_archive_blocking(
     archive_path: String,
     mods_path: String,
     old_unique_id: Option<String>,
+    variant_filter: Option<String>,
+    nexus_description: Option<String>,
 ) -> Result<InstallResult, String> {
     let archive = PathBuf::from(&archive_path);
     let mods_dir = PathBuf::from(&mods_path);
 
     if !archive.exists() {
         return Err(format!("压缩包不存在: {}", archive_path));
+    }
+
+    if let Ok(mut f) = std::fs::File::open(&archive) {
+        use std::io::Read;
+        let mut head = [0u8; 4];
+        let n = f.read(&mut head).unwrap_or(0);
+        let valid_zip = n == 4 && &head == b"PK\x03\x04";
+        if !valid_zip {
+            let size = std::fs::metadata(&archive).map(|m| m.len()).unwrap_or(0);
+            let ascii_preview: String = head.iter().map(|&b| if b.is_ascii_graphic() || b == b' ' { b as char } else { '.' }).collect();
+            return Err(format!(
+                "下载的文件不是有效的 ZIP 压缩包 ({} 字节，前 4 字节预览: '{}' 0x{:02x?})。可能原因：1) 下载未完成；2) Nexus 限流返回了错误页面；3) 需要重新登录。文件路径: {}",
+                size, ascii_preview, head, archive_path
+            ));
+        }
     }
 
     if !mods_dir.exists() {
@@ -418,88 +606,214 @@ pub(crate) fn install_mod_from_archive_blocking(
         return Err(e);
     }
 
-    let mod_folder = match find_mod_folder(&temp_dir) {
+    let mod_type = detect_mod_type(&temp_dir);
+
+    match mod_type {
+        ModType::Unknown => {
+            cleanup_temp_dir_with_retry(&temp_dir);
+            return Err("无法识别的模组类型：未找到 manifest.json。请确认压缩包内容是否正确".to_string());
+        }
+        _ => {}
+    }
+
+    let mod_folders = match find_mod_folders(&temp_dir) {
         Ok(f) => f,
         Err(e) => {
             cleanup_temp_dir_with_retry(&temp_dir);
             return Err(e);
         }
     };
-    let mod_name = mod_folder
-        .file_name()
-        .ok_or("无法获取 MOD 文件夹名称")?
-        .to_string_lossy()
-        .to_string();
 
-    let _ = app.emit(
-        "mod-install-progress",
-        InstallProgressEvent {
-            step: "installing".to_string(),
-            mod_name: Some(mod_name.clone()),
-            message: format!("正在安装 '{}'...", mod_name),
-        },
-    );
+    eprintln!("[install_mod_from_archive] Found {} mod folder(s) in archive", mod_folders.len());
+    for (i, folder) in mod_folders.iter().enumerate() {
+        eprintln!("[install_mod_from_archive]   [{}] {}", i, folder.display());
+    }
 
-    let dest_path = mods_dir.join(&mod_name);
+    let mut installed_names: Vec<String> = Vec::new();
+    let mut last_error: Option<String> = None;
 
-    if let Some(ref uid) = old_unique_id {
-        if !uid.is_empty() {
-            let removed = remove_old_mod_versions(&mods_dir, uid);
-            if !removed.is_empty() {
-                eprintln!("[install_mod_from_archive] Removed old versions of {}: {:?}", uid, removed);
+    if mod_folders.len() > 1 {
+        let common_parent = mod_folders[0].parent().map(|p| p.to_path_buf());
+        if let Some(ref parent) = common_parent {
+            let all_same_parent = mod_folders.iter().all(|f| f.parent().map(|p| p.to_path_buf()).as_ref() == Some(parent));
+            if all_same_parent && *parent != temp_dir {
+                let bundle_name = match parent.file_name() {
+                    Some(n) => n.to_string_lossy().to_string(),
+                    None => "Unknown".to_string(),
+                };
+
+                let _ = app.emit(
+                    "mod-install-progress",
+                    InstallProgressEvent {
+                        step: "installing".to_string(),
+                        mod_name: Some(bundle_name.clone()),
+                        message: format!("正在安装 '{}' (包含 {} 个子模组)...", bundle_name, mod_folders.len()),
+                    },
+                );
+
+                let dest_path = mods_dir.join(&bundle_name);
+
+                if let Some(ref uid) = old_unique_id {
+                    if !uid.is_empty() {
+                        let removed = remove_old_mod_versions(&mods_dir, uid, &bundle_name);
+                        if !removed.is_empty() {
+                            eprintln!("[install_mod_from_archive] Removed old versions of {}: {:?}", uid, removed);
+                        }
+                    }
+                }
+
+                if let Err(e) = install_via_staging(parent, &dest_path, &mods_dir) {
+                    eprintln!("[install_mod_from_archive] Failed to install bundle '{}': {}", bundle_name, e);
+                    last_error = Some(format!("安装 '{}' 失败: {}", bundle_name, e));
+                } else {
+                    installed_names.push(bundle_name.clone());
+
+                    for mf in &mod_folders {
+                        if let Some(sub_name) = mf.file_name() {
+                            let sub_manifest = dest_path.join(sub_name).join("manifest.json");
+                            if sub_manifest.exists() {
+                                if let Ok(content) = fs::read_to_string(&sub_manifest) {
+                                    let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+                                    let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                                    let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                                    if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(cleaned) {
+                                        let ver = manifest["Version"].as_str().unwrap_or("unknown");
+                                        let uid = manifest["UniqueID"].as_str().unwrap_or("unknown");
+                                        crate::app_logger::log_info("ModInstaller", &format!(
+                                            "Installed '{} {}' (UniqueID: {}) version: {}",
+                                            bundle_name, sub_name.to_string_lossy(), uid, ver
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let _ = app.emit(
+                        "mod-install-progress",
+                        InstallProgressEvent {
+                            step: "sub-done".to_string(),
+                            mod_name: Some(bundle_name.clone()),
+                            message: format!("MOD '{}' 安装成功 (含 {} 个子模组)", bundle_name, mod_folders.len()),
+                        },
+                    );
+                }
+
+                cleanup_temp_dir_with_retry(&temp_dir);
+
+                if installed_names.is_empty() {
+                    return Err(last_error.unwrap_or_else(|| "安装失败".to_string()));
+                }
+
+                let primary_name = installed_names[0].clone();
+                let _ = app.emit(
+                    "mod-install-progress",
+                    InstallProgressEvent {
+                        step: "done".to_string(),
+                        mod_name: Some(primary_name.clone()),
+                        message: format!("MOD '{}' 安装成功", primary_name),
+                    },
+                );
+
+                println!("[install_mod_from_archive] done (bundle mode), installed={:?}, mods_path={}", installed_names, mods_path);
+
+                return Ok(InstallResult {
+                    success: true,
+                    mod_name: Some(primary_name.clone()),
+                    message: format!("MOD '{}' 安装成功 (含 {} 个子模组)", primary_name, mod_folders.len()),
+                    installed_mods: Some(installed_names),
+                });
             }
         }
     }
 
-    if let Err(e) = install_via_staging(&mod_folder, &dest_path, &mods_dir) {
-        cleanup_temp_dir_with_retry(&temp_dir);
-        return Err(e);
+    for mod_folder in &mod_folders {
+        let mod_name = match mod_folder.file_name() {
+            Some(n) => n.to_string_lossy().to_string(),
+            None => continue,
+        };
+
+        let _ = app.emit(
+            "mod-install-progress",
+            InstallProgressEvent {
+                step: "installing".to_string(),
+                mod_name: Some(mod_name.clone()),
+                message: format!("正在安装 '{}'...", mod_name),
+            },
+        );
+
+        let dest_path = mods_dir.join(&mod_name);
+
+        if let Some(ref uid) = old_unique_id {
+            if !uid.is_empty() {
+                let removed = remove_old_mod_versions(&mods_dir, uid, &mod_name);
+                if !removed.is_empty() {
+                    eprintln!("[install_mod_from_archive] Removed old versions of {}: {:?}", uid, removed);
+                }
+            }
+        }
+
+        if let Err(e) = install_via_staging(mod_folder, &dest_path, &mods_dir) {
+            eprintln!("[install_mod_from_archive] Failed to install sub-mod '{}': {}", mod_name, e);
+            last_error = Some(format!("子模组 '{}' 安装失败: {}", mod_name, e));
+            continue;
+        }
+
+        let installed_manifest = dest_path.join("manifest.json");
+        if installed_manifest.exists() {
+            if let Ok(content) = fs::read_to_string(&installed_manifest) {
+                let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+                let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(cleaned) {
+                    let installed_version = manifest["Version"].as_str().unwrap_or("unknown");
+                    let installed_uid = manifest["UniqueID"].as_str().unwrap_or("unknown");
+                    crate::app_logger::log_info("ModInstaller", &format!(
+                        "Installed '{}' (UniqueID: {}) version: {} at {}",
+                        mod_name, installed_uid, installed_version, dest_path.display()
+                    ));
+                }
+            }
+        }
+
+        installed_names.push(mod_name.clone());
     }
 
     cleanup_temp_dir_with_retry(&temp_dir);
 
-    // Force filesystem flush on Windows
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        let _ = std::process::Command::new("cmd")
-            .args(["/C", "dir", mods_dir.to_str().unwrap_or("")])
-            .creation_flags(0x08000000)
-            .output();
+    if installed_names.is_empty() {
+        return Err(last_error.unwrap_or_else(|| "安装失败：未成功安装任何子模组".to_string()));
     }
 
+    let primary_name = installed_names[0].clone();
     let _ = app.emit(
         "mod-install-progress",
         InstallProgressEvent {
             step: "done".to_string(),
-            mod_name: Some(mod_name.clone()),
-            message: format!("MOD '{}' 安装成功", mod_name),
+            mod_name: Some(primary_name.clone()),
+            message: if installed_names.len() > 1 {
+                format!("已安装 {} 个子模组: {}", installed_names.len(), installed_names.join(", "))
+            } else {
+                format!("MOD '{}' 安装成功", primary_name)
+            },
         },
     );
 
-    let installed_manifest = dest_path.join("manifest.json");
-    if installed_manifest.exists() {
-        if let Ok(content) = fs::read_to_string(&installed_manifest) {
-            let normalized = crate::mod_parser::normalize_smart_quotes(&content);
-            let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
-            let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
-            if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(cleaned) {
-                let installed_version = manifest["Version"].as_str().unwrap_or("unknown");
-                let installed_uid = manifest["UniqueID"].as_str().unwrap_or("unknown");
-                crate::app_logger::log_info("ModInstaller", &format!(
-                    "Installed '{}' (UniqueID: {}) version: {} at {}",
-                    mod_name, installed_uid, installed_version, dest_path.display()
-                ));
-            }
-        }
-    }
-
-    println!("[install_mod_from_archive] done, mod_name={}, mods_path={}", mod_name, mods_path);
+    println!("[install_mod_from_archive] done, installed={:?}, mods_path={}", installed_names, mods_path);
 
     Ok(InstallResult {
         success: true,
-        mod_name: Some(mod_name.clone()),
-        message: format!("MOD '{}' 安装成功", mod_name),
+        mod_name: Some(primary_name.clone()),
+        message: if installed_names.len() > 1 {
+            format!("已安装 {} 个子模组", installed_names.len())
+        } else {
+            format!("MOD '{}' 安装成功", primary_name)
+        },
+        installed_mods: if installed_names.len() > 1 {
+            Some(installed_names)
+        } else {
+            None
+        },
     })
 }
 
@@ -582,6 +896,7 @@ fn install_mod_from_folder_blocking(
         success: true,
         mod_name: Some(folder_name.clone()),
         message: format!("MOD '{}' 安装成功", folder_name),
+        installed_mods: None,
     })
 }
 
@@ -617,29 +932,40 @@ fn uninstall_mod_blocking(mod_path: String) -> Result<InstallResult, String> {
         return Err(format!("安全拦截: 不允许删除路径 {}", path.display()));
     }
 
-    // First clean residual files in parent directory
     clean_residual_files(&path);
 
-    // Then remove the mod folder itself
-    fs::remove_dir_all(&path).map_err(|e| format!("删除 MOD 失败: {}", e))?;
+    cleanup_old_trash();
 
-    // Verify the folder is actually deleted, retry if needed (Windows file locking)
-    for _attempt in 0..3 {
-        if !path.exists() {
-            break;
+    let mut moved_to_trash = false;
+    if let Some(trash_dir) = get_trash_dir() {
+        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+        let trash_name = format!("{}_{}", mod_name, timestamp);
+        let trash_target = trash_dir.join(&trash_name);
+        if fs::rename(&path, &trash_target).is_ok() {
+            eprintln!("[uninstall_mod] Moved to trash: {}", trash_name);
+            moved_to_trash = true;
         }
-        thread::sleep(Duration::from_millis(200));
-        let _ = fs::remove_dir_all(&path);
     }
 
-    if path.exists() {
-        return Err(format!("MOD 文件夹删除后仍然存在: {}", mod_path));
+    if !moved_to_trash {
+        fs::remove_dir_all(&path).map_err(|e| format!("删除 MOD 失败: {}", e))?;
+        for _attempt in 0..3 {
+            if !path.exists() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(200));
+            let _ = fs::remove_dir_all(&path);
+        }
+        if path.exists() {
+            return Err(format!("MOD 文件夹删除后仍然存在: {}", mod_path));
+        }
     }
 
     Ok(InstallResult {
         success: true,
         mod_name: Some(mod_name.clone()),
         message: format!("MOD '{}' 已卸载并清理完成", mod_name),
+        installed_mods: None,
     })
 }
 
@@ -698,30 +1024,59 @@ fn extract_7z(archive: &PathBuf, dest: &PathBuf) -> Result<(), String> {
     Ok(())
 }
 
-fn find_mod_folder(temp_dir: &PathBuf) -> Result<PathBuf, String> {
+fn find_mod_folders(temp_dir: &PathBuf) -> Result<Vec<PathBuf>, String> {
+    if temp_dir.join("manifest.json").exists() {
+        return Ok(vec![temp_dir.clone()]);
+    }
+
     let entries: Vec<_> = fs::read_dir(temp_dir)
         .map_err(|e| format!("读取临时文件夹失败: {}", e))?
         .filter_map(|e| e.ok())
         .filter(|e| e.path().is_dir())
         .collect();
 
+    if entries.is_empty() {
+        return Err("未在压缩包中找到 MOD 文件夹或 manifest.json".to_string());
+    }
+
     if entries.len() == 1 {
-        Ok(entries[0].path())
-    } else if entries.is_empty() {
-        let has_manifest = temp_dir.join("manifest.json").exists();
-        if has_manifest {
-            Ok(temp_dir.clone())
-        } else {
-            Err("未在压缩包中找到 MOD 文件夹或 manifest.json".to_string())
+        let single = entries[0].path();
+        if single.join("manifest.json").exists() {
+            return Ok(vec![single]);
         }
-    } else {
-        for entry in &entries {
-            if entry.path().join("manifest.json").exists() {
-                return Ok(entry.path());
+        let mut found: Vec<PathBuf> = Vec::new();
+        if let Ok(sub_entries) = fs::read_dir(&single) {
+            for sub in sub_entries.flatten() {
+                let sub_path = sub.path();
+                if sub_path.is_dir() && sub_path.join("manifest.json").exists() {
+                    found.push(sub_path);
+                }
             }
         }
-        Err("压缩包中包含多个文件夹，但均未找到 manifest.json，无法确定 MOD 目录".to_string())
+        if !found.is_empty() {
+            return Ok(found);
+        }
+        return Ok(vec![single]);
     }
+
+    let mut found: Vec<PathBuf> = Vec::new();
+    for entry in &entries {
+        if entry.path().join("manifest.json").exists() {
+            found.push(entry.path());
+        }
+    }
+    if found.is_empty() {
+        return Err("压缩包中包含多个文件夹，但均未找到 manifest.json，无法确定 MOD 目录".to_string());
+    }
+    Ok(found)
+}
+
+fn find_mod_folder(temp_dir: &PathBuf) -> Result<PathBuf, String> {
+    let mut folders = find_mod_folders(temp_dir)?;
+    if folders.is_empty() {
+        return Err("未在压缩包中找到 MOD 文件夹或 manifest.json".to_string());
+    }
+    Ok(folders.remove(0))
 }
 
 fn clean_residual_files(mod_path: &PathBuf) {
@@ -747,11 +1102,13 @@ pub async fn install_mod(
     archive_path: String,
     mods_path: String,
     old_unique_id: Option<String>,
+    variant_filter: Option<String>,
+    nexus_description: Option<String>,
 ) -> Result<InstallResult, String> {
     let archive_path = archive_path.clone();
     let mods_path = mods_path.clone();
     tokio::task::spawn_blocking(move || {
-        install_mod_blocking(app, archive_path, mods_path, old_unique_id)
+        install_mod_blocking(app, archive_path, mods_path, old_unique_id, variant_filter, nexus_description)
     })
     .await
     .map_err(|e| format!("安装任务执行失败: {}", e))?
@@ -762,6 +1119,8 @@ fn install_mod_blocking(
     archive_path: String,
     mods_path: String,
     old_unique_id: Option<String>,
+    variant_filter: Option<String>,
+    nexus_description: Option<String>,
 ) -> Result<InstallResult, String> {
     let archive = PathBuf::from(&archive_path);
     let mods_dir = PathBuf::from(&mods_path);
@@ -809,42 +1168,176 @@ fn install_mod_blocking(
         return Err(e);
     }
 
-    let mod_folder = match find_mod_folder(&temp_dir) {
+    let mod_type = detect_mod_type(&temp_dir);
+
+    match mod_type {
+        ModType::Unknown => {
+            cleanup_temp_dir_with_retry(&temp_dir);
+            return Err("无法识别的模组类型：未找到 manifest.json。请确认压缩包内容是否正确".to_string());
+        }
+        _ => {}
+    }
+
+    let mod_folders = match find_mod_folders(&temp_dir) {
         Ok(f) => f,
         Err(e) => {
             cleanup_temp_dir_with_retry(&temp_dir);
             return Err(e);
         }
     };
-    let mod_name = mod_folder
-        .file_name()
-        .ok_or("无法获取 MOD 文件夹名称")?
-        .to_string_lossy()
-        .to_string();
 
-    let _ = app.emit(
-        "mod-install-progress",
-        InstallProgressEvent {
-            step: "installing".to_string(),
-            mod_name: Some(mod_name.clone()),
-            message: format!("正在安装 '{}'...", mod_name),
-        },
-    );
+    eprintln!("[install_mod_blocking] Found {} mod folder(s) in archive", mod_folders.len());
+    for (i, folder) in mod_folders.iter().enumerate() {
+        eprintln!("[install_mod_blocking]   [{}] {}", i, folder.display());
+    }
 
-    let dest_path = mods_dir.join(&mod_name);
+    let mut installed_names: Vec<String> = Vec::new();
+    let mut last_error: Option<String> = None;
 
-    if let Some(ref uid) = old_unique_id {
-        if !uid.is_empty() {
-            let removed = remove_old_mod_versions(&mods_dir, uid);
-            if !removed.is_empty() {
-                eprintln!("[install_mod_blocking] Removed old versions of {}: {:?}", uid, removed);
+    if mod_folders.len() > 1 {
+        let common_parent = mod_folders[0].parent().map(|p| p.to_path_buf());
+        if let Some(ref parent) = common_parent {
+            let all_same_parent = mod_folders.iter().all(|f| f.parent().map(|p| p.to_path_buf()).as_ref() == Some(parent));
+            if all_same_parent && *parent != temp_dir {
+                let bundle_name = match parent.file_name() {
+                    Some(n) => n.to_string_lossy().to_string(),
+                    None => "Unknown".to_string(),
+                };
+
+                let _ = app.emit(
+                    "mod-install-progress",
+                    InstallProgressEvent {
+                        step: "installing".to_string(),
+                        mod_name: Some(bundle_name.clone()),
+                        message: format!("正在安装 '{}' (包含 {} 个子模组)...", bundle_name, mod_folders.len()),
+                    },
+                );
+
+                let dest_path = mods_dir.join(&bundle_name);
+
+                if let Some(ref uid) = old_unique_id {
+                    if !uid.is_empty() {
+                        let removed = remove_old_mod_versions(&mods_dir, uid, &bundle_name);
+                        if !removed.is_empty() {
+                            eprintln!("[install_mod_blocking] Removed old versions of {}: {:?}", uid, removed);
+                        }
+                    }
+                }
+
+                if let Err(e) = install_via_staging(parent, &dest_path, &mods_dir) {
+                    eprintln!("[install_mod_blocking] Failed to install bundle '{}': {}", bundle_name, e);
+                    last_error = Some(format!("安装 '{}' 失败: {}", bundle_name, e));
+                } else {
+                    installed_names.push(bundle_name.clone());
+
+                    for mf in &mod_folders {
+                        if let Some(sub_name) = mf.file_name() {
+                            let sub_manifest = dest_path.join(sub_name).join("manifest.json");
+                            if sub_manifest.exists() {
+                                if let Ok(content) = fs::read_to_string(&sub_manifest) {
+                                    let normalized = crate::mod_parser::normalize_smart_quotes(&content);
+                                    let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                                    let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                                    if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(cleaned) {
+                                        let ver = manifest["Version"].as_str().unwrap_or("unknown");
+                                        let uid = manifest["UniqueID"].as_str().unwrap_or("unknown");
+                                        crate::app_logger::log_info("ModInstaller", &format!(
+                                            "Installed '{} {}' (UniqueID: {}) version: {}",
+                                            bundle_name, sub_name.to_string_lossy(), uid, ver
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let _ = app.emit(
+                        "mod-install-progress",
+                        InstallProgressEvent {
+                            step: "sub-done".to_string(),
+                            mod_name: Some(bundle_name.clone()),
+                            message: format!("MOD '{}' 安装成功 (含 {} 个子模组)", bundle_name, mod_folders.len()),
+                        },
+                    );
+                }
+
+                cleanup_temp_dir_with_retry(&temp_dir);
+
+                #[cfg(target_os = "windows")]
+                {
+                    let _ = std::process::Command::new("cmd")
+                        .args(["/C", "dir", mods_dir.to_str().unwrap_or("")])
+                        .output();
+                }
+
+                if installed_names.is_empty() {
+                    return Err(last_error.unwrap_or_else(|| "安装失败".to_string()));
+                }
+
+                let primary_name = installed_names[0].clone();
+                let _ = app.emit(
+                    "mod-install-progress",
+                    InstallProgressEvent {
+                        step: "done".to_string(),
+                        mod_name: Some(primary_name.clone()),
+                        message: format!("MOD '{}' 安装成功", primary_name),
+                    },
+                );
+
+                println!("[install_mod_blocking] done (bundle mode), installed={:?}, mods_path={}", installed_names, mods_path);
+
+                return Ok(InstallResult {
+                    success: true,
+                    mod_name: Some(primary_name.clone()),
+                    message: format!("MOD '{}' 安装成功 (含 {} 个子模组)", primary_name, mod_folders.len()),
+                    installed_mods: Some(installed_names),
+                });
             }
         }
     }
 
-    if let Err(e) = install_via_staging(&mod_folder, &dest_path, &mods_dir) {
-        cleanup_temp_dir_with_retry(&temp_dir);
-        return Err(e);
+    for mod_folder in mod_folders {
+        let mod_name = match mod_folder.file_name() {
+            Some(n) => n.to_string_lossy().to_string(),
+            None => continue,
+        };
+
+        let _ = app.emit(
+            "mod-install-progress",
+            InstallProgressEvent {
+                step: "installing".to_string(),
+                mod_name: Some(mod_name.clone()),
+                message: format!("正在安装 '{}'...", mod_name),
+            },
+        );
+
+        let dest_path = mods_dir.join(&mod_name);
+
+        if let Some(ref uid) = old_unique_id {
+            if !uid.is_empty() {
+                let removed = remove_old_mod_versions(&mods_dir, uid, &mod_name);
+                if !removed.is_empty() {
+                    eprintln!("[install_mod_blocking] Removed old versions of {}: {:?}", uid, removed);
+                }
+            }
+        }
+
+        if let Err(e) = install_via_staging(&mod_folder, &dest_path, &mods_dir) {
+            eprintln!("[install_mod_blocking] Failed to install sub-mod '{}': {}", mod_name, e);
+            last_error = Some(format!("子模组 '{}' 安装失败: {}", mod_name, e));
+            continue;
+        }
+
+        installed_names.push(mod_name.clone());
+
+        let _ = app.emit(
+            "mod-install-progress",
+            InstallProgressEvent {
+                step: "sub-done".to_string(),
+                mod_name: Some(mod_name.clone()),
+                message: format!("MOD '{}' 安装成功", mod_name),
+            },
+        );
     }
 
     cleanup_temp_dir_with_retry(&temp_dir);
@@ -857,21 +1350,39 @@ fn install_mod_blocking(
             .output();
     }
 
+    if installed_names.is_empty() {
+        return Err(last_error.unwrap_or_else(|| "安装失败：未成功安装任何子模组".to_string()));
+    }
+
+    let primary_name = installed_names[0].clone();
     let _ = app.emit(
         "mod-install-progress",
         InstallProgressEvent {
             step: "done".to_string(),
-            mod_name: Some(mod_name.clone()),
-            message: format!("MOD '{}' 安装成功", mod_name),
+            mod_name: Some(primary_name.clone()),
+            message: if installed_names.len() > 1 {
+                format!("已安装 {} 个子模组: {}", installed_names.len(), installed_names.join(", "))
+            } else {
+                format!("MOD '{}' 安装成功", primary_name)
+            },
         },
     );
 
-    println!("[install_mod_blocking] done, mod_name={}, mods_path={}", mod_name, mods_path);
+    println!("[install_mod_blocking] done, installed={:?}, mods_path={}", installed_names, mods_path);
 
     Ok(InstallResult {
         success: true,
-        mod_name: Some(mod_name.clone()),
-        message: format!("MOD '{}' 安装成功", mod_name),
+        mod_name: Some(primary_name.clone()),
+        installed_mods: if installed_names.len() > 1 {
+            Some(installed_names.clone())
+        } else {
+            None
+        },
+        message: if installed_names.len() > 1 {
+            format!("已安装 {} 个子模组", installed_names.len())
+        } else {
+            format!("MOD '{}' 安装成功", primary_name)
+        },
     })
 }
 
@@ -939,6 +1450,54 @@ fn check_mod_dependencies_blocking(
     let version = manifest["Version"].as_str().unwrap_or("1.0.0").to_string();
 
     let mut missing_deps = Vec::new();
+
+    let cp_for = manifest.get("ContentPackFor")
+        .and_then(|v| {
+            if v.is_string() {
+                Some(v.as_str().unwrap_or("").to_string())
+            } else {
+                v.get("UniqueID").or_else(|| v.get("UniqueId")).and_then(|u| u.as_str()).map(|s| s.to_string())
+            }
+        });
+
+    if let Some(ref cp_uid) = cp_for {
+        if !cp_uid.is_empty() && cp_uid != "Pathoschild.SMAPI" {
+            let cp_found = mods_dir.join(cp_uid).exists() || {
+                let mut found = false;
+                if let Ok(entries) = fs::read_dir(&mods_dir) {
+                    for entry in entries.flatten() {
+                        let p = entry.path();
+                        if p.is_dir() {
+                            let mf = p.join("manifest.json");
+                            if mf.exists() {
+                                if let Ok(mc) = fs::read_to_string(&mf) {
+                                    let normalized = crate::mod_parser::normalize_smart_quotes(&mc);
+                                    let cleaned = crate::mod_parser::remove_trailing_commas(&normalized);
+                                    let cleaned = cleaned.strip_prefix('\u{FEFF}').unwrap_or(&cleaned);
+                                    if let Ok(mv) = serde_json::from_str::<serde_json::Value>(cleaned) {
+                                        if mv["UniqueID"].as_str() == Some(cp_uid.as_str()) {
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                found
+            };
+            if !cp_found {
+                let display_name = resolve_mod_name(cp_uid);
+                missing_deps.push(MissingDepInfo {
+                    unique_id: cp_uid.clone(),
+                    display_name,
+                    minimum_version: None,
+                    is_required: true,
+                });
+            }
+        }
+    }
 
     if let Some(deps) = manifest["Dependencies"].as_array() {
         for dep in deps {
@@ -1029,6 +1588,7 @@ fn check_mod_dependencies_blocking(
         can_install: !has_required_missing,
     })
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -1153,6 +1713,25 @@ mod tests {
         let result = find_mod_folder(&temp_dir);
         assert!(result.is_ok());
         assert_eq!(result.unwrap().file_name().unwrap(), "ActualMod");
+    }
+
+    #[test]
+    fn test_find_mod_folder_nested_single_top_dir() {
+        let tmp = TempDir::new().unwrap();
+        let temp_dir = tmp.path().join("extracted");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let top = temp_dir.join("Stardew Valley Expanded");
+        fs::create_dir_all(&top).unwrap();
+        fs::write(top.join("readme.txt"), "wrapper dir, not the real mod").unwrap();
+
+        let real_mod = top.join("[CP] Stardew Valley Expanded");
+        fs::create_dir_all(&real_mod).unwrap();
+        fs::write(real_mod.join("manifest.json"), r#"{"Name":"SVE","UniqueID":"FlashShifter.StardewValleyExpandedCP","Version":"1.0.0","ContentPackFor":{"UniqueID":"Pathoschild.ContentPatcher"}}"#).unwrap();
+
+        let result = find_mod_folder(&temp_dir);
+        assert!(result.is_ok(), "Should drill into single top-level dir to find manifest.json, got {:?}", result);
+        assert_eq!(result.unwrap().file_name().unwrap(), "[CP] Stardew Valley Expanded");
     }
 
     #[test]

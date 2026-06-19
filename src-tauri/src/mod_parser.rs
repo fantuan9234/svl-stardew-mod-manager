@@ -714,6 +714,7 @@ pub fn scan_mods(game_path: Option<String>) -> Result<Vec<ModInfo>, String> {
     }
 
     let mut result = grouped;
+
     result.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
     println!("[mod_parser] === Scan complete: {} MODs found ===", result.len());
@@ -1771,7 +1772,7 @@ mod tests {
             "UpdateKeys": ["Nexus:1915"]
         }"#).unwrap();
 
-        let cp_pack = mods_path.join("CP_Pack");
+        let cp_pack = parent.join("CP_Pack");
         std::fs::create_dir_all(&cp_pack).unwrap();
         std::fs::write(cp_pack.join("manifest.json"), r#"{
             "Name": "My CP Pack",

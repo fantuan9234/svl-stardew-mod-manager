@@ -10,6 +10,7 @@ import {
   QuestionCircleOutlined,
   DownOutlined,
   DesktopOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import {
   detectGamePath,
@@ -932,6 +933,7 @@ export default function ModManager() {
   const smapiInstalled = smapiInfo?.installed || false;
   const gamePath = smapiInfo?.game_path || gamePathInfo?.detected_path || '';
   const modsPath = gamePath ? `${gamePath}/Mods` : '';
+  const gamePathShort = gamePath ? '...' + gamePath.replace(/[/\\]$/, '').split(/[/\\]/).pop() : '';
 
   const handleOpenConfigEditor = (modId: string) => {
     const mod = mods.find(m => m.unique_id === modId);
@@ -1027,7 +1029,7 @@ export default function ModManager() {
 
       <div className="svl-header">
         <div className="svl-search-wrapper">
-          <span className="svl-search-icon">🔍</span>
+          <span className="svl-search-icon"><SearchOutlined /></span>
           <input
             type="text"
             value={searchText}
@@ -1147,66 +1149,77 @@ export default function ModManager() {
         );})()}
 
         <div className="svl-header-actions">
-          <div className="svl-filter-group">
-            <button
-              onClick={() => setFilterType('all')}
-              className={`svl-filter-btn ${filterType === 'all' ? 'active' : ''}`}
-            >
-              {t('app.pages.modManager.filterAll')}
-            </button>
-            <button
-              onClick={() => setFilterType('enabled')}
-              className={`svl-filter-btn ${filterType === 'enabled' ? 'active' : ''}`}
-            >
-              {t('app.pages.modManager.filterEnabled')}
-            </button>
-            <button
-              onClick={() => setFilterType('disabled')}
-              className={`svl-filter-btn ${filterType === 'disabled' ? 'active' : ''}`}
-            >
-              {t('app.pages.modManager.filterDisabled')}
-            </button>
+          <div className="svl-filter-bar">
+            <div className="svl-filter-group">
+              <button
+                onClick={() => setFilterType('all')}
+                className={`svl-filter-btn ${filterType === 'all' ? 'active' : ''}`}
+              >
+                {t('app.pages.modManager.filterAll')}
+              </button>
+              <button
+                onClick={() => setFilterType('enabled')}
+                className={`svl-filter-btn ${filterType === 'enabled' ? 'active' : ''}`}
+              >
+                {t('app.pages.modManager.filterEnabled')}
+              </button>
+              <button
+                onClick={() => setFilterType('disabled')}
+                className={`svl-filter-btn ${filterType === 'disabled' ? 'active' : ''}`}
+              >
+                {t('app.pages.modManager.filterDisabled')}
+              </button>
+            </div>
+
+            <div className="svl-filter-dropdown">
+              <span className="svl-filter-label">{t('app.pages.modManager.categoryLabel')}</span>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
+                className="svl-category-select"
+              >
+                <option value="all">{t('app.categories.all')}</option>
+                <option value="visual">{t('app.categories.visual')}</option>
+                <option value="gameplay">{t('app.categories.gameplay')}</option>
+                <option value="expansion">{t('app.categories.expansion')}</option>
+                <option value="framework">{t('app.categories.framework')}</option>
+                <option value="ui">{t('app.categories.ui')}</option>
+                <option value="seasonal">{t('app.categories.seasonal')}</option>
+                <option value="multiplayer">{t('app.categories.multiplayer')}</option>
+                <option value="other">{t('app.categories.other')}</option>
+              </select>
+            </div>
+
+            <div className="svl-filter-dropdown">
+              <span className="svl-filter-label">{t('app.pages.modManager.statusFilterLabel')}</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                className="svl-status-select"
+              >
+                <option value="all">{t('app.statusFilters.all')}</option>
+                <option value="hasUpdate">{t('app.statusFilters.hasUpdate')}</option>
+                <option value="hasConflict">{t('app.statusFilters.hasConflict')}</option>
+                <option value="uncategorized">{t('app.statusFilters.uncategorized')}</option>
+              </select>
+            </div>
+
+            <div className="svl-filter-dropdown">
+              <span className="svl-filter-label">{t('app.pages.modManager.sortLabel')}</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortType)}
+                className="svl-sort-select"
+              >
+                <option value="name-az">{t('app.pages.modManager.sortNameAZ')}</option>
+                <option value="name-za">{t('app.pages.modManager.sortNameZA')}</option>
+                <option value="author">{t('app.pages.modManager.sortAuthor')}</option>
+                <option value="version">{t('app.pages.modManager.sortVersion')}</option>
+              </select>
+            </div>
           </div>
 
-          <div className="svl-filter-group">
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
-              className="svl-category-select"
-            >
-              <option value="all">{t('app.categories.all')}</option>
-              <option value="visual">{t('app.categories.visual')}</option>
-              <option value="gameplay">{t('app.categories.gameplay')}</option>
-              <option value="expansion">{t('app.categories.expansion')}</option>
-              <option value="framework">{t('app.categories.framework')}</option>
-              <option value="ui">{t('app.categories.ui')}</option>
-              <option value="seasonal">{t('app.categories.seasonal')}</option>
-              <option value="multiplayer">{t('app.categories.multiplayer')}</option>
-              <option value="other">{t('app.categories.other')}</option>
-            </select>
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-              className="svl-status-select"
-            >
-              <option value="all">{t('app.statusFilters.all')}</option>
-              <option value="hasUpdate">{t('app.statusFilters.hasUpdate')}</option>
-              <option value="hasConflict">{t('app.statusFilters.hasConflict')}</option>
-              <option value="uncategorized">{t('app.statusFilters.uncategorized')}</option>
-            </select>
-          </div>
-
-          <div className="svl-sort">
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortType)}
-            >
-              <option value="name-az">{t('app.pages.modManager.sortNameAZ')}</option>
-              <option value="name-za">{t('app.pages.modManager.sortNameZA')}</option>
-              <option value="author">{t('app.pages.modManager.sortAuthor')}</option>
-              <option value="version">{t('app.pages.modManager.sortVersion')}</option>
-            </select>
+          <div className="svl-batch-actions">
             <button
               className="svl-batch-toggle-btn svl-batch-enable-btn"
               onClick={handleEnableAllMods}
@@ -1224,7 +1237,6 @@ export default function ModManager() {
               {t('app.modList.disableAll')}
             </button>
           </div>
-
         </div>
       </div>
 
@@ -1242,9 +1254,11 @@ export default function ModManager() {
             <span className="svl-game-status-icon">✓</span>
             <span className="svl-game-status-text">
               {t('app.pages.modManager.gameFound')}
-              <span className="svl-game-path">{gamePath}</span>
             </span>
-            <button className="svl-open-game-dir-btn" onClick={handleOpenGamePath} title={t('app.smapiInstaller.openGamePath')}>
+            <span className="svl-game-path" title={gamePath}>
+              {gamePathShort}
+            </span>
+            <button className="svl-game-dir-btn" onClick={handleOpenGamePath} title={t('app.smapiInstaller.openGamePath')}>
               <FolderOpenOutlined />
             </button>
             <button className="svl-change-btn" onClick={handleChangeGamePath}>
@@ -1264,10 +1278,9 @@ export default function ModManager() {
           <div className="svl-game-actions">
             {smapiInstalled ? (
               <>
-                <span className="svl-smapi-version">
-                  {smapiInfo?.version && smapiInfo.version !== 'Installed'
-                    ? `SMAPI v${smapiInfo.version}`
-                    : t('app.pages.modManager.smapiInstalled')}
+                <span className="svl-smapi-badge" title={smapiInfo?.version && smapiInfo.version !== 'Installed' ? `SMAPI v${smapiInfo.version}` : t('app.pages.modManager.smapiInstalled')}>
+                  <span className="svl-smapi-dot" />
+                  {smapiInfo?.version && smapiInfo.version !== 'Installed' ? `v${smapiInfo.version}` : t('app.pages.modManager.smapiInstalled')}
                 </span>
                 {gameRunning && gameDuration && (
                   <span className="svl-game-duration">
@@ -1459,7 +1472,9 @@ export default function ModManager() {
 
       <StatusBar
         smapiConnected={smapiInstalled}
+        smapiVersion={smapiInfo?.version || null}
         modsCount={mods.length}
+        gamePath={gamePath}
       />
 
       <ModInstallWizard

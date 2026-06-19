@@ -15,6 +15,10 @@ import {
   saveEditorQuests,
   loadEditorBuildings,
   saveEditorBuildings,
+  loadEditorFriendships,
+  saveEditorFriendships,
+  loadEditorRecipes,
+  saveEditorRecipes,
   type SaveInfo,
   type SaveEditorSummary,
   type SaveEditorCharacterInfo,
@@ -25,6 +29,10 @@ import {
   type SaveEditorQuestInfo,
   type SaveEditorBuildingList,
   type SaveEditorBuildingInfo,
+  type SaveEditorFriendshipList,
+  type SaveEditorFriendshipInfo,
+  type SaveEditorRecipeData,
+  type SaveEditorRecipeInfo,
 } from '../utils/tauri-api';
 
 export default function SaveEditorView({ onBack }: { onBack: () => void }) {
@@ -37,6 +45,8 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
   const [inventory, setInventory] = useState<SaveEditorInventory | null>(null);
   const [quests, setQuests] = useState<SaveEditorQuestLog | null>(null);
   const [buildings, setBuildings] = useState<SaveEditorBuildingList | null>(null);
+  const [friendships, setFriendships] = useState<SaveEditorFriendshipList | null>(null);
+  const [recipes, setRecipes] = useState<SaveEditorRecipeData | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -52,13 +62,15 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
     setLoading(true);
     setDirty(false);
     try {
-      const [s, c, sk, inv, q, b] = await Promise.all([
+      const [s, c, sk, inv, q, b, f, r] = await Promise.all([
         openSaveInEditor(path),
         loadEditorCharacter(path),
         loadEditorSkills(path),
         loadEditorInventory(path),
         loadEditorQuests(path),
         loadEditorBuildings(path),
+        loadEditorFriendships(path),
+        loadEditorRecipes(path),
       ]);
       setSummary(s);
       setCharacter(c);
@@ -66,6 +78,8 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
       setInventory(inv);
       setQuests(q);
       setBuildings(b);
+      setFriendships(f);
+      setRecipes(r);
     } catch (e: any) {
       message.error(e?.toString() || t('app.toolbox.saveEditorLoadFailed'));
     } finally {
@@ -88,6 +102,8 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
           await saveEditorInventory(selectedSave, inventory);
           await saveEditorQuests(selectedSave, quests);
           await saveEditorBuildings(selectedSave, buildings);
+          if (friendships) await saveEditorFriendships(selectedSave, friendships);
+          if (recipes) await saveEditorRecipes(selectedSave, recipes);
           message.success(t('app.toolbox.saveEditorSaveSuccess'));
           setDirty(false);
         } catch (e: any) {
@@ -229,6 +245,40 @@ export default function SaveEditorView({ onBack }: { onBack: () => void }) {
                     value={buildings!}
                     onChange={(v) => {
                       setBuildings(v);
+                      setDirty(true);
+                    }}
+                  />
+                ),
+              },
+              {
+                key: 'friendships',
+                label: (
+                  <span>
+                    <UserOutlined /> {t('app.toolbox.saveEditorTabFriendships')}
+                  </span>
+                ),
+                children: (
+                  <FriendshipForm
+                    value={friendships}
+                    onChange={(v) => {
+                      setFriendships(v);
+                      setDirty(true);
+                    }}
+                  />
+                ),
+              },
+              {
+                key: 'recipes',
+                label: (
+                  <span>
+                    <ToolOutlined /> {t('app.toolbox.saveEditorTabRecipes')}
+                  </span>
+                ),
+                children: (
+                  <RecipeForm
+                    value={recipes}
+                    onChange={(v) => {
+                      setRecipes(v);
                       setDirty(true);
                     }}
                   />
@@ -664,6 +714,12 @@ function BuildingForm({
     });
   };
 
+  const handleDelete = (i: number) => {
+    onChange({
+      buildings: value.buildings.filter((_, j) => j !== i).map((b, j) => ({ ...b, index: j })),
+    });
+  };
+
   const columns = [
     {
       title: t('app.toolbox.saveEditorBuildingLocation'),
@@ -713,6 +769,29 @@ function BuildingForm({
       width: 100,
       render: (val: number) => <code>{val}</code>,
     },
+    {
+      title: t('app.toolbox.saveEditorBuildingAction'),
+      dataIndex: 'action',
+      width: 80,
+      fixed: 'right' as const,
+      render: (_: unknown, record: SaveEditorBuildingInfo) => (
+        <Popconfirm
+          title={t('app.toolbox.saveEditorBuildingDeleteConfirm', '确定要删除这个建筑吗？')}
+          okText={t('common.confirm', '确定')}
+          cancelText={t('common.cancel', '取消')}
+          onConfirm={() => handleDelete(record.index)}
+        >
+          <Button
+            size="small"
+            type="link"
+            danger
+            icon={<DeleteOutlined />}
+          >
+            {t('app.toolbox.saveEditorBuildingDelete', '删除')}
+          </Button>
+        </Popconfirm>
+      ),
+    },
   ];
 
   return (
@@ -725,6 +804,201 @@ function BuildingForm({
           size="small"
           dataSource={value.buildings}
           columns={columns}
+          pagination={{ pageSize: 30, showSizeChanger: false }}
+        />
+      )}
+    </div>
+  );
+}
+
+function FriendshipForm({
+  value,
+  onChange,
+}: {
+  value: SaveEditorFriendshipList | null;
+  onChange: (v: SaveEditorFriendshipList) => void;
+}) {
+  const { t } = useTranslation();
+
+  if (!value) return <Empty description={t('app.toolbox.saveEditorBuildingEmpty')} />;
+
+  const updateField = (i: number, patch: Partial<SaveEditorFriendshipInfo>) => {
+    onChange({
+      friendships: value.friendships.map((f, j) => (j === i ? { ...f, ...patch } : f)),
+    });
+  };
+
+  const columns = [
+    {
+      title: t('app.toolbox.saveEditorFriendshipNpc'),
+      dataIndex: 'npc_name',
+      width: 120,
+    },
+    {
+      title: t('app.toolbox.saveEditorFriendshipHearts'),
+      dataIndex: 'points',
+      width: 80,
+      render: (val: number, record: SaveEditorFriendshipInfo) => {
+        const hearts = Math.floor(val / 250);
+        const maxHearts = record.status === 'Married' ? 14 : record.status === 'Dating' ? 11 : 10;
+        return (
+          <InputNumber
+            min={0}
+            max={maxHearts * 250}
+            step={250}
+            value={val}
+            onChange={(v) => updateField(record.index, { points: v ?? 0 })}
+            style={{ width: 80 }}
+            addonAfter={`${hearts}/${maxHearts}❤`}
+          />
+        );
+      },
+    },
+    {
+      title: t('app.toolbox.saveEditorFriendshipStatus'),
+      dataIndex: 'status',
+      width: 80,
+    },
+    {
+      title: t('app.toolbox.saveEditorFriendshipGiftsWeek'),
+      dataIndex: 'gifts_this_week',
+      width: 80,
+      render: (val: number, record: SaveEditorFriendshipInfo) => (
+        <InputNumber
+          min={0}
+          max={2}
+          value={val}
+          onChange={(v) => updateField(record.index, { gifts_this_week: v ?? 0 })}
+          style={{ width: 60 }}
+        />
+      ),
+    },
+    {
+      title: t('app.toolbox.saveEditorFriendshipGiftsToday'),
+      dataIndex: 'gifts_today',
+      width: 80,
+      render: (val: number, record: SaveEditorFriendshipInfo) => (
+        <InputNumber
+          min={0}
+          max={2}
+          value={val}
+          onChange={(v) => updateField(record.index, { gifts_today: v ?? 0 })}
+          style={{ width: 60 }}
+        />
+      ),
+    },
+    {
+      title: t('app.toolbox.saveEditorFriendshipTalked'),
+      dataIndex: 'talked_to_today',
+      width: 70,
+      render: (val: boolean, record: SaveEditorFriendshipInfo) => (
+        <input
+          type="checkbox"
+          checked={val}
+          onChange={(e) => updateField(record.index, { talked_to_today: e.target.checked })}
+        />
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      {value.friendships.length === 0 ? (
+        <Empty description={t('app.toolbox.saveEditorBuildingEmpty')} />
+      ) : (
+        <Table
+          rowKey="index"
+          size="small"
+          dataSource={value.friendships}
+          columns={columns}
+          pagination={{ pageSize: 30, showSizeChanger: false }}
+        />
+      )}
+    </div>
+  );
+}
+
+function RecipeForm({
+  value,
+  onChange,
+}: {
+  value: SaveEditorRecipeData | null;
+  onChange: (v: SaveEditorRecipeData) => void;
+}) {
+  const { t } = useTranslation();
+
+  if (!value) return <Empty description={t('app.toolbox.saveEditorRecipeEmpty')} />;
+
+  const updateCooking = (i: number, patch: Partial<SaveEditorRecipeInfo>) => {
+    onChange({
+      ...value,
+      cooking: value.cooking.map((r, j) => (j === i ? { ...r, ...patch } : r)),
+    });
+  };
+
+  const updateCrafting = (i: number, patch: Partial<SaveEditorRecipeInfo>) => {
+    onChange({
+      ...value,
+      crafting: value.crafting.map((r, j) => (j === i ? { ...r, ...patch } : r)),
+    });
+  };
+
+  const recipeColumns = (updateFn: (i: number, patch: Partial<SaveEditorRecipeInfo>) => void) => [
+    {
+      title: t('app.toolbox.saveEditorRecipeName'),
+      dataIndex: 'name',
+      width: 180,
+    },
+    {
+      title: t('app.toolbox.saveEditorRecipeUnlocked'),
+      dataIndex: 'unlocked',
+      width: 80,
+      render: (val: boolean, record: SaveEditorRecipeInfo) => (
+        <input
+          type="checkbox"
+          checked={val}
+          onChange={(e) => updateFn(record.index, { unlocked: e.target.checked })}
+        />
+      ),
+    },
+    {
+      title: t('app.toolbox.saveEditorRecipeTimesCrafted'),
+      dataIndex: 'times_crafted',
+      width: 100,
+      render: (val: number, record: SaveEditorRecipeInfo) => (
+        <InputNumber
+          min={0}
+          value={val}
+          onChange={(v) => updateFn(record.index, { times_crafted: v ?? 0 })}
+          style={{ width: 80 }}
+        />
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <h4>{t('app.toolbox.saveEditorCookingRecipes')}</h4>
+      {value.cooking.length === 0 ? (
+        <Empty description={t('app.toolbox.saveEditorRecipeEmpty')} />
+      ) : (
+        <Table
+          rowKey="index"
+          size="small"
+          dataSource={value.cooking}
+          columns={recipeColumns(updateCooking)}
+          pagination={{ pageSize: 30, showSizeChanger: false }}
+        />
+      )}
+      <h4 style={{ marginTop: 16 }}>{t('app.toolbox.saveEditorCraftingRecipes')}</h4>
+      {value.crafting.length === 0 ? (
+        <Empty description={t('app.toolbox.saveEditorRecipeEmpty')} />
+      ) : (
+        <Table
+          rowKey="index"
+          size="small"
+          dataSource={value.crafting}
+          columns={recipeColumns(updateCrafting)}
           pagination={{ pageSize: 30, showSizeChanger: false }}
         />
       )}

@@ -19,6 +19,68 @@ pub struct BuildingList {
     pub buildings: Vec<BuildingInfo>,
 }
 
+/// 找到 `<tag` 或 `<tag>` 标签的起始位置（从 start 开始搜索）
+fn find_tag_start(xml: &str, start: usize, tag: &str) -> Option<usize> {
+    let plain = format!("<{}>", tag);
+    let with_attr = format!("<{} ", tag);
+    let p = xml[start..].find(&plain).map(|p| start + p);
+    let a = xml[start..].find(&with_attr).map(|p| start + p);
+    match (p, a) {
+        (Some(x), Some(y)) => Some(x.min(y)),
+        (Some(x), None) => Some(x),
+        (None, Some(y)) => Some(y),
+        (None, None) => None,
+    }
+}
+
+/// 返回 `<tag>` 或 `<tag ...>` 的标签头长度（从 pos 到 ">" 之后）
+fn find_tag_name_len(xml: &str, pos: usize, tag: &str) -> usize {
+    let with_attr = format!("<{} ", tag);
+    if xml[pos..].starts_with(&with_attr) {
+        if let Some(gt) = xml[pos..].find('>') {
+            return gt + 1;
+        }
+    }
+    format!("<{}>", tag).len()
+}
+
+fn extract_tag(xml: &str, tag: &str) -> Option<String> {
+    let plain = format!("<{}>", tag);
+    let with_attr = format!("<{} ", tag);
+    let start_rel = xml.find(&plain).or_else(|| xml.find(&with_attr))?;
+    let start = start_rel;
+    let value_start = if xml[start..].starts_with(&with_attr) {
+        let gt = xml[start..].find('>')?;
+        start + gt + 1
+    } else {
+        start + plain.len()
+    };
+    let close = format!("</{}>", tag);
+    let end = xml[value_start..].find(&close)? + value_start;
+    Some(xml[value_start..end].to_string())
+}
+
+fn find_close_tag(xml: &str, tag: &str) -> Option<usize> {
+    let open = format!("<{}>", tag);
+    let open_attr = format!("<{} ", tag);
+    let close = format!("</{}>", tag);
+    let start_rel = xml.find(&open).or_else(|| xml.find(&open_attr))?;
+    let value_start = if xml[start_rel..].starts_with(&open_attr) {
+        let gt = xml[start_rel..].find('>')?;
+        start_rel + gt + 1
+    } else {
+        start_rel + open.len()
+    };
+    let end_rel = xml[value_start..].find(&close)?;
+    Some(value_start + end_rel + close.len())
+}
+
+fn escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 pub fn parse(xml: &str) -> Result<BuildingList> {
     let mut buildings = Vec::new();
     let mut index = 0;
@@ -33,8 +95,8 @@ pub fn parse(xml: &str) -> Result<BuildingList> {
     let loc_block = &xml[loc_start..loc_start + loc_end_rel];
 
     let mut loc_cursor = 0;
-    while let Some(gl_idx) = loc_block[loc_cursor..].find("<GameLocation>") {
-        let gl_abs = loc_cursor + gl_idx + "<GameLocation>".len();
+    while let Some(gl_idx) = find_tag_start(loc_block, loc_cursor, "GameLocation") {
+        let gl_abs = gl_idx + find_tag_name_len(loc_block, gl_idx, "GameLocation");
         let gl_close_rel = loc_block[gl_abs..].find("</GameLocation>").unwrap_or(0);
         if gl_close_rel == 0 {
             break;
@@ -42,14 +104,16 @@ pub fn parse(xml: &str) -> Result<BuildingList> {
         let gl_block = &loc_block[gl_abs..gl_abs + gl_close_rel];
         let location_name = extract_tag(gl_block, "name").unwrap_or_default();
 
-        if let Some(b_start) = gl_block.find("<buildings>") {
-            let b_abs = b_start + "<buildings>".len();
+        if let Some(b_start) = find_tag_start(gl_block, 0, "buildings") {
+            let b_tag_len = find_tag_name_len(gl_block, b_start, "buildings");
+            let b_abs = b_start + b_tag_len;
             if let Some(b_end_rel) = gl_block[b_abs..].find("</buildings>") {
                 let b_block = &gl_block[b_abs..b_abs + b_end_rel];
 
                 let mut b_cursor = 0;
-                while let Some(s_idx) = b_block[b_cursor..].find("<Building>") {
-                    let abs_idx = b_cursor + s_idx + "<Building>".len();
+                while let Some(s_idx) = find_tag_start(b_block, b_cursor, "Building") {
+                    let tag_len = find_tag_name_len(b_block, s_idx, "Building");
+                    let abs_idx = s_idx + tag_len;
                     if let Some(e_idx) = b_block[abs_idx..].find("</Building>") {
                         let inner = &b_block[abs_idx..abs_idx + e_idx];
                         let raw = format!("<Building>{}</Building>", inner);
@@ -63,13 +127,8 @@ pub fn parse(xml: &str) -> Result<BuildingList> {
                             tile_y: extract_tag(inner, "tileY")
                                 .and_then(|s| s.parse().ok())
                                 .unwrap_or(0),
-                            upgrade_level: extract_tag(inner, "buildingType")
-                                .as_ref()
-                                .map(|_| {
-                                    extract_tag(inner, "daysOfConstructionLeft")
-                                        .and_then(|s| s.parse().ok())
-                                        .unwrap_or(0)
-                                })
+                            upgrade_level: extract_tag(inner, "daysOfConstructionLeft")
+                                .and_then(|s| s.parse().ok())
                                 .unwrap_or(0),
                             max_occupants: extract_tag(inner, "maxOccupants")
                                 .and_then(|s| s.parse().ok())
@@ -110,33 +169,34 @@ pub fn apply(xml: &str, list: &BuildingList) -> Result<String> {
     let loc_block = &xml[loc_start + "<locations>".len()..loc_end - "</locations>".len()];
 
     let mut loc_cursor = 0;
-    while let Some(gl_idx) = loc_block[loc_cursor..].find("<GameLocation>") {
-        let gl_abs = loc_cursor + gl_idx;
-        let gl_close_rel = loc_block[gl_abs + "<GameLocation>".len()..]
-            .find("</GameLocation>")
-            .unwrap_or(0);
+    while let Some(gl_idx) = find_tag_start(loc_block, loc_cursor, "GameLocation") {
+        let tag_len = find_tag_name_len(loc_block, gl_idx, "GameLocation");
+        let gl_abs = gl_idx;
+        let gl_close_rel = loc_block[gl_abs + tag_len..].find("</GameLocation>").unwrap_or(0);
         if gl_close_rel == 0 {
             break;
         }
-        let gl_block = &loc_block[gl_abs..gl_abs + "<GameLocation>".len() + gl_close_rel + "</GameLocation>".len()];
+        let total_len = tag_len + gl_close_rel + "</GameLocation>".len();
+        let gl_block = &loc_block[gl_abs..gl_abs + total_len];
 
-        let mut new_gl = String::from("<GameLocation>");
-        if let Some(name_close) = find_close_tag(gl_block, "name") {
-            new_gl.push_str(&gl_block[..name_close]);
-        }
+        let gl_open_tag = &gl_block[..tag_len];
+        let mut new_gl = String::from(gl_open_tag);
+        let inner = &gl_block[tag_len..gl_block.len() - "</GameLocation>".len()];
 
-        if let Some(b_start) = gl_block.find("<buildings>") {
-            let b_abs = b_start + "<buildings>".len();
-            if let Some(b_end_rel) = gl_block[b_abs..].find("</buildings>") {
-                let before = &gl_block[..b_abs];
+        if let Some(b_start) = find_tag_start(inner, 0, "buildings") {
+            let b_tag_len = find_tag_name_len(inner, b_start, "buildings");
+            let b_abs = b_start + b_tag_len;
+            if let Some(b_end_rel) = inner[b_abs..].find("</buildings>") {
+                let before = &inner[..b_abs];
                 let after_rel = b_abs + b_end_rel + "</buildings>".len();
-                let after = &gl_block[after_rel..];
-                let b_block = &gl_block[b_abs..b_abs + b_end_rel];
+                let after = &inner[after_rel..];
+                let b_block = &inner[b_abs..b_abs + b_end_rel];
 
                 let mut new_buildings = String::new();
                 let mut b_cursor = 0;
-                while let Some(s_idx) = b_block[b_cursor..].find("<Building>") {
-                    let abs_idx = b_cursor + s_idx + "<Building>".len();
+                while let Some(s_idx) = find_tag_start(b_block, b_cursor, "Building") {
+                    let bld_tag_len = find_tag_name_len(b_block, s_idx, "Building");
+                    let abs_idx = s_idx + bld_tag_len;
                     if let Some(e_idx) = b_block[abs_idx..].find("</Building>") {
                         if building_idx < list.buildings.len() {
                             new_buildings.push_str(&serialize_building(&list.buildings[building_idx]));
@@ -153,14 +213,15 @@ pub fn apply(xml: &str, list: &BuildingList) -> Result<String> {
                 new_gl.push_str("</buildings>");
                 new_gl.push_str(after);
             } else {
-                new_gl.push_str(gl_block);
+                new_gl.push_str(inner);
             }
         } else {
-            new_gl.push_str(gl_block);
+            new_gl.push_str(inner);
         }
 
+        new_gl.push_str("</GameLocation>");
         new_loc.push_str(&new_gl);
-        loc_cursor = gl_abs + gl_block.len();
+        loc_cursor = gl_abs + total_len;
     }
     new_loc.push_str("</locations>");
 
@@ -188,28 +249,6 @@ fn serialize_building(b: &BuildingInfo) -> String {
     out
 }
 
-fn find_close_tag(xml: &str, tag: &str) -> Option<usize> {
-    let open = format!("<{}>", tag);
-    let close = format!("</{}>", tag);
-    let start = xml.find(&open)? + open.len();
-    let end_rel = xml[start..].find(&close)?;
-    Some(start + end_rel + close.len())
-}
-
-fn extract_tag(xml: &str, tag: &str) -> Option<String> {
-    let open = format!("<{}>", tag);
-    let close = format!("</{}>", tag);
-    let start = xml.find(&open)? + open.len();
-    let end = xml[start..].find(&close)? + start;
-    Some(xml[start..end].to_string())
-}
-
-fn escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,8 +262,8 @@ mod tests {
 <Building><buildingType>Coop</buildingType><tileX>30</tileX><tileY>40</tileY><maxOccupants>4</maxOccupants></Building>
 </buildings>
 </GameLocation>
-<GameLocation>
-<name>IslandFarm</name>
+<GameLocation xsi:type="Farm">
+<name>RealFarm</name>
 <buildings>
 <Building><buildingType>Barn</buildingType><tileX>5</tileX><tileY>5</tileY><maxOccupants>4</maxOccupants></Building>
 </buildings>
@@ -240,7 +279,8 @@ mod tests {
         assert_eq!(list.buildings[0].building_type, "Cabin");
         assert_eq!(list.buildings[0].tile_x, 10);
         assert_eq!(list.buildings[1].building_type, "Coop");
-        assert_eq!(list.buildings[2].location, "IslandFarm");
+        assert_eq!(list.buildings[2].location, "RealFarm");
+        assert_eq!(list.buildings[2].building_type, "Barn");
     }
 
     #[test]
@@ -252,5 +292,20 @@ mod tests {
         assert!(updated.contains("<tileX>99</tileX>"));
         assert!(updated.contains("<tileY>88</tileY>"));
         assert!(updated.contains("<buildingType>Cabin</buildingType>"));
+    }
+
+    #[test]
+    fn test_parse_real_save() {
+        let path = r"d:\stardew mod mannager\stardew-mod-manager\CESHISHISHISHI_440151818\CESHISHISHISHI_440151818_old";
+        if let Ok(raw) = std::fs::read_to_string(path) {
+            let list = parse(&raw).unwrap();
+            println!("\n=== Real save buildings count: {} ===", list.buildings.len());
+            for b in &list.buildings {
+                println!(
+                    "  [{}] {} @ ({},{}) in {} | max={} current={}",
+                    b.index, b.building_type, b.tile_x, b.tile_y, b.location, b.max_occupants, b.current_occupants
+                );
+            }
+        }
     }
 }

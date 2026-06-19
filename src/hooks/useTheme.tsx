@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react';
 
-export type ThemePreset = 'oceanBlue' | 'mintGreen' | 'custom';
+export type ThemePreset = 'oceanBlue' | 'parchment' | 'mintGreen' | 'custom';
+export type SidebarLogoMode = 'daynight' | 'farm' | 'custom';
 
 export interface CustomThemeColors {
   primary: string;
@@ -15,6 +16,8 @@ export interface CustomThemeColors {
   backgroundOpacity: number;
   autoColors: boolean;
   customChickenImage: string;
+  sidebarLogoMode: SidebarLogoMode;
+  customSidebarImage: string;
 }
 
 const THEME_KEY = 'svl-theme-preset';
@@ -22,6 +25,7 @@ const CUSTOM_COLORS_KEY = 'svl-custom-theme-colors';
 
 const presetClassNames: Record<ThemePreset, string> = {
   oceanBlue: '',
+  parchment: 'parchment',
   mintGreen: 'mint-green',
   custom: 'theme-custom',
 };
@@ -39,6 +43,8 @@ const defaultCustomColors: CustomThemeColors = {
   backgroundOpacity: 30,
   autoColors: true,
   customChickenImage: '',
+  sidebarLogoMode: 'daynight' as SidebarLogoMode,
+  customSidebarImage: '',
 };
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -231,6 +237,9 @@ interface ThemeContextValue {
   clearBackgroundImage: () => void;
   setCustomChickenImage: (dataUrl: string) => void;
   clearCustomChickenImage: () => void;
+  setSidebarLogoMode: (mode: SidebarLogoMode) => void;
+  setCustomSidebarImage: (dataUrl: string) => void;
+  clearCustomSidebarImage: () => void;
   getAntdThemeConfig: () => {
     primaryColor: string;
     primaryHover: string;
@@ -248,7 +257,11 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<ThemePreset>(() => {
     const saved = localStorage.getItem(THEME_KEY);
-    if (saved === 'colorful' || saved === 'eyeCare') {
+    if (saved === 'colorful') {
+      localStorage.setItem(THEME_KEY, 'parchment');
+      return 'parchment';
+    }
+    if (saved === 'eyeCare') {
       localStorage.setItem(THEME_KEY, 'oceanBlue');
       return 'oceanBlue';
     }
@@ -336,8 +349,33 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setSidebarLogoMode = useCallback((mode: SidebarLogoMode) => {
+    setCustomColorsState(prev => {
+      const next = { ...prev, sidebarLogoMode: mode };
+      localStorage.setItem(CUSTOM_COLORS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const setCustomSidebarImage = useCallback((dataUrl: string) => {
+    setCustomColorsState(prev => {
+      const next = { ...prev, customSidebarImage: dataUrl };
+      localStorage.setItem(CUSTOM_COLORS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const clearCustomSidebarImage = useCallback(() => {
+    setCustomColorsState(prev => {
+      const next = { ...prev, customSidebarImage: '' };
+      localStorage.setItem(CUSTOM_COLORS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const getAntdThemeConfig = useCallback(() => {
     const isMintGreen = theme === 'mintGreen';
+    const isParchment = theme === 'parchment';
     const isCustom = theme === 'custom';
 
     let primaryColor = '#2563EB';
@@ -349,11 +387,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     let textPlaceholder = '#64748b';
     let headerBg = '#1e293b';
 
-    if (isMintGreen) {
-      primaryColor = '#10B981'; primaryHover = '#34D399';
-      bgCard = '#1a4a36'; bgCardHover = '#225c44';
-      borderColor = 'rgba(16, 185, 129, 0.25)'; textColor = '#ecfdf5';
-      textPlaceholder = '#a7f3d0'; headerBg = '#0d2b1f';
+    if (isParchment) {
+      primaryColor = '#8b6914'; primaryHover = '#a67c1a';
+      bgCard = '#3d3225'; bgCardHover = '#4a3d2e';
+      borderColor = '#4a3d2e'; textColor = '#f0e6d3';
+      textPlaceholder = '#8a7d6b'; headerBg = '#2d2418';
+    } else if (isMintGreen) {
+      primaryColor = '#E8A5B0'; primaryHover = '#F0B8C2';
+      bgCard = '#4a2d33'; bgCardHover = '#5a3a41';
+      borderColor = 'rgba(232, 165, 176, 0.25)'; textColor = '#faeeec';
+      textPlaceholder = '#d8b0b5'; headerBg = '#3a2429';
     } else if (isCustom) {
       primaryColor = customColors.primary;
       primaryHover = lighten(customColors.primary, 0.15);
@@ -380,6 +423,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     clearBackgroundImage,
     setCustomChickenImage,
     clearCustomChickenImage,
+    setSidebarLogoMode,
+    setCustomSidebarImage,
+    clearCustomSidebarImage,
     getAntdThemeConfig,
   };
 

@@ -122,3 +122,41 @@ public/game-icons/
 # User profile data (runtime generated)
 src-tauri/svl-profiles/
 src-tauri/.svl-profiles/
+
+# Test artifacts / temp save data (root level only)
+/114514_*/
+/CESHISHISHISHI_*/
+/靶场/
+/e2e/
+/e2e_114514_report.txt
+/roundtrip_report.txt
+/test-results/
+/promo/
+/playwright.config.ts
+
+# Ad-hoc utility scripts (root level only)
+/check_*.ps1
+/check_*.py
+/fill_*.py
+/generate_data.js
+
+# QA/dev docs (root level only)
+/docs/qa-*
+/docs/run-*
+/docs/superpowers/
+
+# CI test workflow (test-only, not core CI)
+/.github/workflows/test.yml
+
+# Frontend tests (not core source)
+/src/__tests__/
+
+# Rust tests (not core source)
+/src-tauri/tests/
+
+# Rust examples (not core source)
+/src-tauri/examples/
+
+# Website source code (separate deployment)
+/website/
+/website-php/

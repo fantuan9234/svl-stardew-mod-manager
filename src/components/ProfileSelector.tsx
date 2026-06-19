@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { listen } from '@tauri-apps/api/event';
+import { UnorderedListOutlined } from '@ant-design/icons';
 import {
   profileList,
   profileGetActive,
@@ -99,7 +100,7 @@ export default function ProfileSelector({ onProfileChange, onProfileExit, onMana
         className="svl-profile-btn"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <span className="svl-profile-icon">📁</span>
+        <span className="svl-profile-icon"><UnorderedListOutlined /></span>
         <span className="svl-profile-name">
           {activeProfile?.name || t('app.pages.modManager.selectProfile')}
         </span>

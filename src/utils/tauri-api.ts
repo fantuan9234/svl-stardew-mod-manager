@@ -164,23 +164,45 @@ export async function installSmapiLocal(
   return invoke<SmapiInstallResult>('install_smapi_local', { zipPath, gamePath });
 }
 
+export async function autoInstallSmapi(gamePath: string): Promise<SmapiInstallResult> {
+  return invoke<SmapiInstallResult>('auto_install_smapi', { gamePath });
+}
+
+export interface SmapiInstallProgress {
+  step: string;
+  message: string;
+  percent: number | null;
+}
+
 export async function installModFromArchive(
   archivePath: string,
-  modsPath: string
+  modsPath: string,
+  oldUniqueId?: string | null,
+  variantFilter?: string | null,
+  nexusDescription?: string | null
 ): Promise<InstallResult> {
   return invoke<InstallResult>('install_mod_from_archive', {
     archivePath,
     modsPath,
+    oldUniqueId: oldUniqueId ?? null,
+    variantFilter: variantFilter ?? null,
+    nexusDescription: nexusDescription ?? null,
   });
 }
 
 export async function installMod(
   archivePath: string,
-  modsPath: string
+  modsPath: string,
+  oldUniqueId?: string | null,
+  variantFilter?: string | null,
+  nexusDescription?: string | null
 ): Promise<InstallResult> {
   return invoke<InstallResult>('install_mod', {
     archivePath,
     modsPath,
+    oldUniqueId: oldUniqueId ?? null,
+    variantFilter: variantFilter ?? null,
+    nexusDescription: nexusDescription ?? null,
   });
 }
 
@@ -239,6 +261,10 @@ export async function installModFromFolder(
 
 export async function uninstallMod(modPath: string): Promise<InstallResult> {
   return invoke<InstallResult>('uninstall_mod', { modPath });
+}
+
+export async function fetchNexusModDescription(apiKey: string, modId: string): Promise<string> {
+  return invoke<string>('fetch_nexus_mod_description', { apiKey, modId });
 }
 
 export interface LogError {
@@ -444,12 +470,95 @@ export interface SaveInfo {
   name: string;
   farm_name: string;
   farm_type: string;
+  farm_type_id: number;
+  game_version: string;
   hours_played: number;
+  days_played: number;
+  money: number;
+  total_money_earned: number;
+  day_of_month: number;
+  current_season: string;
+  year: number;
+  time_of_day: number;
+  deepest_mine_level: number;
+  grandpa_score: number;
+  perfection_score: number;
+  total_skill_levels: number;
+  farming_level: number;
+  mining_level: number;
+  foraging_level: number;
+  fishing_level: number;
+  combat_level: number;
+  spouse: string;
+  friendship_count: number;
+  building_count: number;
+  quest_count: number;
+  item_count: number;
+  recipes_known: number;
+  has_finished_community_center: boolean;
+  ginger_island_unlocked: boolean;
+  stardrops_found: number;
+  activated_golden_parrot: boolean;
+  file_size_mb: number;
   last_modified: string;
   save_path: string;
   backup_count: number;
   linked_profile: string | null;
   character_name: string;
+  details_loadable: boolean;
+}
+
+export interface SaveDetailedInfo {
+  character_name: string;
+  farm_name: string;
+  game_version: string;
+  farm_type: string;
+  farm_type_id: number;
+  day_of_month: number;
+  current_season: string;
+  year: number;
+  time_of_day: number;
+  days_played: number;
+  money: number;
+  total_money_earned: number;
+  gold: number;
+  health: number;
+  max_health: number;
+  stamina: number;
+  max_stamina: number;
+  deepest_mine_level: number;
+  deepest_skull_cavern_level: number;
+  grandpa_score: number;
+  has_finished_community_center: boolean;
+  has_joja_mart_run: boolean;
+  ginger_island_unlocked: boolean;
+  stardrops_found: number;
+  perfection_score: number;
+  perfection_waivers: number;
+  activated_golden_parrot: boolean;
+  treasure_totems_used: number;
+  times_fed_raccoons: number;
+  spouse: string;
+  is_married: boolean;
+  friendship_count: number;
+  max_friendship_points: number;
+  max_friendship_npc: string;
+  farming_level: number;
+  mining_level: number;
+  foraging_level: number;
+  fishing_level: number;
+  combat_level: number;
+  total_skill_levels: number;
+  building_count: number;
+  cabin_count: number;
+  item_count: number;
+  quest_count: number;
+  completed_quest_count: number;
+  cooking_recipes: number;
+  crafting_recipes: number;
+  recipes_known: number;
+  file_size_bytes: number;
+  raw_xml_size: number;
 }
 
 export interface BackupInfo {
@@ -473,6 +582,10 @@ export interface SaveRestoreResult {
 
 export async function scanSaves(): Promise<SaveInfo[]> {
   return invoke<SaveInfo[]>('scan_saves');
+}
+
+export async function getSaveDetails(savePath: string): Promise<SaveDetailedInfo> {
+  return invoke<SaveDetailedInfo>('get_save_details', { savePath });
 }
 
 export async function backupSave(savePath: string, backupDir: string): Promise<SaveBackupResult> {
@@ -1367,4 +1480,56 @@ export async function loadEditorBuildings(savePath: string): Promise<SaveEditorB
 
 export async function saveEditorBuildings(savePath: string, list: SaveEditorBuildingList): Promise<string> {
   return invoke<string>('save_editor_save_buildings', { savePath, list });
+}
+
+export interface SaveEditorFriendshipInfo {
+  index: number;
+  npc_name: string;
+  points: number;
+  status: string;
+  gifts_this_week: number;
+  gifts_today: number;
+  talked_to_today: boolean;
+  proposer: string;
+  wedding_date: string;
+  next_anniversary: string;
+  meeting_since: string;
+  countdown_to_wedding: number;
+  anniversaries: number;
+  roommate_marriage: boolean;
+  broken_up: boolean;
+  proposal_rejected: boolean;
+  family_perk: number;
+}
+
+export interface SaveEditorFriendshipList {
+  friendships: SaveEditorFriendshipInfo[];
+}
+
+export async function loadEditorFriendships(savePath: string): Promise<SaveEditorFriendshipList> {
+  return invoke<SaveEditorFriendshipList>('save_editor_load_friendships', { savePath });
+}
+
+export async function saveEditorFriendships(savePath: string, list: SaveEditorFriendshipList): Promise<string> {
+  return invoke<string>('save_editor_save_friendships', { savePath, list });
+}
+
+export interface SaveEditorRecipeInfo {
+  index: number;
+  name: string;
+  unlocked: boolean;
+  times_crafted: number;
+}
+
+export interface SaveEditorRecipeData {
+  cooking: SaveEditorRecipeInfo[];
+  crafting: SaveEditorRecipeInfo[];
+}
+
+export async function loadEditorRecipes(savePath: string): Promise<SaveEditorRecipeData> {
+  return invoke<SaveEditorRecipeData>('save_editor_load_recipes', { savePath });
+}
+
+export async function saveEditorRecipes(savePath: string, data: SaveEditorRecipeData): Promise<string> {
+  return invoke<string>('save_editor_save_recipes', { savePath, data });
 }

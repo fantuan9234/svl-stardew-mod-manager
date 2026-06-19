@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::OnceLock;
+use std::time::SystemTime;
 use tauri::Emitter;
 
 use crate::mod_name_resolver::resolve_mod_name;
@@ -229,6 +230,32 @@ pub fn add_nexus_async_headers(request: reqwest::RequestBuilder, api_key: &str) 
     request
         .header("apikey", api_key)
         .header("User-Agent", USER_AGENT)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NexusFileRequirement {
+    pub name: String,
+    pub unique_id: Option<String>,
+    pub mod_id: Option<String>,
+    pub version: Option<String>,
+    pub optional: bool,
+    pub url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NexusFileInfo {
+    pub file_id: String,
+    pub name: String,
+    pub version: String,
+    pub requirements: Vec<NexusFileRequirement>,
+    pub uploaded_time: Option<String>,
+    pub is_primary: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NexusFileRequirementsResult {
+    pub files: Vec<NexusFileInfo>,
+    pub primary_requirements: Vec<NexusFileRequirement>,
 }
 
 #[tauri::command]
@@ -746,7 +773,7 @@ async fn query_graphql_mods(
     Err("未找到匹配的 MOD".to_string())
 }
 
-async fn get_nexus_mod_info_async(
+pub async fn get_nexus_mod_info_async(
     client: &reqwest::Client,
     api_key: &str,
     mod_id: &str,
@@ -782,6 +809,133 @@ async fn get_nexus_mod_info_async(
     } else {
         Err(format!("获取 MOD 信息失败 (状态码: {})", response.status()))
     }
+}
+
+#[tauri::command]
+pub async fn fetch_nexus_mod_description(api_key: String, mod_id: String) -> Result<String, String> {
+    let client = build_nexus_async_client();
+    let response = add_nexus_async_headers(
+        client.get(format!(
+            "{}/games/{}/mods/{}.json",
+            NEXUS_API_BASE, STARDEW_GAME_ID, mod_id
+        )),
+        &api_key
+    )
+    .send()
+    .await
+    .map_err(|e| format!("获取 MOD 描述失败: {}", e))?;
+
+    if response.status().is_success() {
+        let body: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| format!("解析 MOD 描述失败: {}", e))?;
+        let description = body["description"].as_str().unwrap_or("").to_string();
+        Ok(description)
+    } else {
+        Err(format!("获取 MOD 描述失败 (状态码: {})", response.status()))
+    }
+}
+
+pub async fn fetch_mod_file_requirements(
+    api_key: &str,
+    mod_id: &str,
+) -> Result<NexusFileRequirementsResult, String> {
+    let client = build_nexus_async_client();
+    let response = add_nexus_async_headers(
+        client.get(format!(
+            "{}/games/{}/mods/{}/files.json",
+            NEXUS_API_BASE, STARDEW_GAME_ID, mod_id
+        )),
+        api_key
+    )
+    .send()
+    .await
+    .map_err(|e| format!("获取 MOD 文件列表失败: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "获取 MOD 文件列表失败 (状态码: {})",
+            response.status()
+        ));
+    }
+
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("解析 MOD 文件列表失败: {}", e))?;
+
+    let files_arr = body["files"].as_array().cloned().unwrap_or_default();
+
+    let mut files: Vec<NexusFileInfo> = Vec::new();
+
+    for f in &files_arr {
+        let file_id = f["id"].as_i64().map(|n| n.to_string()).unwrap_or_default();
+        let name = f["name"].as_str().unwrap_or("").to_string();
+        let version = f["version"].as_str().unwrap_or("").to_string();
+        let uploaded_time = f["uploaded_time"].as_str().map(|s| s.to_string());
+        let is_primary = f["is_primary"].as_bool().unwrap_or(false);
+
+        let reqs_arr = f["modRequirements"].as_array().cloned().unwrap_or_default();
+        let mut requirements: Vec<NexusFileRequirement> = Vec::new();
+
+        for r in &reqs_arr {
+            let req_name = r["name"].as_str().unwrap_or("").to_string();
+            if req_name.is_empty() {
+                continue;
+            }
+            let unique_id = r["uniqueId"]
+                .as_str()
+                .or_else(|| r["unique_id"].as_str())
+                .map(|s| s.to_string());
+            let mod_id_val = r["modId"]
+                .as_i64()
+                .or_else(|| r["mod_id"].as_i64())
+                .map(|n| n.to_string());
+            let version = r["version"].as_str().map(|s| s.to_string());
+            let optional = r["optional"].as_bool().unwrap_or(false);
+            let url = r["url"].as_str().map(|s| s.to_string());
+
+            requirements.push(NexusFileRequirement {
+                name: req_name,
+                unique_id,
+                mod_id: mod_id_val,
+                version,
+                optional,
+                url,
+            });
+        }
+
+        files.push(NexusFileInfo {
+            file_id,
+            name,
+            version,
+            requirements,
+            uploaded_time,
+            is_primary,
+        });
+    }
+
+    let mut primary_requirements: Vec<NexusFileRequirement> = Vec::new();
+    if let Some(primary) = files.iter().find(|f| f.is_primary) {
+        primary_requirements = primary.requirements.clone();
+    }
+    if primary_requirements.is_empty() {
+        if let Some(latest) = files.iter().max_by_key(|f| {
+            f.uploaded_time
+                .as_deref()
+                .and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok())
+                .map(|d| d.timestamp())
+                .unwrap_or(0)
+        }) {
+            primary_requirements = latest.requirements.clone();
+        }
+    }
+
+    Ok(NexusFileRequirementsResult {
+        files,
+        primary_requirements,
+    })
 }
 
 fn extract_mods_array(body: &serde_json::Value) -> Vec<serde_json::Value> {
@@ -2094,6 +2248,8 @@ pub async fn open_nexus_browser(
                 path_str.clone(),
                 mods_path_wait.clone(),
                 None,
+                None,
+                None,
             );
 
             match result {
@@ -2291,10 +2447,53 @@ async fn download_mod_via_webview(
     .build()
     .map_err(|e| format!("创建浏览器窗口失败: {}", e))?;
 
-    for _ in 0..1200 {
+    let mut last_size: u64 = 0;
+    let mut last_mtime: SystemTime = SystemTime::UNIX_EPOCH;
+    let mut stable_checks: u32 = 0;
+    const REQUIRED_STABLE_CHECKS: u32 = 6;
+    for _ in 0..360 {
         tokio::time::sleep(std::time::Duration::from_millis(250)).await;
         if download_finished.load(Ordering::SeqCst) {
             break;
+        }
+        if let Some(path) = downloaded_file_path.lock().ok().and_then(|g| g.clone()) {
+            let p = PathBuf::from(&path);
+            if let Ok(meta) = fs::metadata(&p) {
+                let cur_size = meta.len();
+                let cur_mtime = meta.modified().ok();
+                if cur_size == last_size
+                    && cur_size > 0
+                    && cur_mtime == Some(last_mtime)
+                {
+                    stable_checks += 1;
+                    if stable_checks >= REQUIRED_STABLE_CHECKS {
+                        if cur_size < 4096 {
+                            stable_checks = 0;
+                            continue;
+                        }
+                        let mut head = [0u8; 4];
+                        if let Ok(mut f) = std::fs::File::open(&p) {
+                            use std::io::Read;
+                            if f.read(&mut head).unwrap_or(0) == 4 {
+                                if &head == b"PK\x03\x04" {
+                                    eprintln!("[nexus_webview] File stable & valid ZIP: {} ({} bytes)", p.display(), cur_size);
+                                    download_finished.store(true, Ordering::SeqCst);
+                                    download_success.store(true, Ordering::SeqCst);
+                                    break;
+                                } else {
+                                    eprintln!("[nexus_webview] File stable but not a ZIP (head={:02x?}), continue polling", head);
+                                    stable_checks = 0;
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    last_size = cur_size;
+                    last_mtime = cur_mtime.unwrap_or(SystemTime::UNIX_EPOCH);
+                    stable_checks = 0;
+                }
+            }
         }
     }
 
@@ -2369,6 +2568,8 @@ async fn download_mod_via_webview(
                 path_str.clone(),
                 mods_path.to_string(),
                 old_unique_id,
+                None,
+                None,
             );
 
             let _ = fs::remove_dir_all(&temp_dir);
@@ -2513,6 +2714,8 @@ pub async fn download_mod_from_cdn_link(
         archive_path,
         mods_path.clone(),
         None,
+        None,
+        None,
     );
 
     let _ = fs::remove_file(&temp_file_path);
@@ -2598,10 +2801,33 @@ pub async fn download_mod_from_nexus(
                 .filter(|f| !f.is_premium_only)
                 .collect();
 
+            eprintln!("[DEBUG_SELECTED] full non-premium file list for mod_id={}:", mod_id);
+            for f in &non_premium {
+                eprintln!(
+                    "[DEBUG_SELECTED]   file_id={} name='{}' category={} version='{}'",
+                    f.file_id, f.name, f.category_id, f.version
+                );
+            }
+            log_info("NexusDebug", &format!(
+                "mod_id={} non_premium_files:",
+                mod_id
+            ));
+            for f in &non_premium {
+                log_info("NexusDebug", &format!(
+                    "  non-premium file_id={} name='{}' category={} version='{}'",
+                    f.file_id, f.name, f.category_id, f.version
+                ));
+            }
+
             let main_files: Vec<_> = non_premium.iter()
                 .filter(|f| f.category_id == 1)
                 .cloned()
                 .collect();
+            eprintln!("[DEBUG_SELECTED] main_files (category=1) count={}", main_files.len());
+            log_info("NexusDebug", &format!(
+                "mod_id={} main_files (category=1) count={}",
+                mod_id, main_files.len()
+            ));
             if !main_files.is_empty() {
                 let mut sorted = main_files;
                 sorted.sort_by(|a, b| {
@@ -2670,6 +2896,14 @@ pub async fn download_mod_from_nexus(
         "Selected file: {} (file_id={}, category={}, version={})",
         target_file.name, target_file.file_id, target_file.category_id, target_file.version
     ));
+    eprintln!(
+        "[DEBUG_SELECTED] mod_id={} -> SELECTED file_id={} name='{}' category={} version='{}'",
+        mod_id, target_file.file_id, target_file.name, target_file.category_id, target_file.version
+    );
+    log_info("NexusDebug", &format!(
+        "mod_id={} -> SELECTED file_id={} name='{}' category={} version='{}'",
+        mod_id, target_file.file_id, target_file.name, target_file.category_id, target_file.version
+    ));
 
     if !api_key.is_empty() {
         let client_dl = build_nexus_async_client();
@@ -2709,6 +2943,8 @@ pub async fn download_mod_from_nexus(
                             archive_path,
                             mods_path.clone(),
                             old_unique_id.clone(),
+                            None,
+                            None,
                         );
 
                         let _ = fs::remove_file(&temp_file_path);
@@ -2777,6 +3013,24 @@ async fn get_mod_files_via_api(
         .and_then(|v| v.as_array())
         .cloned()
         .unwrap_or_default();
+
+    log_info("NexusDebug", &format!(
+        "mod_id={} total_files_in_response={}",
+        mod_id, files_arr.len()
+    ));
+    for f in &files_arr {
+        let fid = f["file_id"].as_u64().unwrap_or(0);
+        let fname = f["file_name"].as_str().unwrap_or("");
+        let fver = f["version"].as_str().unwrap_or("");
+        let fcat = f["category_id"].as_i64().unwrap_or(-1);
+        let fprem = f["is_premium"].as_bool().unwrap_or(false);
+        let fsize = f["size_in_bytes"].as_u64().unwrap_or(0);
+        let fprimary = f["is_primary"].as_bool().unwrap_or(false);
+        log_info("NexusDebug", &format!(
+            "  file_id={} name='{}' category={} version='{}' size={} premium={} primary={}",
+            fid, fname, fcat, fver, fsize, fprem, fprimary
+        ));
+    }
 
     Ok(files_arr.into_iter().map(|f| NexusFileDownloadInfo {
         file_id: f["file_id"].as_u64().unwrap_or(0).to_string(),

@@ -2,10 +2,12 @@
   "app": {
     "title": "SVL",
     "common": {
-      "ok": "確定",
+      "confirm": "確定",
       "cancel": "取消",
+      "unknownError": "未知錯誤",
       "close": "關閉",
-      "delete": "刪除"
+      "delete": "刪除",
+      "ok": "確定"
     },
     "toolbox": {
       "title": "工具箱",
@@ -42,7 +44,7 @@
       "configNoChanges": "沒有修改",
       "configSaveSuccess": "設定儲存成功",
       "configSaveFailed": "設定儲存失敗",
-      "snapshotTitle": "備份管理",
+      "snapshotTitle": "模組備份",
       "snapshotDesc": "一鍵備份所有模組，支援建立多個快照以便隨時還原",
       "snapshotCreate": "建立快照",
       "snapshotRefresh": "重新整理",
@@ -78,12 +80,16 @@
       "snapshotDeleteSuccess": "快照刪除成功",
       "snapshotNamePlaceholder": "輸入快照名稱，例如：安裝大型模組前",
       "snapshotLoading": "正在載入快照列表...",
-      "translateTitle": "一鍵翻譯",
+      "translateTitle": "模組翻譯",
       "translateDesc": "使用 AI 翻譯模組 i18n 內容，自動偵測翻譯進度",
       "smapiAnalyzerTitle": "SMAPI 日誌檢測",
       "smapiAnalyzerDesc": "貼上 SMAPI 紅色報錯日誌，自動識別問題並給出解決方案",
       "saveEditorTitle": "存檔編輯器",
       "saveEditorDesc": "線上編輯存檔中的角色、背包、技能、任務、建築",
+      "groupMod": "模組維護",
+      "groupSave": "存檔管理",
+      "groupDiag": "診斷與日誌",
+      "recent": "最近使用",
       "saveEditorSelectSave": "選擇存檔",
       "saveEditorLoadFailed": "讀取存檔失敗",
       "saveEditorSaveSuccess": "存檔儲存成功，已自動備份到",
@@ -131,7 +137,39 @@
       "saveEditorBuildingTileY": "Y 座標",
       "saveEditorBuildingMaxOccupants": "最大容量",
       "saveEditorBuildingCurrentOccupants": "當前數量",
-      "saveEditorBuildingEmpty": "暫無建築"
+      "saveEditorBuildingEmpty": "暫無建築",
+      "logClearFailed": "清理舊日誌失敗",
+      "logFilter": "篩選",
+      "logLoadFailed": "載入日誌失敗",
+      "logOpenDirFailed": "開啟日誌目錄失敗",
+      "logClearOld": "清理舊日誌",
+      "logClearSuccess": "日誌清理完成",
+      "logEmpty": "暫無日誌記錄",
+      "logExport": "匯出全部日誌",
+      "logExportFailed": "匯出日誌失敗",
+      "logExportSuccess": "日誌已匯出到：{{path}}",
+      "logLines": "共 {{count}} 行日誌",
+      "logOpenDir": "開啟目錄",
+      "logsTitle": "應用日誌",
+      "saveBackupTitle": "存檔備份",
+      "saveBackupDesc": "一鍵備份所有存檔，支援建立多個快照以便隨時回溯",
+      "saveEditorBuildingAction": "操作",
+      "saveEditorBuildingDelete": "拆除",
+      "saveEditorBuildingDeleteConfirm": "確定拆除此建築？",
+      "saveEditorCookingRecipes": "烹飪食譜",
+      "saveEditorCraftingRecipes": "製作食譜",
+      "saveEditorFriendshipGiftsToday": "今日送禮",
+      "saveEditorFriendshipGiftsWeek": "本週送禮",
+      "saveEditorFriendshipHearts": "好感度",
+      "saveEditorFriendshipNpc": "NPC",
+      "saveEditorFriendshipStatus": "關係",
+      "saveEditorFriendshipTalked": "今日是否交談",
+      "saveEditorRecipeEmpty": "暫無食譜資料",
+      "saveEditorRecipeName": "食譜名稱",
+      "saveEditorRecipeTimesCrafted": "已製作次數",
+      "saveEditorRecipeUnlocked": "是否解鎖",
+      "saveEditorTabFriendships": "NPC好感",
+      "saveEditorTabRecipes": "食譜"
     },
     "translator": {
       "title": "AI 模組翻譯",
@@ -247,11 +285,118 @@
       "sync": "聯機同步",
       "settings": "設定",
       "nexusBrowser": "N 網模組",
-      "toolbox": "工具箱"
+      "toolbox": "工具箱",
+      "website": "訪問官網"
     },
     "sync": {
-      "comingSoon": "聯機同步功能即將上線",
-      "comingSoonDesc": "與朋友共享模組配置，一鍵同步聯機環境"
+      "title": "聯機環境同步",
+      "modpack": {
+        "title": "整合包管理"
+      },
+      "openUrlFailed": "開啟連結失敗",
+      "noUrlAvailable": "該 MOD 沒有可用的下載連結",
+      "profilesLoadFailed": "載入檔案列表失敗",
+      "loadTimeout": "載入超時，請檢查網路或稍後重試。您也可以嘗試在檔案管理中建立新檔案。",
+      "mods": "個模組",
+      "export": {
+        "tab": "從檔案匯出",
+        "description": "選擇一個 MOD 檔案，將其包含的模組清單（名稱、版本、唯一ID）打包成 .svl_sync 同步包檔案，分享給朋友實現聯機環境同步。",
+        "profileLabel": "選擇檔案",
+        "profilePlaceholder": "請選擇要匯出的檔案",
+        "selectProfile": "請先選擇一個檔案",
+        "noProfiles": "暫無檔案，請先在檔案管理中建立",
+        "loading": "載入中...",
+        "hostNameLabel": "主機名稱",
+        "hostNamePlaceholder": "輸入您的玩家名稱（如：小明）",
+        "hostNameRequired": "請輸入主機名稱",
+        "noGamePath": "未找到遊戲路徑",
+        "exportButton": "匯出為同步包",
+        "exporting": "匯出中...",
+        "success": "同步包匯出成功：{{path}}",
+        "failed": "匯出失敗，請重試",
+        "modCount": "包含 {{count}} 個模組"
+      },
+      "import": {
+        "tab": "匯入與對比",
+        "description": "選擇朋友分享的 .svl_sync 檔案，再選擇您的本地檔案作為對比基準，SVL 將自動對比差異並幫助您補齊缺失的 MOD。",
+        "fileLabel": "同步包檔案",
+        "selectFileButton": "選擇檔案",
+        "selectFile": "請先選擇一個同步包檔案",
+        "profileLabel": "對比基準檔案",
+        "profilePlaceholder": "選擇本地檔案進行對比",
+        "selectProfile": "請選擇本地檔案作為對比基準",
+        "compareButton": "開始對比",
+        "comparing": "對比中...",
+        "noGamePath": "未找到遊戲路徑",
+        "failed": "匯入失敗，請檢查檔案格式",
+        "compareFailed": "對比失敗，請重試",
+        "emptyHint": "選擇同步包檔案並指定本地檔案後，點擊「開始對比」檢視差異",
+        "importButton": "匯入並對比",
+        "importing": "匯入中..."
+      },
+      "exportModpack": {
+        "title": "匯出為整合包",
+        "description": "將當前檔案的所有 MOD 打包成一個 .zip 檔案，方便分享給朋友。",
+        "profileLabel": "選擇要匯出的檔案",
+        "profilePlaceholder": "選擇檔案",
+        "selectProfile": "請先選擇一個檔案",
+        "noGamePath": "未找到遊戲路徑",
+        "exportButton": "匯出為整合包 (.zip)",
+        "exporting": "匯出中...",
+        "success": "成功匯出 {{count}} 個 MOD 到 {{path}}",
+        "failed": "匯出失敗，請重試"
+      },
+      "importModpack": {
+        "title": "匯入整合包",
+        "description": "拖入或選擇朋友分享的整合包（支援 .zip 檔案或資料夾），SVL 將自動匯入並建立新檔案。",
+        "dragText": "點擊或拖入整合包檔案或資料夾",
+        "hint": "支援 .zip 格式檔案或包含 MOD 的資料夾",
+        "selectButton": "選擇檔案",
+        "useSelectButton": "拖曳檔案無法獲取路徑，請使用「選擇檔案」按鈕",
+        "selectFailed": "選擇檔案失敗",
+        "invalidFormat": "僅支援 .zip 檔案或 MOD 資料夾",
+        "modalTitle": "為新檔案命名",
+        "modalDesc": "匯入的 MOD 將儲存為一個新檔案，請為其命名：",
+        "modalPlaceholder": "例如：朋友的整合包",
+        "modalOk": "確認匯入",
+        "nameRequired": "請輸入檔案名稱",
+        "noFile": "未選擇檔案",
+        "noGamePath": "未找到遊戲路徑",
+        "success": "成功匯入 {{count}} 個 MOD 到檔案「{{name}}」",
+        "failed": "匯入失敗，請檢查檔案格式",
+        "supportedFormats": "支援格式：.zip 壓縮包或包含 MOD 的資料夾"
+      },
+      "diff": {
+        "modName": "MOD 名稱",
+        "uniqueId": "唯一ID",
+        "requiredVersion": "所需版本",
+        "localVersion": "本地版本",
+        "currentVersion": "當前版本",
+        "author": "作者",
+        "action": "操作",
+        "suggestion": "建議",
+        "installGuide": "一鍵安裝",
+        "updateSuggestion": "建議更新到所需版本",
+        "localMissing": "我方缺失的 MOD（{{count}}個）",
+        "remoteMissing": "對方缺失的 MOD（{{count}}個）",
+        "localMissingCount": "我方缺失",
+        "remoteMissingCount": "對方缺失",
+        "mismatchCount": "版本不一致",
+        "mismatch": "版本不匹配（{{count}}個）",
+        "configs": "配置不同（{{count}}個）",
+        "configMissing": "缺少配置",
+        "configMismatch": "配置不同",
+        "perfect": "環境完全匹配，無需同步！",
+        "missing": "缺失"
+      },
+      "apply": {
+        "applyButton": "一鍵補齊",
+        "applying": "補齊中...",
+        "failed": "同步失敗，請重試",
+        "appliedMods": "已補齊的MOD",
+        "configsApplied": "已應用的配置",
+        "restartNotice": "請重啟遊戲以使所有更改生效。"
+      }
     },
     "pages": {
       "modManager": {
@@ -261,6 +406,8 @@
         "filterEnabled": "已啟用",
         "filterDisabled": "已停用",
         "sortLabel": "排序",
+        "categoryLabel": "分類",
+        "statusFilterLabel": "狀態",
         "sortNameAZ": "名稱 A-Z",
         "sortNameZA": "名稱 Z-A",
         "sortAuthor": "作者",
@@ -271,7 +418,9 @@
         "installSmapiPrompt": "請先安裝 SMAPI 以管理模組",
         "unsupportedLayoutTitle": "Mods 目錄使用說明",
         "unsupportedLayoutDesc": "請不要在 Mods 目錄下再建立分類子資料夾。\n\nMods 目錄下的所有內容都必須直接放在根目錄裡，不支援嵌套分類目錄。如果你用「美化合集」「UI 整合」這樣的子資料夾來分類，資料夾下的 mod 不會在主列表顯示。\n\n✅ 正確：Mods/ModA/、Mods/ModB/、Mods/ModC/\n❌ 錯誤：Mods/美化合集/ModA/、Mods/UI 整合/ModB/",
-        "unsupportedLayoutDismiss": "我已了解，不再提醒",
+        "unsupportedLayoutDismiss": "我已了解",
+        "unsupportedLayoutNeverRemind": "永遠不再提醒",
+        "unsupportedLayoutSnoozeToday": "今日不再提醒",
         "installSmapiLink": "下載 SMAPI",
         "installSmapi": "下載 SMAPI",
         "downloadSmapi": "下載 SMAPI",
@@ -296,10 +445,20 @@
         "dropzoneTitle": "拖曳MOD壓縮包到這裡",
         "dropzoneDesc": "支援 .zip, .7z 格式",
         "importFromFolder": "從本地資料夾安裝",
+        "installMod": "安裝模組",
+        "installBannerHint": "拖放 ZIP / 7z 檔案或點擊展開",
+        "collapseDropzone": "收起",
         "installing": "安裝中...",
         "selectProfile": "選擇檔案",
         "manageProfiles": "管理檔案",
-        "modsEnabled": "個模組已啟用"
+        "modsEnabled": "個模組已啟用",
+        "gamePathRequired": "請先設定遊戲路徑",
+        "autoInstallSmapi": "自動安裝 SMAPI",
+        "autoInstallSmapiProgress": "正在下載安裝 SMAPI...",
+        "autoInstallSmapiSuccess": "SMAPI 安裝成功",
+        "autoInstallSmapiFailed": "SMAPI 自動安裝失敗",
+        "autoInstallSmapiDesc": "自動下載並安裝最新版 SMAPI 模組載入器",
+        "autoInstallSmapiProgressTitle": "SMAPI 安裝進度"
       },
       "conflictScanner": {
         "title": "衝突檢測",
@@ -423,7 +582,9 @@
       "disableAll": "全部停用",
       "batchDeleteConfirm": "確定要刪除 {{count}} 個模組嗎？",
       "batchDeleteWarning": "此操作不可撤銷，將刪除所有選中模組的檔案",
-      "batchDeleteSuccess": "已刪除 {{count}} 個模組"
+      "batchDeleteSuccess": "已刪除 {{count}} 個模組",
+      "batchDisable": "批次停用",
+      "batchEnable": "批次啟用"
     },
     "statusbar": {
       "brand": "為星露谷而生 ❤️",
@@ -435,7 +596,8 @@
     "theme": {
       "title": "介面主題",
       "oceanBlue": "深海藍",
-      "mintGreen": "薄荷綠",
+      "parchment": "暖棕農場",
+      "mintGreen": "淡粉色",
       "custom": "自訂",
       "smartColor": "智慧配色",
       "customPrimary": "主題色",
@@ -452,7 +614,13 @@
       "opacity": "透明度",
       "imageTooLarge": "圖片不能超過 5MB",
       "customImages": "自訂圖片",
-      "chickenImage": "小雞圖片"
+      "chickenImage": "小雞圖片",
+      "sidebarLogo": "側邊欄圖示",
+      "sidebarLogoMode": "顯示模式",
+      "logoDaynight": "太陽月亮",
+      "logoFarm": "農場圖片",
+      "logoCustom": "自訂圖片",
+      "sidebarLogoImage": "圖示圖片"
     },
     "language": {
       "switch": "切換語言",
@@ -488,7 +656,9 @@
       "selectAll": "全選",
       "deselectAll": "全不選",
       "totalSelected": "已選 {{count}}/{{total}} 個模組",
-      "empty": "暫無檔案，請點擊上方按鈕建立"
+      "empty": "暫無檔案，請點擊上方按鈕建立",
+      "confirmDelete": "確定要刪除檔案「{{name}}」嗎？",
+      "loading": "載入中..."
     },
     "profilesPage": {
       "title": "MOD 檔案管理",
@@ -550,7 +720,8 @@
       "colModId": "模組尾號",
       "cardSaved": "卡片已儲存為圖片: {{path}}",
       "saveCancelled": "已取消儲存",
-      "saveFailed": "儲存失敗: {{error}}"
+      "saveFailed": "儲存失敗: {{error}}",
+      "copy": "複製檔案"
     },
     "health": {
       "goToNexus": "前往Nexus"
@@ -671,112 +842,6 @@
       "faqUpdateKey": "UpdateKey 是什麼？",
       "faqUpdateKeyAnswer": "UpdateKey 是 MOD 作者用來標識 MOD 更新來源的標記，通常包含 Nexus Mods 的 MOD ID。SVL 可以透過它自動檢測 MOD 是否有新版本。"
     },
-    "sync": {
-      "title": "聯機環境同步",
-      "modpack": {
-        "title": "整合包管理"
-      },
-      "openUrlFailed": "開啟連結失敗",
-      "noUrlAvailable": "該 MOD 沒有可用的下載連結",
-      "profilesLoadFailed": "載入檔案列表失敗",
-      "loadTimeout": "載入超時，請檢查網路或稍後重試。您也可以嘗試在檔案管理中建立新檔案。",
-      "mods": "個模組",
-      "export": {
-        "tab": "從檔案匯出",
-        "description": "選擇一個 MOD 檔案，將其包含的模組清單（名稱、版本、唯一ID）打包成 .svl_sync 同步包檔案，分享給朋友實現聯機環境同步。",
-        "profileLabel": "選擇檔案",
-        "profilePlaceholder": "請選擇要匯出的檔案",
-        "selectProfile": "請先選擇一個檔案",
-        "noProfiles": "暫無檔案，請先在檔案管理中建立",
-        "loading": "載入中...",
-        "hostNameLabel": "主機名稱",
-        "hostNamePlaceholder": "輸入您的玩家名稱（如：小明）",
-        "hostNameRequired": "請輸入主機名稱",
-        "noGamePath": "未找到遊戲路徑",
-        "exportButton": "匯出為同步包",
-        "exporting": "匯出中...",
-        "success": "同步包匯出成功：{{path}}",
-        "failed": "匯出失敗，請重試"
-      },
-      "import": {
-        "tab": "匯入與對比",
-        "description": "選擇朋友分享的 .svl_sync 檔案，再選擇您的本地檔案作為對比基準，SVL 將自動對比差異並幫助您補齊缺失的 MOD。",
-        "fileLabel": "同步包檔案",
-        "selectFileButton": "選擇檔案",
-        "selectFile": "請先選擇一個同步包檔案",
-        "profileLabel": "對比基準檔案",
-        "profilePlaceholder": "選擇本地檔案進行對比",
-        "selectProfile": "請選擇本地檔案作為對比基準",
-        "compareButton": "開始對比",
-        "comparing": "對比中...",
-        "noGamePath": "未找到遊戲路徑",
-        "failed": "匯入失敗，請檢查檔案格式",
-        "compareFailed": "對比失敗，請重試",
-        "emptyHint": "選擇同步包檔案並指定本地檔案後，點擊「開始對比」檢視差異"
-      },
-      "exportModpack": {
-        "title": "匯出為整合包",
-        "description": "將當前檔案的所有 MOD 打包成一個 .zip 檔案，方便分享給朋友。",
-        "profileLabel": "選擇要匯出的檔案",
-        "profilePlaceholder": "選擇檔案",
-        "selectProfile": "請先選擇一個檔案",
-        "noGamePath": "未找到遊戲路徑",
-        "exportButton": "匯出為整合包 (.zip)",
-        "exporting": "匯出中...",
-        "success": "成功匯出 {{count}} 個 MOD 到 {{path}}",
-        "failed": "匯出失敗，請重試"
-      },
-      "importModpack": {
-        "title": "匯入整合包",
-        "description": "拖入或選擇朋友分享的整合包（支援 .zip 檔案或資料夾），SVL 將自動匯入並建立新檔案。",
-        "dragText": "點擊或拖入整合包檔案或資料夾",
-        "hint": "支援 .zip 格式檔案或包含 MOD 的資料夾",
-        "selectButton": "選擇檔案",
-        "useSelectButton": "拖曳檔案無法獲取路徑，請使用「選擇檔案」按鈕",
-        "selectFailed": "選擇檔案失敗",
-        "invalidFormat": "僅支援 .zip 檔案或 MOD 資料夾",
-        "modalTitle": "為新檔案命名",
-        "modalDesc": "匯入的 MOD 將儲存為一個新檔案，請為其命名：",
-        "modalPlaceholder": "例如：朋友的整合包",
-        "modalOk": "確認匯入",
-        "nameRequired": "請輸入檔案名稱",
-        "noFile": "未選擇檔案",
-        "noGamePath": "未找到遊戲路徑",
-        "success": "成功匯入 {{count}} 個 MOD 到檔案「{{name}}」",
-        "failed": "匯入失敗，請檢查檔案格式",
-        "supportedFormats": "支援格式：.zip 壓縮包或包含 MOD 的資料夾"
-      },
-      "diff": {
-        "modName": "MOD 名稱",
-        "uniqueId": "唯一ID",
-        "requiredVersion": "所需版本",
-        "localVersion": "本地版本",
-        "currentVersion": "當前版本",
-        "author": "作者",
-        "action": "操作",
-        "suggestion": "建議",
-        "installGuide": "一鍵安裝",
-        "updateSuggestion": "建議更新到所需版本",
-        "localMissing": "我方缺失的 MOD（{{count}}個）",
-        "remoteMissing": "對方缺失的 MOD（{{count}}個）",
-        "localMissingCount": "我方缺失",
-        "remoteMissingCount": "對方缺失",
-        "mismatchCount": "版本不一致",
-        "mismatch": "版本不匹配（{{count}}個）",
-        "configs": "配置不同（{{count}}個）",
-        "configMissing": "缺少配置",
-        "configMismatch": "配置不同",
-        "perfect": "環境完全匹配，無需同步！"
-      },
-      "apply": {
-        "applyButton": "一鍵補齊",
-        "applying": "補齊中...",
-        "failed": "同步失敗，請重試",
-        "appliedMods": "已補齊的MOD",
-        "configsApplied": "已應用的配置",
-        "restartNotice": "請重啟遊戲以使所有更改生效。"
-      }
-    },
     "smapiInstaller": {
       "noGamePath": "未找到遊戲路徑，請先檢測遊戲路徑",
       "installing": "正在安裝 SMAPI...",
@@ -844,10 +909,41 @@
       "title": "存檔管理",
       "refresh": "重新整理",
       "openSaveLocation": "開啟存檔目錄",
+      "expandAll": "展開全部",
+      "collapseAll": "收起全部",
+      "details": "詳情",
       "noSaves": "未找到存檔，請確保已執行過遊戲",
+      "detailsTitle": "存檔詳情",
+      "detailsLoadFailed": "存檔詳情載入失敗",
+      "detailsLoadFailedContinue": "存檔詳情載入失敗",
       "farmName": "農場名稱",
+      "currentDate": "遊戲內日期",
+      "money": "金幣",
       "playTime": "遊戲時間",
-      "lastModified": "最後遊玩",
+      "totalSkills": "總技能等級",
+      "spouse": "配偶",
+      "single": "單身",
+      "mineLevel": "最深礦層",
+      "skullCavernLevel": "骷髏洞穴最深",
+      "floorN": "第 {{n}} 層",
+      "fileSize": "存檔大小",
+      "saveFileSize": "原始 XML 大小",
+      "farmSize": "農場大小",
+      "lastModified": "最後修改",
+      "requiredMods": "必需模組",
+      "ccCompleted": "社區中心已完成",
+      "ccNotCompleted": "社區中心未完成",
+      "jojaCompleted": "Joja 路線已完成",
+      "gingerIsland": "薑島已解鎖",
+      "gingerIslandLocked": "薑島未解鎖",
+      "goldenParrot": "金鸚鵡已啟用",
+      "stardrops": "{{count}} 個星之果實",
+      "stardropsFound": "星之果實",
+      "grandpaCandles": "{{count}} 支蠟燭評分",
+      "treasureTotems": "{{count}} 次寶藏圖騰",
+      "raccoonsFed": "{{count}} 次餵食浣熊",
+      "perfectionScore": "完美度",
+      "perfectionWaivers": "豁免次數",
       "backups": "備份數",
       "linkedProfile": "關聯檔案",
       "boundProfile": "綁定的 MOD 檔案",
@@ -859,12 +955,45 @@
       "backup": "備份",
       "restore": "還原",
       "linkProfile": "關聯檔案",
+      "linkProfileDesc": "為存檔「{{name}}」綁定一個 MOD 檔案",
+      "selectProfile": "選擇檔案",
+      "mods": "個MOD",
+      "profileMismatch": "與當前檔案不一致",
+      "modEnabled": "個模組已啟用",
+      "statMoney": "目前金幣",
+      "statTotalEarned": "總收入",
+      "statDaysPlayed": "遊戲天數",
+      "days": "天",
+      "progressSection": "進度概覽",
+      "skillsSection": "技能",
+      "skillFarming": "農業",
+      "skillMining": "採礦",
+      "skillForaging": "採集",
+      "skillFishing": "釣魚",
+      "skillCombat": "戰鬥",
+      "socialSection": "社交",
+      "friendshipCount": "好感度總數",
+      "maxFriendship": "最高好感度",
+      "worldSection": "世界進度",
+      "grandpaScore": "爺爺評分",
+      "collectionsSection": "收集",
+      "buildingCount": "建築數",
+      "cabinCount": "小木屋數",
+      "itemCount": "物品數",
+      "questCount": "任務進度",
+      "cookingRecipes": "烹飪食譜",
+      "craftingRecipes": "製作食譜",
+      "totalRecipes": "總食譜",
+      "systemSection": "系統資訊",
+      "gameVersion": "遊戲版本",
+      "health": "生命值",
+      "stamina": "體力",
+      "timeOfDay": "遊戲內時間",
       "backupConfirm": "確定要備份存檔「{{name}}」嗎？",
       "restoreConfirm": "確定要從此備份還原存檔嗎？這將覆蓋當前存檔。",
       "backupFailed": "備份失敗",
       "backupFailedContinue": "備份失敗，將繼續安裝",
       "restoreFailed": "還原失敗",
-      "backupHistory": "歷史備份",
       "listBackupsFailed": "獲取備份列表失敗",
       "selectBackupDir": "選擇備份儲存目錄",
       "loadFailed": "載入存檔列表失敗",
@@ -875,16 +1004,14 @@
       "unlinkSuccess": "已解除綁定",
       "unlinkFailed": "解除綁定失敗",
       "launchFailed": "啟動遊戲失敗",
-      "linkProfileDesc": "為存檔「{{name}}」綁定一個 MOD 檔案",
-      "selectProfile": "選擇檔案",
-      "mods": "個MOD",
-      "profileMismatch": "與當前檔案不一致",
-      "requiredMods": "必選模組"
-    },
-    "common": {
-      "confirm": "確定",
-      "cancel": "取消",
-      "unknownError": "未知錯誤"
+      "farmTypeStandard": "標準農場",
+      "farmTypeRiverland": "沿河農場",
+      "farmTypeForest": "森林農場",
+      "farmTypeHilltop": "山頂農場",
+      "farmTypeWilderness": "荒野農場",
+      "farmTypeFourCorners": "四角農場",
+      "farmTypeBeach": "海灘農場",
+      "farmTypeCustom": "自訂農場"
     },
     "modDetail": {
       "title": "MOD 詳情",
@@ -1006,7 +1133,8 @@
       "gameRunning": "遊戲執行中",
       "gameExited": "遊戲已退出",
       "launchNotification": "遊戲正在透過 SMAPI 啟動",
-      "duration": "已執行 {{duration}}"
+      "duration": "已執行 {{duration}}",
+      "launchFailed": "啟動遊戲失敗"
     },
     "onboarding": {
       "title": "歡迎使用 SVL",
@@ -1044,7 +1172,9 @@
       "installComplete": "安裝完成",
       "success": "成功",
       "failed": "失敗",
-      "close": "關閉"
+      "close": "關閉",
+      "noModsPath": "未設定 Mods 路徑，請先設定遊戲路徑",
+      "unsupportedFormat": "不支援的檔案格式，僅支援 .zip 和 .7z"
     },
     "modBackup": {
       "title": "備份模組",
@@ -1129,6 +1259,12 @@
     },
     "noDescription": "暫無描述",
     "optional": "可選",
+    "modStatus": {
+      "missingDeps": "缺少前置",
+      "updateAvailable": "有更新",
+      "enabled": "已啟用",
+      "disabled": "已停用"
+    },
     "modified": "已修改",
     "arrayNotSupported": "陣列 ({{count}} 項) - 不支援手動編輯",
     "objectNotSupported": "物件 ({{count}} 個鍵) - 不支援手動編輯",
@@ -1171,7 +1307,10 @@
       "openLogFolder": "開啟日誌資料夾",
       "badgeText": "檢測到 {{count}} 個 MOD 錯誤",
       "autoCheckHint": "遊戲退出後自動檢測",
-      "gameExitErrors": "遊戲退出後檢測到 {{count}} 個 MOD 錯誤"
+      "gameExitErrors": "遊戲退出後檢測到 {{count}} 個 MOD 錯誤",
+      "infoDetected": "偵測到 {{count}} 條 INFO 日誌",
+      "logNotFound": "未找到 SMAPI 日誌檔案",
+      "smapiNotInstalled": "未偵測到 SMAPI 安裝"
     },
     "depResolver": {
       "title": "依賴自動補全",
@@ -1197,7 +1336,8 @@
       "batchInstall": "一鍵安裝 ({{count}})",
       "batchComplete": "批次安裝完成",
       "noInstallable": "沒有可自動安裝的依賴",
-      "close": "關閉"
+      "close": "關閉",
+      "rescan": "重新掃描"
     },
     "smapiAnalyzer": {
       "inputLabel": "SMAPI 日誌內容",
@@ -1231,6 +1371,27 @@
       "copySummary": "複製診斷結果",
       "copyFailed": "複製失敗",
       "copied": "已複製"
+    },
+    "features": {
+      "loadOrder": {
+        "layerContent": "內容包",
+        "layerCore": "核心模組",
+        "layerExpansion": "擴展模組",
+        "layerFramework": "前置框架",
+        "layerLibrary": "庫檔案",
+        "layerOverride": "覆蓋模組"
+      },
+      "security": {
+        "checkDll": "DLL 檢測",
+        "checkEntryPoint": "入口點驗證",
+        "checkFileIntegrity": "檔案完整性",
+        "checkManifest": "清單檔案檢查",
+        "checkNexusAuth": "Nexus 認證",
+        "criticalRisk": "極高風險",
+        "highRisk": "高風險",
+        "lowRisk": "低風險",
+        "mediumRisk": "中風險"
+      }
     }
   },
   "sidebar": {
@@ -1308,7 +1469,7 @@
       "highRisk": "高風險",
       "criticalRisk": "極高風險",
       "checkDll": "DLL 檢測",
-      "checkEntryPoint": "進入點驗證",
+      "checkEntryPoint": "入口點驗證",
       "checkNexusAuth": "Nexus 認證",
       "checkManifest": "清單檔案檢查",
       "checkFileIntegrity": "檔案完整性"
@@ -1432,7 +1593,27 @@
         "3718": "音樂音效",
         "3719": "其他",
         "3720": "最佳化"
-      }
+      },
+      "downloads": "下載量",
+      "prereqTitle": "「{{name}}」前置偵測",
+      "prereqDescription": "以下模組是安裝該模組的前置依賴，未安裝的前置可能影響模組正常運行。勾選需要安裝的前置後點擊下載按鈕。",
+      "prereqMissingCount": "偵測到 {{count}} 個未安裝前置",
+      "selectAllMissing": "全選未安裝",
+      "deselectAll": "取消全選",
+      "required": "必須",
+      "optional": "可選",
+      "clickToInstall": "勾選後一鍵安裝",
+      "manualInstallRequired": "需手動搜尋安裝",
+      "alreadyInstalled": "已安裝",
+      "installingPrerequisite": "正在安裝前置: {{name}}...",
+      "prereqInstallResult": "前置安裝完成：{{success}} 成功，{{fail}} 失敗",
+      "skipPrereq": "跳過，直接下載",
+      "installSelectedAndDownload": "安裝選中 ({{count}}) 並下載",
+      "installing": "安裝中...",
+      "prereqChecking": "偵測前置中...",
+      "prereqAllInstalled": "前置檢查完成：{{name}} 的所有前置皆已安裝",
+      "prereqNoneDetected": "未偵測到 {{name}} 的前置相依",
+      "prereqCheckFailed": "前置檢查失敗：{{name}} ({{error}})，將直接下載"
     }
   },
   "home": {
@@ -1447,5 +1628,92 @@
       "sponsorNote": "以上廣告為本站贊助商，感謝支援",
       "dontShowAgain": "今天不再提示"
     }
+  },
+  "common": {
+    "close": "關閉",
+    "delete": "刪除",
+    "ok": "確定",
+    "back": "返回",
+    "confirm": "確定",
+    "cancel": "取消"
+  },
+  "log": {
+    "infoDetected": "偵測到 {{count}} 條 INFO 日誌",
+    "logNotFound": "未找到 SMAPI 日誌檔案",
+    "smapiNotInstalled": "未偵測到 SMAPI 安裝"
+  },
+  "modList": {
+    "batchDisable": "批次停用",
+    "batchEnable": "批次啟用"
+  },
+  "profiles": {
+    "confirmDelete": "確定要刪除檔案「{{name}}」嗎？",
+    "loading": "載入中..."
+  },
+  "profilesPage": {
+    "copy": "複製檔案"
+  },
+  "sync": {
+    "diff": {
+      "missing": "缺失"
+    },
+    "export": {
+      "modCount": "包含 {{count}} 個模組"
+    },
+    "import": {
+      "importButton": "匯入並對比",
+      "importing": "匯入中..."
+    }
+  },
+  "toolbox": {
+    "logClearFailed": "清理舊日誌失敗",
+    "logFilter": "篩選",
+    "logLoadFailed": "載入日誌失敗",
+    "logOpenDirFailed": "開啟日誌目錄失敗",
+    "logClearOld": "清理舊日誌",
+    "logClearSuccess": "日誌清理完成",
+    "logEmpty": "暫無日誌記錄",
+    "logExport": "匯出全部日誌",
+    "logExportFailed": "匯出日誌失敗",
+    "logExportSuccess": "日誌已匯出到：{{path}}",
+    "logLines": "共 {{count}} 行日誌",
+    "logOpenDir": "開啟目錄",
+    "logsTitle": "應用日誌",
+    "saveBackupTitle": "存檔備份",
+    "saveBackupDesc": "一鍵備份所有存檔，支援建立多個快照以便隨時回溯",
+    "saveEditorBuildingAction": "操作",
+    "saveEditorBuildingDelete": "拆除",
+    "saveEditorBuildingDeleteConfirm": "確定拆除此建築？",
+    "saveEditorCookingRecipes": "烹飪食譜",
+    "saveEditorCraftingRecipes": "製作食譜",
+    "saveEditorFriendshipGiftsToday": "今日送禮",
+    "saveEditorFriendshipGiftsWeek": "本週送禮",
+    "saveEditorFriendshipHearts": "好感度",
+    "saveEditorFriendshipNpc": "NPC",
+    "saveEditorFriendshipStatus": "關係",
+    "saveEditorFriendshipTalked": "今日是否交談",
+    "saveEditorRecipeEmpty": "暫無食譜資料",
+    "saveEditorRecipeName": "食譜名稱",
+    "saveEditorRecipeTimesCrafted": "已製作次數",
+    "saveEditorRecipeUnlocked": "是否解鎖",
+    "saveEditorTabFriendships": "NPC好感",
+    "saveEditorTabRecipes": "食譜"
+  },
+  "saveBackup": {
+    "title": "存檔備份",
+    "openFolder": "開啟備份目錄",
+    "goToSaveEditor": "前往存檔編輯器",
+    "total": "總計",
+    "totalSize": "總大小",
+    "empty": "暫無存檔備份",
+    "emptyHint": "使用存檔編輯器修改存檔時，會自動在此建立備份",
+    "unknown": "未知角色",
+    "confirmRestore": "確定要還原此備份嗎？當前存檔將被覆蓋。",
+    "restore": "還原",
+    "confirmDelete": "確定要刪除此備份嗎？",
+    "deleteSuccess": "備份已刪除",
+    "restoreSuccess": "存檔已還原",
+    "sourceAuto": "自動",
+    "sourceManual": "手動"
   }
 }

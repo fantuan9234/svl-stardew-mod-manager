@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use serde_json::json;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::Manager;
 
@@ -526,6 +528,23 @@ fn detect_smapi_version(game_path: &PathBuf) -> Option<String> {
 
 #[tauri::command]
 pub fn detect_game_path() -> Result<GamePathInfo, String> {
+    detect_game_path_inner(&settings_file_path())
+}
+
+pub(crate) fn detect_game_path_inner(target_settings: &Path) -> Result<GamePathInfo, String> {
+    if let Some(custom) = load_custom_game_path_from(target_settings) {
+        let p = expand_tilde(PathBuf::from(&custom));
+        if p.exists() && is_valid_game_path(&p) {
+            return Ok(GamePathInfo {
+                steam_path: None,
+                gog_path: None,
+                xbox_path: None,
+                detected_path: Some(p.to_string_lossy().to_string()),
+                detection_method: Some("Manual".to_string()),
+            });
+        }
+    }
+
     let (detected_path, method) = find_game_path()
         .map(|(p, m)| (p.to_string_lossy().to_string(), m))
         .unzip();
@@ -591,23 +610,7 @@ pub fn check_smapi_status(custom_path: Option<String>) -> Result<SmapiInfo, Stri
 
 #[tauri::command]
 pub fn set_custom_game_path(path: &str) -> Result<GamePathInfo, String> {
-    let game_path = PathBuf::from(path);
-
-    if !game_path.exists() {
-        return Err(format!("路径不存在: {}", game_path.display()));
-    }
-
-    if !is_valid_game_path(&game_path) {
-        return Err("未找到有效的星露谷物语游戏目录".to_string());
-    }
-
-    Ok(GamePathInfo {
-        steam_path: None,
-        gog_path: None,
-        xbox_path: None,
-        detected_path: Some(game_path.to_string_lossy().to_string()),
-        detection_method: Some("Manual".to_string()),
-    })
+    set_custom_game_path_inner(&settings_file_path(), path)
 }
 
 #[tauri::command]
@@ -625,4 +628,188 @@ pub fn open_smapi_installer() -> Result<bool, String> {
     tauri_plugin_opener::open_url("https://smapi.io", Option::<&str>::None)
         .map_err(|e| format!("Cannot open SMAPI installer page: {}", e))?;
     Ok(true)
+}
+
+pub(crate) fn settings_file_path() -> PathBuf {
+    crate::app_logger::get_svl_data_dir().join("settings.json")
+}
+
+pub(crate) fn load_custom_game_path_from(settings_path: &Path) -> Option<String> {
+    let content = fs::read_to_string(settings_path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&content).ok()?;
+    value
+        .get("custom_game_path")
+        .and_then(|p| p.as_str())
+        .map(|s| s.to_string())
+}
+
+pub(crate) fn save_custom_game_path_to(settings_path: &Path, path: &str) -> Result<(), String> {
+    let mut value: serde_json::Value = fs::read_to_string(settings_path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| json!({}));
+    value["custom_game_path"] = serde_json::Value::String(path.to_string());
+    if let Some(parent) = settings_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let serialized = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
+    fs::write(settings_path, serialized).map_err(|e| e.to_string())
+}
+
+pub(crate) fn set_custom_game_path_inner(
+    settings_path: &Path,
+    path: &str,
+) -> Result<GamePathInfo, String> {
+    let game_path = PathBuf::from(path);
+
+    if !game_path.exists() {
+        return Err(format!("路径不存在: {}", game_path.display()));
+    }
+
+    if !is_valid_game_path(&game_path) {
+        return Err("未找到有效的星露谷物语游戏目录".to_string());
+    }
+
+    save_custom_game_path_to(settings_path, &game_path.to_string_lossy())?;
+
+    Ok(GamePathInfo {
+        steam_path: None,
+        gog_path: None,
+        xbox_path: None,
+        detected_path: Some(game_path.to_string_lossy().to_string()),
+        detection_method: Some("Manual".to_string()),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_fake_game_dir() -> (tempfile::TempDir, PathBuf) {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let game = dir.path().join("Stardew Valley");
+        fs::create_dir_all(&game).expect("mkdir game");
+
+        #[cfg(target_os = "windows")]
+        {
+            fs::write(game.join("Stardew Valley.exe"), b"fake").expect("write exe");
+        }
+        #[cfg(target_os = "macos")]
+        {
+            fs::write(game.join("Stardew Valley"), b"fake").expect("write bin");
+            fs::create_dir_all(game.join("Contents").join("MacOS")).expect("mkdir macos");
+        }
+        #[cfg(target_os = "linux")]
+        {
+            fs::write(game.join("Stardew Valley"), b"fake").expect("write bin");
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+        {
+            fs::write(game.join("Stardew Valley.exe"), b"fake").expect("write exe");
+        }
+
+        (dir, game)
+    }
+
+    #[test]
+    fn load_custom_game_path_returns_none_when_file_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = dir.path().join("settings.json");
+        assert_eq!(load_custom_game_path_from(&settings), None);
+    }
+
+    #[test]
+    fn save_custom_game_path_creates_settings_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = dir.path().join("settings.json");
+        let game = dir.path().join("Stardew Valley");
+
+        save_custom_game_path_to(&settings, game.to_str().unwrap()).unwrap();
+
+        assert!(settings.exists());
+        let raw = fs::read_to_string(&settings).unwrap();
+        assert!(raw.contains("custom_game_path"));
+    }
+
+    #[test]
+    fn save_then_load_custom_game_path_roundtrips() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = dir.path().join("settings.json");
+        let game = dir.path().join("Stardew Valley");
+
+        save_custom_game_path_to(&settings, game.to_str().unwrap()).unwrap();
+        let loaded = load_custom_game_path_from(&settings);
+
+        assert_eq!(loaded, Some(game.to_string_lossy().to_string()));
+    }
+
+    #[test]
+    fn set_custom_game_path_inner_persists_valid_path() {
+        let (dir, game) = create_fake_game_dir();
+        let settings = dir.path().join("settings.json");
+
+        let info = set_custom_game_path_inner(&settings, game.to_str().unwrap())
+            .expect("should accept valid game path");
+
+        assert_eq!(info.detection_method.as_deref(), Some("Manual"));
+        assert!(load_custom_game_path_from(&settings).is_some());
+    }
+
+    #[test]
+    fn set_custom_game_path_inner_rejects_nonexistent_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = dir.path().join("settings.json");
+        let missing = dir.path().join("does_not_exist");
+
+        let result = set_custom_game_path_inner(&settings, missing.to_str().unwrap());
+
+        assert!(result.is_err());
+        assert!(!settings.exists(), "settings file must not be created on failure");
+    }
+
+    #[test]
+    fn set_custom_game_path_inner_rejects_invalid_game_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = dir.path().join("settings.json");
+        let not_a_game = dir.path().join("not_a_game");
+        fs::create_dir_all(&not_a_game).unwrap();
+
+        let result = set_custom_game_path_inner(&settings, not_a_game.to_str().unwrap());
+
+        assert!(result.is_err());
+        assert!(!settings.exists());
+    }
+
+    #[test]
+    fn detect_game_path_inner_prefers_manual_when_valid() {
+        let (dir, game) = create_fake_game_dir();
+        let settings = dir.path().join("settings.json");
+        save_custom_game_path_to(&settings, game.to_str().unwrap()).unwrap();
+
+        let info = detect_game_path_inner(&settings).expect("should detect");
+
+        assert_eq!(info.detection_method.as_deref(), Some("Manual"));
+        assert_eq!(
+            info.detected_path.as_deref(),
+            Some(game.to_string_lossy().as_ref())
+        );
+    }
+
+    #[test]
+    fn detect_game_path_inner_ignores_stale_manual_path() {
+        let (dir, _game) = create_fake_game_dir();
+        let settings = dir.path().join("settings.json");
+        let stale = dir.path().join("Stardew Valley Deleted");
+        save_custom_game_path_to(&settings, stale.to_str().unwrap()).unwrap();
+
+        let info = detect_game_path_inner(&settings).expect("should not error");
+
+        if info.detection_method.is_some() {
+            assert_ne!(
+                info.detection_method.as_deref(),
+                Some("Manual"),
+                "stale manual path must not be returned as Manual"
+            );
+        }
+    }
 }
